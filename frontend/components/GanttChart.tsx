@@ -14,6 +14,7 @@ export default function GanttChart() {
   const [currentUserId, setCurrentUserId] = useState<string>('') // Global state for simulated user login
   const [currentUserRoleId, setCurrentUserRoleId] = useState<string>('') // Global state for user role ID
   const [currentUserRoleName, setCurrentUserRoleName] = useState<string>('') // For display purposes
+  const [accessibleUserIds, setAccessibleUserIds] = useState<string[]>([]) // User IDs this user can access
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -44,11 +45,14 @@ export default function GanttChart() {
         return
       }
 
-      const roleId = userData?.role_id || ''
+      const roleId = String(userData?.role_id || '')
       const roleName = (userData?.roles as any)?.name || ''
       console.log('🎭 User role fetched - ID:', roleId, 'Name:', roleName)
       setCurrentUserRoleId(roleId)
       setCurrentUserRoleName(roleName)
+      
+      // Set accessible users based on role
+      await setAccessibleUsers(userId, roleId)
     } catch (err) {
       console.error('❌ Error in fetchCurrentUserRole:', err)
       setCurrentUserRoleId('')
@@ -59,13 +63,21 @@ export default function GanttChart() {
   // Refetch data when current user changes
   useEffect(() => {
     if (currentUserId) {
-      fetchTasksAndUsers()
       fetchCurrentUserRole(currentUserId)
     } else {
       setCurrentUserRoleId('')
       setCurrentUserRoleName('')
+      setAccessibleUserIds([])
     }
   }, [currentUserId])
+
+  // Refetch tasks when accessible user IDs change (after role is determined)
+  useEffect(() => {
+    if (accessibleUserIds.length > 0) {
+      console.log('🔄 Accessible user IDs changed, refetching tasks')
+      fetchTasksAndUsers()
+    }
+  }, [accessibleUserIds])
 
   useEffect(() => {
     const handleResize = () => {
@@ -81,13 +93,15 @@ export default function GanttChart() {
       setLoading(true)
       console.log('🔄 Fetching data from Supabase...')
       
-      // Fetch tasks for current user only (if user is selected)
-      const { data: tasks, error: tasksError } = currentUserId 
+      // Fetch tasks based on accessible user IDs (role-based access)
+      const { data: tasks, error: tasksError } = accessibleUserIds.length > 0
         ? await supabase
             .from('tasks')
             .select('*')
-            .eq('owned_by', currentUserId)
+            .in('owned_by', accessibleUserIds)
         : { data: [], error: null }
+      
+      console.log('🎯 Fetching tasks for accessible user IDs:', accessibleUserIds)
 
       console.log('👤 Current user ID:', currentUserId)
       console.log('📋 Tasks query result:', { tasks, tasksError })
@@ -161,6 +175,47 @@ export default function GanttChart() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
+  }
+
+  // Function to determine accessible user IDs based on role
+  const setAccessibleUsers = async (userId: string, userRoleId: string) => {
+    console.log('🔍 Setting accessible users for user:', userId, 'with role:', userRoleId)
+    
+    if (userRoleId === '2') {
+      console.log('👑 Manager detected - finding subordinates')
+      
+      try {
+        const { data: subordinates, error } = await supabase
+          .from('users')
+          .select('id')
+          .eq('manager_id', userId)
+        
+        if (error) {
+          console.error('❌ Error fetching subordinates:', error)
+          setAccessibleUserIds([userId]) // Fallback to just own tasks
+          return
+        }
+        
+        const subordinateIds = subordinates?.map(sub => sub.id) || []
+        const allAccessibleIds = [userId, ...subordinateIds] // Manager + subordinates
+        
+        console.log('👥 Found subordinates:', subordinates)
+        console.log('📝 Subordinate IDs:', subordinateIds)
+        console.log('🎯 All accessible user IDs:', allAccessibleIds)
+        console.log('🔢 Total accessible users:', allAccessibleIds.length)
+        
+        setAccessibleUserIds(allAccessibleIds)
+      } catch (err) {
+        console.error('❌ Error in setAccessibleUsers:', err)
+        setAccessibleUserIds([userId]) // Fallback to just own tasks
+      }
+    } else if (userRoleId === '3') {
+      console.log('👤 Regular user - can only access own tasks')
+      setAccessibleUserIds([userId])
+    } else {
+      console.log('❓ Unknown role - defaulting to own tasks only')
+      setAccessibleUserIds([userId])
+    }
   }
 
   // Generate days for the current month with responsive intervals
