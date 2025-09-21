@@ -12,7 +12,8 @@ export default function GanttChart() {
   const [tasksByUser, setTasksByUser] = useState<TasksByUser[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [currentUserId, setCurrentUserId] = useState<string>('') // Global state for simulated user login
-  const [currentUserRole, setCurrentUserRole] = useState<string>('') // Global state for user role
+  const [currentUserRoleId, setCurrentUserRoleId] = useState<string>('') // Global state for user role ID
+  const [currentUserRoleName, setCurrentUserRoleName] = useState<string>('') // For display purposes
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -37,17 +38,21 @@ export default function GanttChart() {
         .single()
 
       if (error) {
-        console.error('Error fetching user role:', error)
-        setCurrentUserRole('')
+        console.error('❌ Error fetching user role:', error)
+        setCurrentUserRoleId('')
+        setCurrentUserRoleName('')
         return
       }
 
+      const roleId = userData?.role_id || ''
       const roleName = (userData?.roles as any)?.name || ''
-      console.log('User role fetched:', roleName)
-      setCurrentUserRole(roleName)
+      console.log('🎭 User role fetched - ID:', roleId, 'Name:', roleName)
+      setCurrentUserRoleId(roleId)
+      setCurrentUserRoleName(roleName)
     } catch (err) {
-      console.error('Error in fetchCurrentUserRole:', err)
-      setCurrentUserRole('')
+      console.error('❌ Error in fetchCurrentUserRole:', err)
+      setCurrentUserRoleId('')
+      setCurrentUserRoleName('')
     }
   }
 
@@ -57,7 +62,8 @@ export default function GanttChart() {
       fetchTasksAndUsers()
       fetchCurrentUserRole(currentUserId)
     } else {
-      setCurrentUserRole('')
+      setCurrentUserRoleId('')
+      setCurrentUserRoleName('')
     }
   }, [currentUserId])
 
@@ -73,7 +79,7 @@ export default function GanttChart() {
   const fetchTasksAndUsers = async () => {
     try {
       setLoading(true)
-      console.log('Fetching data from Supabase...')
+      console.log('🔄 Fetching data from Supabase...')
       
       // Fetch tasks for current user only (if user is selected)
       const { data: tasks, error: tasksError } = currentUserId 
@@ -83,12 +89,12 @@ export default function GanttChart() {
             .eq('owned_by', currentUserId)
         : { data: [], error: null }
 
-      console.log('Current user ID:', currentUserId)
-      console.log('Tasks query result:', { tasks, tasksError })
-      console.log('Number of tasks found:', tasks?.length || 0)
+      console.log('👤 Current user ID:', currentUserId)
+      console.log('📋 Tasks query result:', { tasks, tasksError })
+      console.log('🔢 Number of tasks found:', tasks?.length || 0)
 
       if (tasksError) {
-        console.error('Tasks error:', tasksError)
+        console.error('❌ Tasks error:', tasksError)
         throw new Error(`Tasks table error: ${tasksError.message}`)
       }
 
@@ -100,11 +106,11 @@ export default function GanttChart() {
           roles(name)
         `)
 
-      console.log('Users query result:', { users, usersError })
-      console.log('Number of users found:', users?.length || 0)
+      console.log('👥 Users query result:', { users, usersError })
+      console.log('🔢 Number of users found:', users?.length || 0)
 
       if (usersError) {
-        console.error('Users error:', usersError)
+        console.error('❌ Users error:', usersError)
         throw new Error(`Users table error: ${usersError.message}`)
       }
 
@@ -142,11 +148,11 @@ export default function GanttChart() {
         return acc
       }, {})
 
-      console.log('Grouped data:', grouped)
+      console.log('📊 Grouped data:', grouped)
       setTasksByUser(Object.values(grouped || {}))
       setAllUsers(users || [])
     } catch (err) {
-      console.error('Fetch error:', err)
+      console.error('❌ Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
     } finally {
       setLoading(false)
@@ -343,8 +349,8 @@ export default function GanttChart() {
             <select
               value={currentUserId}
               onChange={(e) => {
-                console.log('User login simulation - Selected user ID:', e.target.value)
-                console.log('Available users for reference:', allUsers.map(u => ({ id: u.id, name: u.name })))
+                console.log('👤 User login simulation - Selected user ID:', e.target.value)
+                console.log('👥 Available users for reference:', allUsers.map(u => ({ id: u.id, name: u.name })))
                 setCurrentUserId(e.target.value)
               }}
               className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
@@ -361,13 +367,13 @@ export default function GanttChart() {
               ))}
             </select>
             {/* Display current user role */}
-            {currentUserRole && (
+            {currentUserRoleName && (
               <span className={`text-sm px-2 py-1 rounded ${
                 isDarkMode 
                   ? 'bg-gray-700 text-gray-300' 
                   : 'bg-gray-100 text-gray-600'
               }`}>
-                Role: {currentUserRole}
+                Role: {currentUserRoleName}
               </span>
             )}
           </div>
