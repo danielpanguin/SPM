@@ -16,6 +16,7 @@ export default function GanttChart() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [collapsedUsers, setCollapsedUsers] = useState<Set<string>>(new Set())
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchTasksAndUsers()
@@ -94,7 +95,12 @@ export default function GanttChart() {
       }, {})
 
       console.log('Grouped data:', grouped)
-      setTasksByUser(Object.values(grouped || {}))
+      const groupedUsers = Object.values(grouped || {})
+      setTasksByUser(groupedUsers)
+      
+      // Initialize selectedUsers with all user IDs (show all users by default)
+      const allUserIds = new Set(groupedUsers.map(group => group.user.id))
+      setSelectedUsers(allUserIds)
     } catch (err) {
       console.error('Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -191,6 +197,31 @@ export default function GanttChart() {
 
   const isUserCollapsed = (userId: string) => collapsedUsers.has(userId)
 
+  // User filter functions
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(userId)) {
+        newSet.delete(userId)
+      } else {
+        newSet.add(userId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllUsers = () => {
+    const allUserIds = new Set(tasksByUser.map(group => group.user.id))
+    setSelectedUsers(allUserIds)
+  }
+
+  const deselectAllUsers = () => {
+    setSelectedUsers(new Set())
+  }
+
+  // Filter tasks by selected users
+  const filteredTasksByUser = tasksByUser.filter(group => selectedUsers.has(group.user.id))
+
   // Calculate task bar position and width for the current month
   const getTaskBarStyle = (task: Task) => {
     const taskStart = new Date(task.start_date)
@@ -278,17 +309,17 @@ export default function GanttChart() {
   const currentMonthDays = getCurrentMonthDays()
 
   return (
-    <div className={`w-full p-3 sm:p-6 transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
-          Task Timeline - Gantt Chart
+    <div className={`w-full p-2 sm:p-4 transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className={`text-xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+          Task Timeline
         </h1>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
           {/* Dark Mode Toggle */}
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-lg border transition-colors ${
+            className={`p-1.5 rounded border transition-colors ${
               isDarkMode 
                 ? 'border-gray-600 hover:bg-gray-800 text-gray-300' 
                 : 'border-gray-300 hover:bg-gray-50 text-gray-600'
@@ -296,11 +327,11 @@ export default function GanttChart() {
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {isDarkMode ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             )}
@@ -309,32 +340,32 @@ export default function GanttChart() {
           {/* Month Navigation */}
           <button 
             onClick={goToPreviousMonth}
-            className={`p-2 rounded-lg border transition-colors ${
+            className={`p-1.5 rounded border transition-colors ${
               isDarkMode 
                 ? 'border-gray-600 hover:bg-gray-800 text-gray-300' 
                 : 'border-gray-300 hover:bg-gray-50 text-gray-600'
             }`}
             title="Previous Month"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           
-          <div className={`text-lg font-semibold min-w-[160px] text-center ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+          <div className={`text-base font-semibold min-w-[140px] text-center ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
             {formatMonthYear(currentMonth)}
           </div>
           
           <button 
             onClick={goToNextMonth}
-            className={`p-2 rounded-lg border transition-colors ${
+            className={`p-1.5 rounded border transition-colors ${
               isDarkMode 
                 ? 'border-gray-600 hover:bg-gray-800 text-gray-300' 
                 : 'border-gray-300 hover:bg-gray-50 text-gray-600'
             }`}
             title="Next Month"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
@@ -345,6 +376,10 @@ export default function GanttChart() {
         <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
           No tasks found. Make sure your Supabase table has data.
         </div>
+      ) : filteredTasksByUser.length === 0 ? (
+        <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          No users selected. Use the legend below to select users to view.
+        </div>
       ) : (
         <div className={`w-full border rounded-lg overflow-x-auto ${
           isDarkMode 
@@ -354,7 +389,7 @@ export default function GanttChart() {
           <div className="min-w-[800px]">
           {/* Timeline Header */}
           <div className={`flex border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className={`w-48 sm:w-56 md:w-64 p-2 sm:p-3 md:p-4 font-medium border-r text-xs sm:text-sm ${
+            <div className={`w-44 sm:w-52 md:w-56 p-1.5 sm:p-2 md:p-3 font-medium border-r text-xs ${
               isDarkMode 
                 ? 'text-gray-200 border-gray-700 bg-gray-700' 
                 : 'text-gray-800 border-gray-200 bg-gray-50'
@@ -365,15 +400,13 @@ export default function GanttChart() {
               {currentMonthDays.map((day, index) => (
                 <div 
                   key={index} 
-                  className={`flex-1 p-1 sm:p-2 text-center font-medium border-r ${
-                    getDayInterval() > 1 ? 'text-xs sm:text-sm' : 'text-xs'
-                  } ${
+                  className={`flex-1 p-1 text-center font-medium border-r text-xs ${
                     isDarkMode 
                       ? 'text-gray-200 border-gray-700' 
                       : 'text-gray-800 border-gray-200'
                   }`}
                   style={{ 
-                    minWidth: screenWidth < 640 ? '40px' : screenWidth < 768 ? '35px' : '30px'
+                    minWidth: screenWidth < 640 ? '35px' : screenWidth < 768 ? '30px' : '25px'
                   }}
                 >
                   {day.getDate()}
@@ -384,21 +417,21 @@ export default function GanttChart() {
 
           {/* Task Rows */}
           <div>
-            {tasksByUser.map(({ user, tasks }) => (
+            {filteredTasksByUser.map(({ user, tasks }) => (
               <div key={user.id}>
                 {/* User Header */}
-                <div className={`flex items-center border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className={`flex items-center border-b ${isDarkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-100'}`}>
                   <button
                     onClick={() => toggleUserCollapse(user.id)}
-                    className={`w-48 sm:w-56 md:w-64 p-2 sm:p-3 font-medium border-r flex items-center justify-between transition-colors hover:opacity-80 text-xs sm:text-sm ${
+                    className={`w-44 sm:w-52 md:w-56 p-1.5 sm:p-2 font-medium border-r flex items-center justify-between transition-colors hover:opacity-80 text-xs ${
                       isDarkMode 
-                        ? 'text-gray-200 border-gray-700 bg-gray-700' 
-                        : 'text-gray-800 border-gray-200 bg-gray-100'
+                        ? 'text-gray-200 border-gray-600' 
+                        : 'text-gray-800 border-gray-300'
                     }`}
                   >
-                    <span>{user.name} ({tasks.length} tasks)</span>
+                    <span>{user.name} ({tasks.length})</span>
                     <svg 
-                      className={`w-4 h-4 transition-transform duration-200 ${
+                      className={`w-3 h-3 transition-transform duration-200 ${
                         isUserCollapsed(user.id) ? 'rotate-0' : 'rotate-90'
                       }`}
                       fill="none" 
@@ -408,15 +441,8 @@ export default function GanttChart() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
-                  <div className={`flex-1 relative h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    {/* Timeline grid lines */}
-                    {currentMonthDays.map((_, index) => (
-                      <div 
-                        key={index}
-                        className={`absolute top-0 h-full border-r ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}
-                        style={{ left: `${(index / currentMonthDays.length) * 100}%` }}
-                      />
-                    ))}
+                  <div className={`flex-1 relative h-6`}>
+                    {/* No grid lines for user header rows */}
                   </div>
                 </div>
 
@@ -432,7 +458,7 @@ export default function GanttChart() {
                           ? 'border-gray-700 hover:bg-gray-700' 
                           : 'border-gray-100 hover:bg-gray-50'
                       }`}>
-                        <div className={`w-48 sm:w-56 md:w-64 p-2 sm:p-3 text-xs sm:text-sm border-r ${
+                        <div className={`w-44 sm:w-52 md:w-56 p-1.5 sm:p-2 text-xs border-r ${
                           isDarkMode 
                             ? 'border-gray-700' 
                             : 'border-gray-200'
@@ -444,7 +470,7 @@ export default function GanttChart() {
                             {formatDate(task.start_date)} - {formatDate(task.end_date)}
                           </div>
                         </div>
-                        <div className={`flex-1 relative h-12 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <div className={`flex-1 relative h-10 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
                           {/* Timeline grid lines */}
                           {currentMonthDays.map((_, index) => (
                             <div 
@@ -457,7 +483,7 @@ export default function GanttChart() {
                           {/* Task Bar */}
                           {barStyle.display !== 'none' && (
                             <div 
-                              className={`absolute top-2 h-8 rounded ${getStatusColor(task.status)} flex items-center px-2 text-white text-xs font-medium`}
+                              className={`absolute top-1.5 h-6 rounded ${getStatusColor(task.status)} flex items-center px-2 text-white text-xs font-medium`}
                               style={barStyle}
                               title={`${task.title} (${task.status || 'No status'})`}
                             >
@@ -478,19 +504,87 @@ export default function GanttChart() {
         </div>
       )}
       
-      <div className={`mt-6 flex justify-between items-center text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-        <div>Total Users: {tasksByUser.length}</div>
-        <div>Total Tasks: {tasksByUser.reduce((sum, group) => sum + group.tasks.length, 0)}</div>
-        <button 
-          onClick={fetchTasksAndUsers}
-          className={`px-4 py-2 rounded transition-colors ${
-            isDarkMode 
-              ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' 
-              : 'bg-gray-600 text-white hover:bg-gray-700'
-          }`}
-        >
-          Refresh Data
-        </button>
+      <div className="mt-4 flex flex-col lg:flex-row justify-between gap-3">
+        {/* User Filter Legend */}
+        <div className={`border rounded p-3 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className={`text-xs font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+            User Filter ({selectedUsers.size}/{tasksByUser.length} selected)
+          </div>
+          
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            <button
+              onClick={selectAllUsers}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                isDarkMode
+                  ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={deselectAllUsers}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                isDarkMode
+                  ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              None
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 max-h-28 overflow-y-auto">
+            {tasksByUser.map(({ user, tasks }) => (
+              <label
+                key={user.id}
+                className={`flex items-center space-x-1.5 p-1.5 rounded cursor-pointer transition-colors ${
+                  isDarkMode
+                    ? 'hover:bg-gray-700'
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.has(user.id)}
+                  onChange={() => toggleUserSelection(user.id)}
+                  className={`rounded transition-colors ${
+                    isDarkMode
+                      ? 'bg-gray-700 border-gray-600 text-gray-400'
+                      : 'bg-white border-gray-300 text-gray-600'
+                  }`}
+                />
+                <span className={`text-xs truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                  {user.name} ({tasks.length})
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats and Refresh */}
+        <div className={`flex flex-col sm:flex-row lg:flex-col justify-between items-start lg:items-end gap-3 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          <div className="space-y-0.5">
+            <div>Total Users: {tasksByUser.length}</div>
+            <div>Visible: {filteredTasksByUser.length}</div>
+            <div>Total Tasks: {tasksByUser.reduce((sum, group) => sum + group.tasks.length, 0)}</div>
+            <div>Visible: {filteredTasksByUser.reduce((sum, group) => sum + group.tasks.length, 0)}</div>
+          </div>
+          <button 
+            onClick={fetchTasksAndUsers}
+            className={`px-3 py-1.5 rounded transition-colors text-xs ${
+              isDarkMode 
+                ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' 
+                : 'bg-gray-600 text-white hover:bg-gray-700'
+            }`}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
     </div>
   )
