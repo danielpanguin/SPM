@@ -2,80 +2,46 @@
 
 import { useState, useEffect } from 'react'
 import { supabase, Task, User } from '@/lib/supabase'
+import { useUser } from '@/contexts/UserContext'
 
 interface TasksByUser {
   user: User
   tasks: Task[]
 }
 
-export default function GanttChart() {
+interface GanttChartProps {
+  isDarkMode: boolean
+}
+
+export default function GanttChart({ isDarkMode }: GanttChartProps) {
+  const {
+    currentUserId,
+    currentUserRoleId,
+    currentUserRoleName,
+    accessibleUserIds
+  } = useUser()
+  
   const [tasksByUser, setTasksByUser] = useState<TasksByUser[]>([])
-  const [allUsers, setAllUsers] = useState<User[]>([])
-  const [currentUserId, setCurrentUserId] = useState<string>('') // Global state for simulated user login
-  const [currentUserRoleId, setCurrentUserRoleId] = useState<string>('') // Global state for user role ID
-  const [currentUserRoleName, setCurrentUserRoleName] = useState<string>('') // For display purposes
-  const [accessibleUserIds, setAccessibleUserIds] = useState<string[]>([]) // User IDs this user can access
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [isDarkMode, setIsDarkMode] = useState(false)
   const [collapsedUsers, setCollapsedUsers] = useState<Set<string>>(new Set())
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
 
+  // Initial load - set loading to false when component mounts
   useEffect(() => {
-    fetchTasksAndUsers()
+    setLoading(false)
   }, [])
-
-  // Fetch current user's role
-  const fetchCurrentUserRole = async (userId: string) => {
-    try {
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select(`
-          role_id,
-          roles(name)
-        `)
-        .eq('id', userId)
-        .single()
-
-      if (error) {
-        console.error('❌ Error fetching user role:', error)
-        setCurrentUserRoleId('')
-        setCurrentUserRoleName('')
-        return
-      }
-
-      const roleId = String(userData?.role_id || '')
-      const roleName = (userData?.roles as any)?.name || ''
-      console.log('🎭 User role fetched - ID:', roleId, 'Name:', roleName)
-      setCurrentUserRoleId(roleId)
-      setCurrentUserRoleName(roleName)
-      
-      // Set accessible users based on role
-      await setAccessibleUsers(userId, roleId)
-    } catch (err) {
-      console.error('❌ Error in fetchCurrentUserRole:', err)
-      setCurrentUserRoleId('')
-      setCurrentUserRoleName('')
-    }
-  }
-
-  // Refetch data when current user changes
-  useEffect(() => {
-    if (currentUserId) {
-      fetchCurrentUserRole(currentUserId)
-    } else {
-      setCurrentUserRoleId('')
-      setCurrentUserRoleName('')
-      setAccessibleUserIds([])
-    }
-  }, [currentUserId])
 
   // Refetch tasks when accessible user IDs change (after role is determined)
   useEffect(() => {
     if (accessibleUserIds.length > 0) {
       console.log('🔄 Accessible user IDs changed, refetching tasks')
       fetchTasksAndUsers()
+    } else {
+      // Clear tasks when no accessible users
+      setTasksByUser([])
+      setLoading(false)
     }
   }, [accessibleUserIds])
 
@@ -115,13 +81,16 @@ export default function GanttChart() {
         throw new Error(`Tasks table error: ${tasksError.message}`)
       }
 
-      // Fetch all users with role information (always needed for dropdown)
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select(`
-          *,
-          roles(name)
-        `)
+      // Fetch users for accessible user IDs
+      const { data: users, error: usersError } = accessibleUserIds.length > 0
+        ? await supabase
+            .from('users')
+            .select(`
+              *,
+              roles(name)
+            `)
+            .in('id', accessibleUserIds)
+        : { data: [], error: null }
 
       console.log('👥 Users query result:', { users, usersError })
       console.log('🔢 Number of users found:', users?.length || 0)
@@ -167,7 +136,6 @@ export default function GanttChart() {
 
       console.log('📊 Grouped data:', grouped)
       setTasksByUser(Object.values(grouped || {}))
-      setAllUsers(users || [])
     } catch (err) {
       console.error('❌ Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -180,46 +148,6 @@ export default function GanttChart() {
     return new Date(dateString).toLocaleDateString()
   }
 
-  // Function to determine accessible user IDs based on role
-  const setAccessibleUsers = async (userId: string, userRoleId: string) => {
-    console.log('🔍 Setting accessible users for user:', userId, 'with role:', userRoleId)
-    
-    if (userRoleId === '2') {
-      console.log('👑 Manager detected - finding subordinates')
-      
-      try {
-        const { data: subordinates, error } = await supabase
-          .from('users')
-          .select('id')
-          .eq('manager_id', userId)
-        
-        if (error) {
-          console.error('❌ Error fetching subordinates:', error)
-          setAccessibleUserIds([userId]) // Fallback to just own tasks
-          return
-        }
-        
-        const subordinateIds = subordinates?.map(sub => sub.id) || []
-        const allAccessibleIds = [userId, ...subordinateIds] // Manager + subordinates
-        
-        console.log('👥 Found subordinates:', subordinates)
-        console.log('📝 Subordinate IDs:', subordinateIds)
-        console.log('🎯 All accessible user IDs:', allAccessibleIds)
-        console.log('🔢 Total accessible users:', allAccessibleIds.length)
-        
-        setAccessibleUserIds(allAccessibleIds)
-      } catch (err) {
-        console.error('❌ Error in setAccessibleUsers:', err)
-        setAccessibleUserIds([userId]) // Fallback to just own tasks
-      }
-    } else if (userRoleId === '3') {
-      console.log('👤 Regular user - can only access own tasks')
-      setAccessibleUserIds([userId])
-    } else {
-      console.log('❓ Unknown role - defaulting to own tasks only')
-      setAccessibleUserIds([userId])
-    }
-  }
 
   // Generate days for the current month with responsive intervals
   const getCurrentMonthDays = () => {
@@ -310,30 +238,69 @@ export default function GanttChart() {
     const taskStart = new Date(task.start_date)
     const taskEnd = new Date(task.end_date)
     
-    // Get the boundaries of the current month
-    const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
-    const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
+    // Get the displayed days for the current month
+    const displayedDays = getCurrentMonthDays()
     
-    // Check if task overlaps with current month
-    if (taskEnd < monthStart || taskStart > monthEnd) {
+    if (displayedDays.length === 0) {
+      return { left: '0%', width: '0%', display: 'none' }
+    }
+    
+    // Get the boundaries of the displayed timeline
+    const timelineStart = displayedDays[0]
+    const timelineEnd = new Date(displayedDays[displayedDays.length - 1])
+    timelineEnd.setHours(23, 59, 59, 999) // End of last displayed day
+    
+    // Check if task overlaps with displayed timeline
+    if (taskEnd < timelineStart || taskStart > timelineEnd) {
       return { left: '0%', width: '0%', display: 'none' }
     }
     
     // Calculate overlap period
-    const overlapStart = new Date(Math.max(taskStart.getTime(), monthStart.getTime()))
-    const overlapEnd = new Date(Math.min(taskEnd.getTime(), monthEnd.getTime()))
+    const overlapStart = new Date(Math.max(taskStart.getTime(), timelineStart.getTime()))
+    const overlapEnd = new Date(Math.min(taskEnd.getTime(), timelineEnd.getTime()))
     
-    // Calculate position within the month
-    const monthDuration = monthEnd.getTime() - monthStart.getTime()
-    const startOffset = overlapStart.getTime() - monthStart.getTime()
-    const overlapDuration = overlapEnd.getTime() - overlapStart.getTime()
+    // Find which day columns the task should start and end in
+    let startColumnIndex = 0
+    let endColumnIndex = displayedDays.length - 1
     
-    const leftPercentage = (startOffset / monthDuration) * 100
-    const widthPercentage = (overlapDuration / monthDuration) * 100
+    // Find start column (day where task begins)
+    for (let i = 0; i < displayedDays.length; i++) {
+      const dayStart = new Date(displayedDays[i])
+      const dayEnd = new Date(displayedDays[i])
+      dayEnd.setHours(23, 59, 59, 999)
+      
+      if (overlapStart >= dayStart && overlapStart <= dayEnd) {
+        startColumnIndex = i
+        break
+      } else if (overlapStart < dayStart) {
+        startColumnIndex = i
+        break
+      }
+    }
+    
+    // Find end column (day where task ends)
+    for (let i = displayedDays.length - 1; i >= 0; i--) {
+      const dayStart = new Date(displayedDays[i])
+      const dayEnd = new Date(displayedDays[i])
+      dayEnd.setHours(23, 59, 59, 999)
+      
+      if (overlapEnd >= dayStart && overlapEnd <= dayEnd) {
+        endColumnIndex = i
+        break
+      } else if (overlapEnd > dayEnd) {
+        endColumnIndex = i
+        break
+      }
+    }
+    
+    // Calculate position and width based on column positions
+    const columnWidth = 100 / displayedDays.length
+    const leftPercentage = startColumnIndex * columnWidth
+    const widthPercentage = (endColumnIndex - startColumnIndex + 1) * columnWidth
     
     return {
       left: `${Math.max(0, leftPercentage)}%`,
-      width: `${Math.max(2, widthPercentage)}%`
+      width: `${Math.max(columnWidth, widthPercentage)}%`
     }
   }
 
@@ -382,64 +349,6 @@ export default function GanttChart() {
         </h1>
         
         <div className="flex items-center space-x-4">
-          {/* User Login Simulation Dropdown */}
-          <div className="flex items-center space-x-2">
-            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Login as:
-            </label>
-            <select
-              value={currentUserId}
-              onChange={(e) => {
-                console.log('👤 User login simulation - Selected user ID:', e.target.value)
-                console.log('👥 Available users for reference:', allUsers.map(u => ({ id: u.id, name: u.name })))
-                setCurrentUserId(e.target.value)
-              }}
-              className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
-                isDarkMode 
-                  ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700' 
-                  : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
-              }`}
-            >
-              <option value="">Select User</option>
-              {allUsers.map(user => (
-                <option key={user.id} value={user.id}>
-                  {user.name || user.email || `User ${user.id}`}
-                </option>
-              ))}
-            </select>
-            {/* Display current user role */}
-            {currentUserRoleName && (
-              <span className={`text-sm px-2 py-1 rounded ${
-                isDarkMode 
-                  ? 'bg-gray-700 text-gray-300' 
-                  : 'bg-gray-100 text-gray-600'
-              }`}>
-                Role: {currentUserRoleName}
-              </span>
-            )}
-          </div>
-          
-          {/* Dark Mode Toggle */}
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-lg border transition-colors ${
-              isDarkMode 
-                ? 'border-gray-600 hover:bg-gray-800 text-gray-300' 
-                : 'border-gray-300 hover:bg-gray-50 text-gray-600'
-            }`}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDarkMode ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
-          
           {/* Month Navigation */}
           <button 
             onClick={goToPreviousMonth}
