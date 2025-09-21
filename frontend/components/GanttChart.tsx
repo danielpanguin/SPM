@@ -97,7 +97,10 @@ export default function GanttChart() {
       const { data: tasks, error: tasksError } = accessibleUserIds.length > 0
         ? await supabase
             .from('tasks')
-            .select('*')
+            .select(`
+              *,
+              status(status)
+            `)
             .in('owned_by', accessibleUserIds)
         : { data: [], error: null }
       
@@ -334,30 +337,13 @@ export default function GanttChart() {
     }
   }
 
-  const getStatusColor = (status?: string) => {
-    if (isDarkMode) {
-      switch (status) {
-        case 'completed':
-          return 'bg-gray-500'
-        case 'in_progress':
-          return 'bg-gray-600'
-        case 'pending':
-          return 'bg-gray-700'
-        default:
-          return 'bg-gray-800'
-      }
-    } else {
-      switch (status) {
-        case 'completed':
-          return 'bg-gray-700'
-        case 'in_progress':
-          return 'bg-gray-600'
-        case 'pending':
-          return 'bg-gray-500'
-        default:
-          return 'bg-gray-500'
-      }
+  const getTaskColor = (task: Task) => {
+    // Check if task is overdue
+    if (task.is_overdue) {
+      return 'bg-red-500'
     }
+    // Default color for all other tasks
+    return isDarkMode ? 'bg-gray-600' : 'bg-gray-500'
   }
 
   const formatMonthYear = (date: Date) => {
@@ -605,13 +591,18 @@ export default function GanttChart() {
                           {/* Task Bar */}
                           {barStyle.display !== 'none' && (
                             <div 
-                              className={`absolute top-2 h-8 rounded ${getStatusColor(task.status)} flex items-center px-2 text-white text-xs font-medium`}
+                              className={`absolute top-2 h-8 rounded ${getTaskColor(task)} flex items-center justify-between px-2 text-white text-xs font-medium`}
                               style={barStyle}
-                              title={`${task.title} (${task.status || 'No status'})`}
+                              title={`${task.title} (${(task.status as any)?.status || 'No status'})`}
                             >
                               <span className="truncate">
-                                {task.progress ? `${task.progress}%` : task.status || 'N/A'}
+                                {task.progress ? `${task.progress}%` : (task.status as any)?.status || 'N/A'}
                               </span>
+                              {task.is_overdue && (
+                                <span className="ml-2 px-1 py-0.5 bg-red-600 rounded text-xs font-bold">
+                                  OVERDUE
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>

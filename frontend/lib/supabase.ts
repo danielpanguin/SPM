@@ -15,7 +15,11 @@ export interface Task {
   owned_by: string
   user_name?: string
   progress?: number
-  status?: 'pending' | 'in_progress' | 'completed'
+  status_id: string
+  status?: {
+    status: string
+  }
+  is_overdue?: boolean
   created_at: string
   updated_at: string
 }
