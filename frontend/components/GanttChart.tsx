@@ -177,17 +177,6 @@ export default function GanttChart() {
     return new Date(dateString).toLocaleDateString()
   }
 
-  // Check if a task is overdue
-  const isTaskOverdue = (task: Task) => {
-    const today = new Date()
-    const endDate = new Date(task.end_date)
-    today.setHours(0, 0, 0, 0) // Reset time to start of day
-    endDate.setHours(0, 0, 0, 0) // Reset time to start of day
-    
-    // Task is overdue if end date is before today and status is not completed
-    return endDate < today && task.status !== 'completed'
-  }
-
   // Function to determine accessible user IDs based on role
   const setAccessibleUsers = async (userId: string, userRoleId: string) => {
     console.log('🔍 Setting accessible users for user:', userId, 'with role:', userRoleId)
@@ -345,15 +334,9 @@ export default function GanttChart() {
     }
   }
 
-  const getStatusColor = (task: Task) => {
-    // Check if task is overdue first - overrides other colors
-    if (isTaskOverdue(task)) {
-      return 'bg-red-500' // Red for overdue tasks
-    }
-    
-    // Regular status colors
+  const getStatusColor = (status?: string) => {
     if (isDarkMode) {
-      switch (task.status) {
+      switch (status) {
         case 'completed':
           return 'bg-gray-500'
         case 'in_progress':
@@ -364,7 +347,7 @@ export default function GanttChart() {
           return 'bg-gray-800'
       }
     } else {
-      switch (task.status) {
+      switch (status) {
         case 'completed':
           return 'bg-gray-700'
         case 'in_progress':
@@ -622,9 +605,9 @@ export default function GanttChart() {
                           {/* Task Bar */}
                           {barStyle.display !== 'none' && (
                             <div 
-                              className={`absolute top-2 h-8 rounded ${getStatusColor(task)} flex items-center px-2 text-white text-xs font-medium`}
+                              className={`absolute top-2 h-8 rounded ${getStatusColor(task.status)} flex items-center px-2 text-white text-xs font-medium`}
                               style={barStyle}
-                              title={`${task.title} (${task.status || 'No status'})${isTaskOverdue(task) ? ' - OVERDUE' : ''}`}
+                              title={`${task.title} (${task.status || 'No status'})`}
                             >
                               <span className="truncate">
                                 {task.progress ? `${task.progress}%` : task.status || 'N/A'}
