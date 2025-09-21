@@ -12,6 +12,7 @@ export default function GanttChart() {
   const [tasksByUser, setTasksByUser] = useState<TasksByUser[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [currentUserId, setCurrentUserId] = useState<string>('') // Global state for simulated user login
+  const [currentUserRole, setCurrentUserRole] = useState<string>('') // Global state for user role
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -23,10 +24,40 @@ export default function GanttChart() {
     fetchTasksAndUsers()
   }, [])
 
+  // Fetch current user's role
+  const fetchCurrentUserRole = async (userId: string) => {
+    try {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select(`
+          role_id,
+          roles(name)
+        `)
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        console.error('Error fetching user role:', error)
+        setCurrentUserRole('')
+        return
+      }
+
+      const roleName = (userData?.roles as any)?.name || ''
+      console.log('User role fetched:', roleName)
+      setCurrentUserRole(roleName)
+    } catch (err) {
+      console.error('Error in fetchCurrentUserRole:', err)
+      setCurrentUserRole('')
+    }
+  }
+
   // Refetch data when current user changes
   useEffect(() => {
     if (currentUserId) {
       fetchTasksAndUsers()
+      fetchCurrentUserRole(currentUserId)
+    } else {
+      setCurrentUserRole('')
     }
   }, [currentUserId])
 
@@ -61,10 +92,13 @@ export default function GanttChart() {
         throw new Error(`Tasks table error: ${tasksError.message}`)
       }
 
-      // Fetch all users (always needed for dropdown)
+      // Fetch all users with role information (always needed for dropdown)
       const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          roles(name)
+        `)
 
       console.log('Users query result:', { users, usersError })
       console.log('Number of users found:', users?.length || 0)
@@ -326,6 +360,16 @@ export default function GanttChart() {
                 </option>
               ))}
             </select>
+            {/* Display current user role */}
+            {currentUserRole && (
+              <span className={`text-sm px-2 py-1 rounded ${
+                isDarkMode 
+                  ? 'bg-gray-700 text-gray-300' 
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                Role: {currentUserRole}
+              </span>
+            )}
           </div>
           
           {/* Dark Mode Toggle */}
