@@ -10,6 +10,8 @@ interface TasksByUser {
 
 export default function GanttChart() {
   const [tasksByUser, setTasksByUser] = useState<TasksByUser[]>([])
+  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string>('') // Global state for simulated user login
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -20,6 +22,13 @@ export default function GanttChart() {
   useEffect(() => {
     fetchTasksAndUsers()
   }, [])
+
+  // Refetch data when current user changes
+  useEffect(() => {
+    if (currentUserId) {
+      fetchTasksAndUsers()
+    }
+  }, [currentUserId])
 
   useEffect(() => {
     const handleResize = () => {
@@ -35,24 +44,30 @@ export default function GanttChart() {
       setLoading(true)
       console.log('Fetching data from Supabase...')
       
-      // Fetch all tasks
-      const { data: tasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
+      // Fetch tasks for current user only (if user is selected)
+      const { data: tasks, error: tasksError } = currentUserId 
+        ? await supabase
+            .from('tasks')
+            .select('*')
+            .eq('owned_by', currentUserId)
+        : { data: [], error: null }
 
+      console.log('Current user ID:', currentUserId)
       console.log('Tasks query result:', { tasks, tasksError })
+      console.log('Number of tasks found:', tasks?.length || 0)
 
       if (tasksError) {
         console.error('Tasks error:', tasksError)
         throw new Error(`Tasks table error: ${tasksError.message}`)
       }
 
-      // Fetch all users
+      // Fetch all users (always needed for dropdown)
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select('*')
 
       console.log('Users query result:', { users, usersError })
+      console.log('Number of users found:', users?.length || 0)
 
       if (usersError) {
         console.error('Users error:', usersError)
@@ -95,6 +110,7 @@ export default function GanttChart() {
 
       console.log('Grouped data:', grouped)
       setTasksByUser(Object.values(grouped || {}))
+      setAllUsers(users || [])
     } catch (err) {
       console.error('Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -285,6 +301,33 @@ export default function GanttChart() {
         </h1>
         
         <div className="flex items-center space-x-4">
+          {/* User Login Simulation Dropdown */}
+          <div className="flex items-center space-x-2">
+            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Login as:
+            </label>
+            <select
+              value={currentUserId}
+              onChange={(e) => {
+                console.log('User login simulation - Selected user ID:', e.target.value)
+                console.log('Available users for reference:', allUsers.map(u => ({ id: u.id, name: u.name })))
+                setCurrentUserId(e.target.value)
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                isDarkMode 
+                  ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700' 
+                  : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              <option value="">Select User</option>
+              {allUsers.map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.name || user.email || `User ${user.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          
           {/* Dark Mode Toggle */}
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)}
