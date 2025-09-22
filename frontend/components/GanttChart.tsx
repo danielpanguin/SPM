@@ -313,6 +313,14 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
     return isDarkMode ? 'bg-gray-600' : 'bg-gray-500'
   }
 
+  // Check if a given day is today
+  const isToday = (day: Date) => {
+    const today = new Date()
+    return day.getDate() === today.getDate() &&
+           day.getMonth() === today.getMonth() &&
+           day.getFullYear() === today.getFullYear()
+  }
+
   const formatMonthYear = (date: Date) => {
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
   }
@@ -411,13 +419,18 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                   className={`flex-1 p-1 sm:p-2 text-center font-medium border-r ${
                     getDayInterval() > 1 ? 'text-xs sm:text-sm' : 'text-xs'
                   } ${
-                    isDarkMode 
-                      ? 'text-gray-200 border-gray-700' 
-                      : 'text-gray-800 border-gray-200'
+                    isToday(day)
+                      ? isDarkMode 
+                        ? 'text-gray-100 border-gray-700 bg-gray-600' 
+                        : 'text-gray-900 border-gray-200 bg-gray-200'
+                      : isDarkMode 
+                        ? 'text-gray-200 border-gray-700' 
+                        : 'text-gray-800 border-gray-200'
                   }`}
                   style={{ 
                     minWidth: screenWidth < 640 ? '40px' : screenWidth < 768 ? '35px' : '30px'
                   }}
+                  title={isToday(day) ? "Today" : undefined}
                 >
                   {day.getDate()}
                 </div>
