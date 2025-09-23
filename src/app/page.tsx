@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import GanttChart from '@/components/GanttChart'
-import LoginSimulator from '@/components/LoginSimulator'
-import { UserProvider } from '@/contexts/UserContext'
+import GanttChart from '@/components/ui/GanttChart'
+import LoginSimulator from '@/components/forms/LoginSimulator'
+import { UserProvider } from '@/hooks/useAuth'
 
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false)

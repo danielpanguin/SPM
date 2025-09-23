@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, Task, User } from '@/lib/supabase'
-import { useUser } from '@/contexts/UserContext'
+import { supabase, Task, User } from '@/lib/db'
+import { useUser } from '@/hooks/useAuth'
 
 interface TasksByUser {
   user: User
