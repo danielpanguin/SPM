@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, User } from '@/lib/supabase'
-import { useUser } from '@/contexts/UserContext'
+import { supabase, User } from '@/lib/db'
+import { useUser } from '@/hooks/useAuth'
 
 interface LoginSimulatorProps {
   isDarkMode?: boolean
