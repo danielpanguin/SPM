@@ -4,6 +4,8 @@ import { useState } from 'react'
 import GanttChart from '@/components/ui/GanttChart'
 import LoginSimulator from '@/components/forms/LoginSimulator'
 import { UserProvider } from '@/hooks/useAuth'
+import { TaskDashboard } from "@/components/task-dashboard"
+
 
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false)
@@ -45,6 +47,9 @@ export default function Home() {
         
         {/* Main Content */}
         <GanttChart isDarkMode={isDarkMode} />
+
+        {/* taskdashboard */}
+        <TaskDashboard />
       </div>
     </UserProvider>
   );
