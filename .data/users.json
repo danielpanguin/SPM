@@ -1,0 +1,12 @@
+[
+  {
+    "id": "u-mgr",
+    "name": "Morgan Manager",
+    "role": "manager"
+  },
+  {
+    "id": "u-stf-1",
+    "name": "Sam Staff",
+    "role": "staff"
+  }
+]
