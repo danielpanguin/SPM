@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Users, CheckCircle, Clock, AlertTriangle, BarChart3, Archive } from "lucide-react"
+// import { Search, Users, CheckCircle, Clock, AlertTriangle, BarChart3, Archive } from "lucide-react"
 import { TaskTable, type UiTask } from "./task-table"
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
 import { TaskDetailsModal } from "./task-details-modal"
 import { ArchiveView } from "./archive-view"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/db"
 
 
 
@@ -167,7 +167,7 @@ export function TaskDashboard() {
             </div>
             <div className="flex items-center gap-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /> */}
                 <Input
                   placeholder="Search tasks..."
                   value={searchQuery}
@@ -176,7 +176,7 @@ export function TaskDashboard() {
                 />
               </div>
               <Button variant="outline" size="sm" onClick={handleShowArchive}>
-                <Archive className="h-4 w-4 mr-2" />
+                {/* <Archive className="h-4 w-4 mr-2" /> */}
                 Archive
               </Button>
             </div>
@@ -190,7 +190,7 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              {/* <Users className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalMembers}</div>
@@ -201,7 +201,7 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              {/* <Clock className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.activeTasks}</div>
@@ -212,7 +212,7 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              {/* <CheckCircle className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.completedTasks}</div>
@@ -223,7 +223,7 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-destructive" />
+              {/* <AlertTriangle className="h-4 w-4 text-destructive" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
@@ -242,15 +242,15 @@ export function TaskDashboard() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <BarChart3 className="h-4 w-4 mr-2" />
+                  {/* <BarChart3 className="h-4 w-4 mr-2" /> */}
                   View Reports
                 </Button>
                 <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <Users className="h-4 w-4 mr-2" />
+                  {/* <Users className="h-4 w-4 mr-2" /> */}
                   Team Overview
                 </Button>
                 <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
-                  <Archive className="h-4 w-4 mr-2" />
+                  {/* <Archive className="h-4 w-4 mr-2" /> */}
                   Archived Tasks
                 </Button>
               </CardContent>

@@ -4,7 +4,7 @@
 import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar, User, Tag, AlertCircle, CheckCircle, Clock, Play } from "lucide-react"
+// import { Calendar, User, Tag, AlertCircle, CheckCircle, Clock, Play } from "lucide-react"
 import type { TaskFilters } from "./task-filters"
 
 export interface UiTask {
@@ -106,15 +106,15 @@ export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        // return <CheckCircle className="h-4 w-4 text-green-600" />
       case "in-progress":
-        return <Play className="h-4 w-4 text-blue-600" />
+        // return <Play className="h-4 w-4 text-blue-600" />
       case "review":
-        return <AlertCircle className="h-4 w-4 text-orange-600" />
+        // return <AlertCircle className="h-4 w-4 text-orange-600" />
       case "todo":
-        return <Clock className="h-4 w-4 text-gray-600" />
+        // return <Clock className="h-4 w-4 text-gray-600" />
       default:
-        return <Clock className="h-4 w-4 text-gray-600" />
+        // return <Clock className="h-4 w-4 text-gray-600" />
     }
   }
 
@@ -177,7 +177,7 @@ export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
                     <span className="font-medium">{task.title}</span>
                     {task.assignees && task.assignees.length > 0 && (
                       <div className="flex items-center gap-1 mt-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
+                        {/* <User className="h-3 w-3 text-muted-foreground" /> */}
                         <span className="text-xs text-muted-foreground">{task.assignees.join(", ")}</span>
                       </div>
                     )}
@@ -198,7 +198,7 @@ export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
                   <div className="flex flex-wrap gap-1">
                     {(task.tags ?? []).map((tag, index) => (
                       <Badge key={`${task.id}-tag-${index}`} variant="secondary" className="text-xs">
-                        <Tag className="h-3 w-3 mr-1" />
+                        {/* <Tag className="h-3 w-3 mr-1" /> */}
                         {tag}
                       </Badge>
                     ))}
@@ -207,7 +207,7 @@ export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
 
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {getStatusIcon(task.status)}
+                    {/* {getStatusIcon(task.status)} */}
                     <Badge variant="outline" className={`${getStatusColor(task.status)} capitalize`}>
                       {task.status.replace("-", " ")}
                     </Badge>
@@ -216,7 +216,7 @@ export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
 
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    {/* <Calendar className="h-4 w-4 text-muted-foreground" /> */}
                     <span
                       className={`text-sm ${
                         isOverdue(task.deadline, task.status) ? "text-red-600 font-medium" : "text-foreground"
