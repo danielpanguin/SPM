@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/db';
 
 describe('Supabase DB Connection', () => {
   it('Database is connected', async () => {
@@ -7,4 +7,3 @@ describe('Supabase DB Connection', () => {
     expect(data).toBeDefined();
   });
 });
-
