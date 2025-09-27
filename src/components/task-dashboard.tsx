@@ -12,11 +12,11 @@ import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
 import { TaskDetailsModal } from "./task-details-modal"
 import { ArchiveView } from "./archive-view"
 import { supabase } from "@/lib/db"
-
-
-
+import { useUser } from "@/hooks/useAuth"
 
 export function TaskDashboard() {
+  const { accessibleUserIds } = useUser() // from context
+
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<UiTask | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -36,15 +36,22 @@ export function TaskDashboard() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Load tasks with nested relationships (NO view)
+  // Load tasks with nested relationships (filtered by accessibleUserIds)
   useEffect(() => {
+    if (!accessibleUserIds || accessibleUserIds.length === 0) {
+      setTasks([])
+      setLoading(false)
+      return
+    }
+
     const load = async () => {
       setLoading(true)
       setError(null)
 
-      // NOTE: This relies on your FK constraints as defined in your schema.
-      // Ensure RLS "select" policies exist on all referenced tables:
-      // tasks, priority, status, projects, task_tasktag, task_tag, task_collaborator, users.
+      const ownedByIds = accessibleUserIds
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n))
+
       const { data, error } = await supabase
         .from("tasks")
         .select(`
@@ -54,14 +61,11 @@ export function TaskDashboard() {
           priority:priority_id ( priority ),
           status:status_id ( status ),
           project:project_id ( name ),
-          task_tasktag (
-            tag:tag_id ( name )
-          ),
-          task_collaborator (
-            assignee:user_id ( username )
-          )
+          task_tasktag ( tag:tag_id ( name ) ),
+          task_collaborator ( assignee:user_id ( username ) )
         `)
-        
+        .in("owned_by", ownedByIds)
+
       console.log("Supabase fetch result:", { data, error })
 
       if (error) {
@@ -71,7 +75,6 @@ export function TaskDashboard() {
         return
       }
 
-      // Map DB rows -> UiTask
       const mapped: UiTask[] = (data ?? []).map((row: any) => {
         const tags: string[] =
           row.task_tasktag?.map((t: any) => t?.tag?.name).filter(Boolean) ?? []
@@ -85,7 +88,7 @@ export function TaskDashboard() {
           project: row.project?.name ?? null,
           tags,
           status: row.status?.status ?? "todo",
-          deadline: row.end_date, // string | null (YYYY-MM-DD)
+          deadline: row.end_date,
           assignees,
         }
       })
@@ -95,7 +98,7 @@ export function TaskDashboard() {
     }
 
     load()
-  }, [])
+  }, [accessibleUserIds])
 
   // Keep header search in sync with filters
   useEffect(() => {
@@ -113,7 +116,6 @@ export function TaskDashboard() {
   }
 
   const handleTaskUpdate = (updatedTask: UiTask) => {
-    // TODO: implement Supabase update when you’re ready
     console.log("Task updated:", updatedTask)
   }
 
@@ -135,7 +137,7 @@ export function TaskDashboard() {
   const handleShowArchive = () => setShowArchive(true)
   const handleCloseArchive = () => setShowArchive(false)
 
-  // Stats from real tasks (basic)
+  // 🧠 All hooks above this line. (Do NOT early return before this hook.)
   const stats = useMemo(() => {
     const total = tasks.length
     const completed = tasks.filter((t) => t.status === "completed").length
@@ -143,13 +145,18 @@ export function TaskDashboard() {
     const now = new Date()
     const overdue = tasks.filter((t) => t.deadline && new Date(t.deadline) < now && t.status !== "completed").length
     return {
-      totalMembers: 5, // TODO: replace with real count from users table if needed
+      totalMembers: 5,
       activeTasks: active,
       completedTasks: completed,
       overdueTasks: overdue,
       totalTasks: total,
     }
   }, [tasks])
+
+  // ✅ Early returns only AFTER all hooks are declared:
+  if (!accessibleUserIds || accessibleUserIds.length === 0) {
+    return null
+  }
 
   if (showArchive) {
     return <ArchiveView onClose={handleCloseArchive} />
@@ -167,7 +174,6 @@ export function TaskDashboard() {
             </div>
             <div className="flex items-center gap-4">
               <div className="relative">
-                {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /> */}
                 <Input
                   placeholder="Search tasks..."
                   value={searchQuery}
@@ -176,7 +182,6 @@ export function TaskDashboard() {
                 />
               </div>
               <Button variant="outline" size="sm" onClick={handleShowArchive}>
-                {/* <Archive className="h-4 w-4 mr-2" /> */}
                 Archive
               </Button>
             </div>
@@ -190,7 +195,6 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-              {/* <Users className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalMembers}</div>
@@ -201,7 +205,6 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
-              {/* <Clock className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.activeTasks}</div>
@@ -212,7 +215,6 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              {/* <CheckCircle className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.completedTasks}</div>
@@ -223,7 +225,6 @@ export function TaskDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              {/* <AlertTriangle className="h-4 w-4 text-destructive" /> */}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
@@ -242,15 +243,12 @@ export function TaskDashboard() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button variant="outline" className="w-full justify-start bg-transparent">
-                  {/* <BarChart3 className="h-4 w-4 mr-2" /> */}
                   View Reports
                 </Button>
                 <Button variant="outline" className="w-full justify-start bg-transparent">
-                  {/* <Users className="h-4 w-4 mr-2" /> */}
                   Team Overview
                 </Button>
                 <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
-                  {/* <Archive className="h-4 w-4 mr-2" /> */}
                   Archived Tasks
                 </Button>
               </CardContent>
