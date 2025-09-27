@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
+import { Button } from "@/components/ui/ViewTaskUi/button"
+import { Badge } from "@/components/ui/ViewTaskUi/badge"
+import { Input } from "@/components/ui/ViewTaskUi/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
 import { Search, RotateCcw, Trash2, Calendar, User, Tag, Archive } from "lucide-react"
 
 // Mock archived tasks data

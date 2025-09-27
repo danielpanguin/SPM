@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/ViewTaskUi/dialog"
+import { Badge } from "@/components/ui/ViewTaskUi/badge"
+import { Button } from "@/components/ui/ViewTaskUi/button"
+import { Textarea } from "@/components/ui/ViewTaskUi/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
+import { Separator } from "@/components/ui/ViewTaskUi/separator"
+import { Avatar, AvatarFallback } from "@/components/ui/ViewTaskUi/avatar"
 import {
   Calendar,
   User,

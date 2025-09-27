@@ -2,8 +2,8 @@
 "use client"
 
 import { useMemo } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/ViewTaskUi/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
 // import { Calendar, User, Tag, AlertCircle, CheckCircle, Clock, Play } from "lucide-react"
 import type { TaskFilters } from "./task-filters"
 
