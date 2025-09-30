@@ -4,59 +4,60 @@
 import { useMemo } from "react"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-// import { Calendar, User, Tag, AlertCircle, CheckCircle, Clock, Play } from "lucide-react"
+import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
 
-export interface UiTask {
-  id: string | number
-  title: string
-  priority: string
-  project: string | null
-  tags: string[]
-  status: string
-  deadline: string | null
-  assignees?: string[] // optional, can be added via view join later
-}
-
-interface TaskTableProps {
-  onTaskClick: (task: UiTask) => void
+type Props = {
+  tasks: Task[]
   filters: TaskFilters
-  tasks: UiTask[] // <-- now passed in from parent (e.g., Supabase fetch)
+  onTaskClick: (task: Task) => void
+  /** Display-only lookups (not stored in Task) */
+  projectByTaskId?: Map<string, string | null>
+  titleById?: Map<string, string>
 }
 
-export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
+export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
   const filteredTasks = useMemo(() => {
-    return (tasks ?? []).filter((task) => {
-      // Search
-      if (filters.search && !task.title.toLowerCase().includes(filters.search.toLowerCase())) return false
+    const q = filters.search?.toLowerCase() ?? ""
+
+    return (tasks ?? []).filter((t) => {
+      // Search (title)
+      if (q && !t.title.toLowerCase().includes(q)) return false
 
       // Status
-      if (filters.status && filters.status !== "all" && task.status !== filters.status) return false
+      if (filters.status && filters.status !== "all" && t.status !== filters.status) return false
 
       // Priority
-      if (filters.priority && filters.priority !== "all" && task.priority !== filters.priority) return false
+      if (filters.priority && filters.priority !== "all" && t.priority !== filters.priority) return false
 
-      // Project
-      if (filters.project && filters.project !== "all" && task.project !== filters.project) return false
-
-      // Assignee
-      if (filters.assignee && filters.assignee !== "all" && !(task.assignees ?? []).includes(filters.assignee)) {
-        return false
+      // Project (lookup from map)
+      if (filters.project && filters.project !== "all") {
+        const proj = projectByTaskId?.get(t.id) ?? null
+        if (proj !== filters.project) return false
       }
 
-      // Tag
-      if (filters.tag && filters.tag !== "all" && !task.tags.includes(filters.tag)) return false
+      // Assignee (ownedBy + collaborators)
+      if (filters.assignee && filters.assignee !== "all") {
+        const ownedName = t.ownedBy?.name ? [t.ownedBy.name] : []
+        const collabNames = (t.collaborators ?? []).map((c) => c.name).filter(Boolean)
+        if (![...ownedName, ...collabNames].includes(filters.assignee)) return false
+      }
 
-      // Deadline window
-      if (filters.deadline && filters.deadline !== "all" && task.deadline) {
-        const taskDeadline = new Date(task.deadline)
+      // Tag (single free-text on Task)
+      if (filters.tag && filters.tag !== "all") {
+        if ((t.tag ?? null) !== filters.tag) return false
+      }
+
+      // Deadline windows (based on endDate)
+      if (filters.deadline && filters.deadline !== "all" && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
         const today = new Date()
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
         const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
 
         switch (filters.deadline) {
           case "overdue":
-            if (taskDeadline >= startOfToday || task.status === "completed") return false
+            if (taskDeadline >= startOfToday || t.status === "completed") return false
             break
           case "today":
             if (taskDeadline < startOfToday || taskDeadline > endOfToday) return false
@@ -86,151 +87,111 @@ export function TaskTable({ onTaskClick, filters, tasks }: TaskTableProps) {
 
       return true
     })
-  }, [tasks, filters])
+  }, [tasks, filters, projectByTaskId])
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "high":
-        return "bg-orange-100 text-orange-800 border-orange-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+  const getPriorityClass = (p: Task["priority"]) => {
+    const map: Record<string, string> = {
+      urgent: "bg-red-100 text-red-800 border-red-200",
+      high: "bg-orange-100 text-orange-800 border-orange-200",
+      medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      low: "bg-green-100 text-green-800 border-green-200",
     }
+    return map[p] ?? "bg-gray-100 text-gray-800 border-gray-200"
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
-        // return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "in-progress":
-        // return <Play className="h-4 w-4 text-blue-600" />
-      case "review":
-        // return <AlertCircle className="h-4 w-4 text-orange-600" />
-      case "todo":
-        // return <Clock className="h-4 w-4 text-gray-600" />
-      default:
-        // return <Clock className="h-4 w-4 text-gray-600" />
+  const getStatusClass = (s: Task["status"]) => {
+    const map: Record<string, string> = {
+      completed: "bg-green-100 text-green-800 border-green-200",
+      "in-progress": "bg-blue-100 text-blue-800 border-blue-200",
+      blocked: "bg-red-100 text-red-800 border-red-200",
+      archived: "bg-gray-200 text-gray-700 border-gray-300",
+      review: "bg-purple-100 text-purple-800 border-purple-200",
+      "to-do": "bg-gray-100 text-gray-800 border-gray-200",
+      todo: "bg-gray-100 text-gray-800 border-gray-200",
     }
+    return map[s] ?? "bg-gray-100 text-gray-800 border-gray-200"
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "in-progress":
-        return "bg-blue-100 text-blue-800 border-blue-200"
-      case "review":
-        return "bg-orange-100 text-orange-800 border-orange-200"
-      case "todo":
-        return "bg-gray-100 text-gray-800 border-gray-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
-  const isOverdue = (deadline: string | null, status: string) => {
-    if (!deadline) return false
-    const d = new Date(deadline)
-    const now = new Date()
-    return d < now && status !== "completed"
-  }
+  const niceDate = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString() : "—"
 
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[100px]">Task ID</TableHead>
+            <TableHead className="w-[120px]">Task ID</TableHead>
             <TableHead>Task Title</TableHead>
-            <TableHead className="w-[120px]">Priority</TableHead>
-            <TableHead className="w-[150px]">Project</TableHead>
-            <TableHead className="w-[200px]">Tags</TableHead>
-            <TableHead className="w-[120px]">Status</TableHead>
-            <TableHead className="w-[120px]">Deadline</TableHead>
+            <TableHead className="w-[140px]">Task Priority</TableHead>
+            <TableHead className="w-[160px]">Project</TableHead>
+            <TableHead className="w-[180px]">Task Tag</TableHead>
+            <TableHead className="w-[140px]">Task Status</TableHead>
+            <TableHead className="w-[140px]">Task Deadline</TableHead>
+            <TableHead className="w-[240px]">Parent Task</TableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {filteredTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 No tasks found matching your filters
               </TableCell>
             </TableRow>
           ) : (
-            filteredTasks.map((task) => (
-              <TableRow
-                key={task.id}
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => onTaskClick(task)}
-              >
-                <TableCell className="font-mono text-sm">
-                  {typeof task.id === "number" ? `TSK-${String(task.id).padStart(3, "0")}` : task.id}
-                </TableCell>
+            filteredTasks.map((t) => {
+              const project = projectByTaskId?.get(t.id) ?? null
+              const parentTitle = t.parentTaskId ? titleById?.get(t.parentTaskId) : null
 
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{task.title}</span>
-                    {task.assignees && task.assignees.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1">
-                        {/* <User className="h-3 w-3 text-muted-foreground" /> */}
-                        <span className="text-xs text-muted-foreground">{task.assignees.join(", ")}</span>
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
+              return (
+                <TableRow
+                  key={t.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => onTaskClick(t)}
+                >
+                  <TableCell className="font-mono text-sm">
+                    {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
+                  </TableCell>
 
-                <TableCell>
-                  <Badge variant="outline" className={`${getPriorityColor(task.priority)} capitalize`}>
-                    {task.priority}
-                  </Badge>
-                </TableCell>
+                  <TableCell className="font-medium">{t.title}</TableCell>
 
-                <TableCell>
-                  <span className="text-sm font-medium">{task.project ?? "—"}</span>
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {(task.tags ?? []).map((tag, index) => (
-                      <Badge key={`${task.id}-tag-${index}`} variant="secondary" className="text-xs">
-                        {/* <Tag className="h-3 w-3 mr-1" /> */}
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {/* {getStatusIcon(task.status)} */}
-                    <Badge variant="outline" className={`${getStatusColor(task.status)} capitalize`}>
-                      {task.status.replace("-", " ")}
+                  <TableCell>
+                    <Badge variant="outline" className={`${getPriorityClass(t.priority)} capitalize`}>
+                      {t.priority}
                     </Badge>
-                  </div>
-                </TableCell>
+                  </TableCell>
 
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {/* <Calendar className="h-4 w-4 text-muted-foreground" /> */}
-                    <span
-                      className={`text-sm ${
-                        isOverdue(task.deadline, task.status) ? "text-red-600 font-medium" : "text-foreground"
-                      }`}
-                    >
-                      {task.deadline ? new Date(task.deadline).toLocaleDateString() : "—"}
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
+                  <TableCell>
+                    <span className="text-sm font-medium">{project ?? "—"}</span>
+                  </TableCell>
+
+                  <TableCell>
+                    {t.tag ? <Badge variant="secondary" className="text-xs">{t.tag}</Badge> : "—"}
+                  </TableCell>
+
+                  <TableCell>
+                    <Badge variant="outline" className={`${getStatusClass(t.status)} capitalize`}>
+                      {String(t.status).replace("-", " ")}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell>{niceDate(t.endDate)}</TableCell>
+
+                  <TableCell>
+                    {t.parentTaskId ? (
+                      <span className="text-sm">
+                        {parentTitle ? `${parentTitle} (${t.parentTaskId})` : t.parentTaskId}
+                      </span>
+                    ) : "—"}
+                  </TableCell>
+                </TableRow>
+              )
+            })
           )}
         </TableBody>
       </Table>
     </div>
   )
 }
+
+export default TaskTable

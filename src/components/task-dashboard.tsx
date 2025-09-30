@@ -6,19 +6,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTa
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
-// import { Search, Users, CheckCircle, Clock, AlertTriangle, BarChart3, Archive } from "lucide-react"
-import { TaskTable, type UiTask } from "./task-table"
+
+import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
-import { TaskDetailsModal } from "./task-details-modal"
+import  TaskDetailsModal from "./tasks/TaskDetailsModal"
 import { ArchiveView } from "./archive-view"
 import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
+import type { Task } from "@/types/task"// bring in your canonical Task interface
+
+export type Status = "pending" | "in-progress" | "completed" | "blocked"
+
+function normalizeStatus(dbStatus: string | null | undefined): Status {
+  const s = (dbStatus ?? "").trim().toLowerCase()
+  switch (s) {
+    case "pending":
+      return "pending"
+    case "in progress":
+      return "in-progress"
+    case "completed":
+      return "completed"
+    case "blocked":
+      return "blocked"
+    default:
+      return "pending"
+  }
+}
 
 export function TaskDashboard() {
-  const { accessibleUserIds } = useUser() // from context
+  const { accessibleUserIds } = useUser()
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedTask, setSelectedTask] = useState<UiTask | null>(null)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [showArchive, setShowArchive] = useState(false)
 
@@ -32,14 +51,20 @@ export function TaskDashboard() {
     deadline: "all",
   })
 
-  const [tasks, setTasks] = useState<UiTask[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+
+  // project/task title lookups for display-only fields (Project & Parent Task)
+  const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
+  const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
 
   // Load tasks with nested relationships (filtered by accessibleUserIds)
   useEffect(() => {
     if (!accessibleUserIds || accessibleUserIds.length === 0) {
       setTasks([])
+      setProjectByTaskId(new Map())
+      setTitleById(new Map())
       setLoading(false)
       return
     }
@@ -52,17 +77,47 @@ export function TaskDashboard() {
         .map((id) => Number(id))
         .filter((n) => Number.isFinite(n))
 
+      // Pull everything needed to fill your Task interface
       const { data, error } = await supabase
         .from("tasks")
         .select(`
           id,
           title,
+          description,
+          created_by,
+          owned_by,
+          parent_task_id,
+          start_date,
           end_date,
+          updated_at,
+          created_at,
+
+          -- users (with role join)
+          created_by_user:created_by (
+            id,
+            username,
+            role:role_id ( id, name )
+          ),
+          owned_by_user:owned_by (
+            id,
+            username,
+            role:role_id ( id, name )
+          ),
+
+          -- lookups
           priority:priority_id ( priority ),
           status:status_id ( status ),
           project:project_id ( name ),
+
+          -- tags + collaborators (with role join on user)
           task_tasktag ( tag:tag_id ( name ) ),
-          task_collaborator ( assignee:user_id ( username ) )
+          task_collaborator (
+            assignee:user_id (
+              id,
+              username,
+              role:role_id ( id, name )
+            )
+          )
         `)
         .in("owned_by", ownedByIds)
 
@@ -75,26 +130,71 @@ export function TaskDashboard() {
         return
       }
 
-      const mapped: UiTask[] = (data ?? []).map((row: any) => {
-        const tags: string[] =
-          row.task_tasktag?.map((t: any) => t?.tag?.name).filter(Boolean) ?? []
-        const assignees: string[] =
-          row.task_collaborator?.map((a: any) => a?.assignee?.username).filter(Boolean) ?? []
+      // helper (keep near the top of the file if you like)
+      function normalizeStatus(dbStatus: string | null | undefined): "pending" | "in-progress" | "completed" | "blocked" {
+        const s = (dbStatus ?? "").trim().toLowerCase()
+        switch (s) {
+          case "pending": return "pending"
+          case "in progress": return "in-progress"
+          case "completed": return "completed"
+          case "blocked": return "blocked"
+          default: return "pending"
+        }
+      }
+
+      const mapped: Task[] = (data ?? []).map((row: any): Task => {
+        const tagName: string | undefined =
+          row.task_tasktag?.[0]?.tag?.name ?? undefined // if you treat “Task Tag” as a single free-text
 
         return {
-          id: row.id,
+          id: String(row.id),
           title: row.title,
-          priority: row.priority?.priority ?? "medium",
-          project: row.project?.name ?? null,
-          tags,
-          status: row.status?.status ?? "todo",
-          deadline: row.end_date,
-          assignees,
+          description: row.description ?? undefined,
+
+          createdBy: {
+            id: String(row.created_by_user?.id ?? row.created_by),
+            name: row.created_by_user?.username ?? String(row.created_by),
+            role: row.created_by_user?.role?.name ?? "member",
+          },
+
+          ownedBy: {
+            id: String(row.owned_by_user?.id ?? row.owned_by),
+            name: row.owned_by_user?.username ?? String(row.owned_by),
+            role: row.owned_by_user?.role?.name ?? "member",
+          },
+
+          collaborators:
+            (row.task_collaborator ?? []).map((c: any) => ({
+              id: String(c.assignee?.id),
+              name: c.assignee?.username,
+              role: c.assignee?.role?.name ?? "member",
+            })) ?? [],
+
+          startDate: row.start_date ?? null,
+          endDate: row.end_date ?? null,
+          parentTaskId: row.parent_task_id ? String(row.parent_task_id) : null,
+
+          tag: tagName,
+          priority: (row.priority?.priority ?? "medium"),
+          status: normalizeStatus(row.status?.status),
+
+          comments: [], // map if/when you add a comments relation
+          updatedAt: row.updated_at ?? new Date().toISOString(),
+          createdAt: row.created_at ?? new Date().toISOString(),
         }
       })
 
+      // Build display-only lookups
+      const projectMap = new Map<string, string | null>(
+        (data ?? []).map((row: any) => [String(row.id), row.project?.name ?? null])
+      )
+      const titleMap = new Map<string, string>(mapped.map((t) => [t.id, t.title]))
+
       setTasks(mapped)
+      setProjectByTaskId(projectMap)
+      setTitleById(titleMap)
       setLoading(false)
+
     }
 
     load()
@@ -105,7 +205,7 @@ export function TaskDashboard() {
     setFilters((f) => ({ ...f, search: searchQuery }))
   }, [searchQuery])
 
-  const handleTaskClick = (task: UiTask) => {
+  const handleTaskClick = (task: Task) => {
     setSelectedTask(task)
     setIsModalOpen(true)
   }
@@ -115,8 +215,15 @@ export function TaskDashboard() {
     setSelectedTask(null)
   }
 
-  const handleTaskUpdate = (updatedTask: UiTask) => {
+  const handleTaskUpdate = (updatedTask: Task) => {
     console.log("Task updated:", updatedTask)
+    // optional: update local state
+    setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)))
+    setTitleById((prev) => {
+      const next = new Map(prev)
+      next.set(updatedTask.id, updatedTask.title)
+      return next
+    })
   }
 
   const handleFiltersChange = (newFilters: TaskFilters) => setFilters(newFilters)
@@ -137,13 +244,15 @@ export function TaskDashboard() {
   const handleShowArchive = () => setShowArchive(true)
   const handleCloseArchive = () => setShowArchive(false)
 
-  // 🧠 All hooks above this line. (Do NOT early return before this hook.)
+  // Stats derived from canonical Task[]
   const stats = useMemo(() => {
     const total = tasks.length
     const completed = tasks.filter((t) => t.status === "completed").length
     const active = tasks.filter((t) => ["todo", "in-progress", "review"].includes(t.status)).length
     const now = new Date()
-    const overdue = tasks.filter((t) => t.deadline && new Date(t.deadline) < now && t.status !== "completed").length
+    const overdue = tasks.filter(
+      (t) => t.endDate && new Date(t.endDate) < now && t.status !== "completed"
+    ).length
     return {
       totalMembers: 5,
       activeTasks: active,
@@ -154,13 +263,8 @@ export function TaskDashboard() {
   }, [tasks])
 
   // ✅ Early returns only AFTER all hooks are declared:
-  if (!accessibleUserIds || accessibleUserIds.length === 0) {
-    return null
-  }
-
-  if (showArchive) {
-    return <ArchiveView onClose={handleCloseArchive} />
-  }
+  if (!accessibleUserIds || accessibleUserIds.length === 0) return null
+  if (showArchive) return <ArchiveView onClose={handleCloseArchive} />
 
   return (
     <div className="min-h-screen bg-background">
@@ -254,7 +358,7 @@ export function TaskDashboard() {
               </CardContent>
             </Card>
 
-            {/* Team Members Summary (placeholder – wire to real users later) */}
+            {/* Team Members Summary (placeholder) */}
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="text-lg">Team Members</CardTitle>
@@ -302,7 +406,13 @@ export function TaskDashboard() {
                 {loading ? (
                   <div className="text-sm text-muted-foreground p-4">Loading tasks…</div>
                 ) : (
-                  <TaskTable onTaskClick={handleTaskClick} filters={filters} tasks={tasks} />
+                  <TaskTable
+                    tasks={tasks}
+                    filters={filters}
+                    onTaskClick={handleTaskClick}
+                    projectByTaskId={projectByTaskId}
+                    titleById={titleById}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -311,12 +421,16 @@ export function TaskDashboard() {
       </div>
 
       {/* Task Details Modal */}
-      <TaskDetailsModal
-        task={selectedTask}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onTaskUpdate={handleTaskUpdate}
-      />
+{isModalOpen && (
+  <TaskDetailsModal
+    task={selectedTask}
+    onClose={handleCloseModal}
+    onEdit={() => {
+      if (selectedTask) handleTaskUpdate(selectedTask)
+    }}
+  />
+)}
+
     </div>
   )
 }
