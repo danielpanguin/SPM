@@ -91,8 +91,6 @@ export function TaskDashboard() {
           end_date,
           updated_at,
           created_at,
-
-          -- users (with role join)
           created_by_user:created_by (
             id,
             username,
@@ -103,13 +101,9 @@ export function TaskDashboard() {
             username,
             role:role_id ( id, name )
           ),
-
-          -- lookups
           priority:priority_id ( priority ),
           status:status_id ( status ),
           project:project_id ( name ),
-
-          -- tags + collaborators (with role join on user)
           task_tasktag ( tag:tag_id ( name ) ),
           task_collaborator (
             assignee:user_id (
@@ -119,16 +113,18 @@ export function TaskDashboard() {
             )
           )
         `)
-        .in("owned_by", ownedByIds)
+        .in("owned_by", ownedByIds);
+
 
       console.log("Supabase fetch result:", { data, error })
 
       if (error) {
-        console.error(error)
-        setError(error.message)
-        setLoading(false)
-        return
+        console.error("[Supabase] tasks select failed:", error);
+        setError("We couldn’t load your tasks. Please try again.");
+        setLoading(false);
+        return;
       }
+
 
       // helper (keep near the top of the file if you like)
       function normalizeStatus(dbStatus: string | null | undefined): "pending" | "in-progress" | "completed" | "blocked" {
