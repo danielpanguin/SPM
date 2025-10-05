@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { ReactNode } from "react";
+import Comments from "@/components/tasks/comments/Comments";
 
 /* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
@@ -44,7 +45,6 @@ type DetailsTask = {
   createdAt?: string;
   updatedAt?: string;
 };
-
 interface Props {
   task: UITask | DetailsTask | null;
   onClose(): void;
@@ -56,6 +56,11 @@ type UserMap = Record<string, string>; // id -> label (email or id)
 /* ---------- Component ---------- */
 export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   const [labels, setLabels] = useState<UserMap>({});
+  const [commentCount, setCommentCount] = useState<number>(0);
+
+  useEffect(() => {
+    setCommentCount(0);
+  }, [task?.id]);
 
   useEffect(() => {
     let alive = true;
@@ -83,6 +88,8 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
       alive = false;
     };
   }, [task?.id]);
+
+  // const [commentCount, setCommentCount] = useState(task?.comments.length ?? 0);
 
   if (!task) return null;
 
@@ -132,6 +139,13 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
           <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
         </div>
+        <Comments
+          key={task.id}                 // re-mount when task changes
+          taskId={String(task.id)}
+          onCountChange={setCommentCount}
+          onPosted={() => setCommentCount((c) => c + 1)} // optional optimistic bump
+        />
+
 
         <div className="mt-6 flex items-center gap-2">
           <button className="rounded bg-black text-white px-4 py-2" onClick={onEdit}>
