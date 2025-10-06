@@ -115,8 +115,8 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6 space-x-3">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl h-5/6 my-auto">
         <div className="flex items-start justify-between">
           <h3 className="text-xl font-semibold">{task.title}</h3>
           <button className="text-sm text-gray-500" onClick={onClose}>
@@ -133,28 +133,83 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           <Field label="Priority" value={task.priority || "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
+          <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
+          <Field label="Priority" value={String(task.priority ?? "—")} />
+          <Field label="Status" value={task.status || "—"} />
           <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
           <Field label="Tags" value={tagsValue} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
           <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
           <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
         </div>
-        <Comments
+        <Comments 
           key={task.id}                 // re-mount when task changes
           taskId={String(task.id)}
           onCountChange={setCommentCount}
           onPosted={() => setCommentCount((c) => c + 1)} // optional optimistic bump
         />
 
-
-        <div className="mt-6 flex items-center gap-2">
-          <button className="rounded bg-black text-white px-4 py-2" onClick={onEdit}>
-            Edit
+      </div>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl h-5/6 my-auto">
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={onEdit}
+            title="Edit Task"
+            className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-6 h-6"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+              />
+            </svg>
           </button>
-          <button className="rounded border px-4 py-2" onClick={onClose}>
-            Close
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            title="Close"
+            className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-6 h-6"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18 18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
+        <div className="text-sm grid grid-cols-1 gap-4">
+          <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
+          <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
+          <Field
+            label="Collaborators"
+            value={(task.collaborators ?? [])
+              .map((c) => labels[c.id] || c.id)
+              .join(", ") || "—"}
+          />
+          <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
+          <Field label="Tags" value={(task.tags ?? []).join(", ") || "—"} />
+          <Field label="Last Updated On" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
+          <Field label="Created On" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
+        </div>
+        
       </div>
     </div>
   );
