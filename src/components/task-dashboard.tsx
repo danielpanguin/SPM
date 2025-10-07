@@ -126,10 +126,10 @@ export function TaskDashboard() {
 
       if (error) {
         console.error("[Supabase] tasks select failed:", error);
-        setError("We couldn’t load your tasks. Please try again.");
+        setError("We couldn't load your tasks. Please try again."); 
         setLoading(false);
         return;
-      }
+      } 
 
 
       // helper (keep near the top of the file if you like)
@@ -270,8 +270,13 @@ export function TaskDashboard() {
 
   // ✅ Early returns only AFTER all hooks are declared:
   if (!accessibleUserIds || accessibleUserIds.length === 0) return null
-  if (showArchive) return <ArchiveView onClose={handleCloseArchive} />
-
+  if (showArchive) {
+    return (
+      <div data-testid="archive-view">
+        <ArchiveView onClose={handleCloseArchive} />
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -285,6 +290,7 @@ export function TaskDashboard() {
             <div className="flex items-center gap-4">
               <div className="relative">
                 <Input
+                  data-testid="dashboard-search"
                   placeholder="Search tasks..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -392,11 +398,13 @@ export function TaskDashboard() {
 
           {/* Main Task Area */}
           <div className="lg:col-span-3">
-            <TaskFiltersComponent
-              filters={filters}
-              onFiltersChange={handleFiltersChange}
-              onClearFilters={handleClearFilters}
+            <div data-testid="filters-panel">
+              <TaskFiltersComponent
+                filters={filters}
+                onFiltersChange={handleFiltersChange}
+                onClearFilters={handleClearFilters}
             />
+          </div>
 
             <Card>
               <CardHeader>
@@ -406,7 +414,8 @@ export function TaskDashboard() {
               <CardContent>
                 {error && (
                   <div className="text-sm text-destructive mb-3">
-                    Failed to load tasks: {error}
+                    {/* was: Failed to load tasks: {error} */}
+                    Couldn't load your tasks
                   </div>
                 )}
                 {loading ? (

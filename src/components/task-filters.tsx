@@ -76,6 +76,8 @@ export function TaskFiltersComponent({ filters, onFiltersChange, onClearFilters 
               value={filters.search}
               onChange={(e) => updateFilter("search", e.target.value)}
               className="mt-1"
+              aria-label="filters search"
+              data-testid="filters-search"
             />
           </div>
         </div>

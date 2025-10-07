@@ -97,35 +97,37 @@ export function ArchiveView({ onClose }: ArchiveViewProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" onClick={onClose} className="bg-transparent">
-                ← Back to Dashboard
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                  <Archive className="h-6 w-6" />
-                  Archived Tasks
-                </h1>
-                <p className="text-muted-foreground">View and manage archived tasks</p>
+      <div data-testid="archive-view">
+        <header className="border-b border-border bg-card">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button variant="outline" size="sm" onClick={onClose} className="bg-transparent" aria-label="Back to Dashboard">
+                  ← Back to Dashboard
+                </Button>
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                    <Archive className="h-6 w-6" />
+                    Archived Tasks
+                  </h1>
+                  <p className="text-muted-foreground">View and manage archived tasks</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search archived tasks..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-80"
-                />
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search archived tasks..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-80"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <div className="container mx-auto px-6 py-6">
         {/* Stats */}
