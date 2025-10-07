@@ -1,54 +1,83 @@
-// app/dashboard/page.tsx
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/db";      // 👈 call Supabase directly here
+import { useUser } from "@/hooks/useAuth";
 import GanttChart from "@/components/ui/GanttChart";
-import LoginSimulator from "@/components/forms/LoginSimulator";
-import { UserProvider } from "@/hooks/useAuth";
 
 export default function DashboardPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const r = useRouter();
+
+  const { email, role } = useUser();
+
+  const onLogout = async () => {
+  if (loggingOut) return;
+  setLoggingOut(true);
+
+  // Race-safe timeout so redirect always happens
+  const redirectTimer = setTimeout(() => {
+    console.warn("⚠️ Supabase logout slow — forcing redirect");
+    window.location.href = "/login";
+  }, 1500); // force redirect after 1.5s max
+
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error("Supabase signOut error:", error.message);
+  } catch (err) {
+    console.error("Unexpected logout error:", err);
+  } finally {
+    clearTimeout(redirectTimer);
+    window.location.href = "/login"; // always redirect even if supabase fails
+  }
+};
 
   return (
-    <UserProvider>
-      <div className={`min-h-screen transition-colors ${isDarkMode ? "bg-gray-900" : "bg-gray-50"}`}>
-        {/* Login Banner */}
-        <div
-          className={`sticky top-0 z-50 border-b transition-colors ${
-            isDarkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-300"
-          }`}
-        >
-          <div className="flex items-center justify-end h-16 space-x-4 p-3 sm:p-6">
-            <LoginSimulator isDarkMode={isDarkMode} />
+    <div className={`min-h-screen transition-colors ${isDarkMode ? "bg-gray-900" : "bg-gray-50"}`}>
+      <header
+        className={`sticky top-0 z-50 border-b transition-colors ${
+          isDarkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-300"
+        }`}
+      >
+        <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className={`${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>
+              Signed in as <b>{email ?? "—"}</b>
+            </span>
+            <span className="px-2 py-1 rounded bg-green-600 text-white text-xs capitalize">
+              {role ?? "unknown"}
+            </span>
+          </div>
 
-            {/* Dark Mode Toggle */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`p-2 rounded-lg border transition-colors ${
+              type="button"
+              onClick={() => setIsDarkMode((v) => !v)}
+              className={`p-2 rounded-lg border ${
                 isDarkMode
                   ? "border-gray-600 hover:bg-gray-700 text-gray-300"
                   : "border-gray-300 hover:bg-gray-50 text-gray-600"
               }`}
-              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              title={isDarkMode ? "Light mode" : "Dark mode"}
             >
-              {isDarkMode ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                </svg>
-              )}
+              {isDarkMode ? "☀️" : "🌙"}
+            </button>
+
+            <button
+              type="button"                               
+              onClick={onLogout}
+              disabled={loggingOut}
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60"
+            >
+              {loggingOut ? "Logging out…" : "Log out"}
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Main Content */}
-        <GanttChart isDarkMode={isDarkMode} />
-      </div>
-    </UserProvider>
+      <GanttChart isDarkMode={isDarkMode} />
+    </div>
   );
 }
