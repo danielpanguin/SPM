@@ -2,7 +2,7 @@ export type Priority = "Low" | "Medium" | "High";
 
 export type Status = "pending" | "in-progress" | "completed" | "blocked";
 
-export type Role = "manager" | "staff";
+export type Role = "manager" | "staff" | "admin";
 
 export interface UserRef {
   id: string;
