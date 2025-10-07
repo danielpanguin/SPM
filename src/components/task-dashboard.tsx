@@ -83,10 +83,11 @@ export function TaskDashboard() {
         return
       }
 
-      // Pull everything needed to fill your Task interface
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(`
+      try {
+        // Pull everything needed to fill your Task interface
+        const { data, error } = await supabase
+          .from("tasks")
+          .select(`
           id,
           title,
           description,
@@ -195,7 +196,11 @@ export function TaskDashboard() {
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
       setLoading(false)
-
+      } catch (err) {
+        console.error("[Supabase] Unexpected error loading tasks:", err)
+        setError("We couldn't load your tasks. Please try again.")
+        setLoading(false)
+      }
     }
 
     load()
