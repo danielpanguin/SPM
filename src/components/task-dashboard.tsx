@@ -73,9 +73,15 @@ export function TaskDashboard() {
       setLoading(true)
       setError(null)
 
-      const ownedByIds = accessibleUserIds
-        .map((id) => Number(id))
-        .filter((n) => Number.isFinite(n))
+      // accessibleUserIds are UUIDs (strings), not numbers - use them directly
+      const ownedByIds = accessibleUserIds.filter((id) => id && id.trim() !== '')
+
+      if (ownedByIds.length === 0) {
+        console.log("[Supabase] No accessible user IDs, skipping query")
+        setTasks([])
+        setLoading(false)
+        return
+      }
 
       // Pull everything needed to fill your Task interface
       const { data, error } = await supabase
@@ -89,28 +95,27 @@ export function TaskDashboard() {
           parent_task_id,
           start_date,
           end_date,
-          updated_at,
           created_at,
+          priority_id,
+          status_id,
+          project_id,
           created_by_user:created_by (
             id,
             username,
-            role:role_id ( id, name )
+            roles ( id, name )
           ),
           owned_by_user:owned_by (
             id,
             username,
-            role:role_id ( id, name )
+            roles ( id, name )
           ),
-          priority:priority_id ( priority ),
-          status:status_id ( status ),
-          project:project_id ( name ),
-          task_tasktag ( tag:tag_id ( name ) ),
+          status:status_id ( id, status ),
+          project:project_id ( id, name ),
+          task_tasktag (
+            task_tag ( id, name )
+          ),
           task_collaborator (
-            assignee:user_id (
-              id,
-              username,
-              role:role_id ( id, name )
-            )
+            users ( id, username )
           )
         `)
         .in("owned_by", ownedByIds);
