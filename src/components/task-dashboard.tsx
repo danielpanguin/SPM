@@ -308,15 +308,7 @@ export function TaskDashboard() {
       <div className="container mx-auto px-6 py-6">
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalMembers}</div>
-              <p className="text-xs text-muted-foreground">Active team members</p>
-            </CardContent>
-          </Card>
+          {/* y */}
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -371,7 +363,7 @@ export function TaskDashboard() {
             </Card>
 
             {/* Team Members Summary (placeholder) */}
-            <Card className="mt-6">
+            {/* <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="text-lg">Team Members</CardTitle>
               </CardHeader>
@@ -393,7 +385,7 @@ export function TaskDashboard() {
                   </div>
                 ))}
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
 
           {/* Main Task Area */}

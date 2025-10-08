@@ -171,10 +171,7 @@ describe('TaskDashboard - Unit Tests', () => {
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        // Use getAllByText since these appear in multiple places (stats card + sidebar)
-        const teamMembers = screen.getAllByText('Team Members');
-        expect(teamMembers.length).toBeGreaterThan(0);
-
+        // Check for the 3 visible stat cards (Team Members card is commented out)
         expect(screen.getAllByText('Active Tasks').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0);
@@ -230,8 +227,8 @@ describe('TaskDashboard - Unit Tests', () => {
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        // Error message is: "Failed to load tasks: We couldn't load your tasks. Please try again."
-        expect(screen.getByText(/failed to load tasks/i)).toBeInTheDocument();
+        // Error message is: "Couldn't load your tasks"
+        expect(screen.getByText(/couldn't load your tasks/i)).toBeInTheDocument();
       });
     });
 

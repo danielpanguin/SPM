@@ -4,6 +4,7 @@
 import { useMemo } from "react"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
+import { User } from "lucide-react"
 import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
 
@@ -153,7 +154,15 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                     {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
                   </TableCell>
 
-                  <TableCell className="font-medium">{t.title}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{t.title}</span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <User className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">{t.ownedBy?.name ?? "Unassigned"}</span>
+                      </div>
+                    </div>
+                  </TableCell>
 
                   <TableCell>
                     <Badge variant="outline" className={`${getPriorityClass(t.priority)} capitalize`}>
