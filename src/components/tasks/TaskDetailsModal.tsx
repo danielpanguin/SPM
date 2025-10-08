@@ -1,15 +1,47 @@
 "use client";
 
-import { Task } from "@/types/task";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import type { UITask } from "./TaskDashboard";
 
 interface Props {
-  task: Task | null;
+  task: UITask | null;
   onClose(): void;
   onEdit(): void;
 }
 
+type UserMap = Record<string, string>; // id -> label (email or id)
+
 export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
+  const [labels, setLabels] = useState<UserMap>({});
+
+  useEffect(() => {
+    let alive = true;
+    async function hydrateUsers() {
+      if (!task) return;
+      const ids = new Set<string>();
+      if (task.createdBy?.id) ids.add(task.createdBy.id);
+      if (task.ownedBy?.id) ids.add(task.ownedBy.id);
+      (task.collaborators ?? []).forEach((c) => ids.add(c.id));
+      if (!ids.size) return;
+
+      const { data } = await supabase
+        .from("users")
+        .select("id,email")
+        .in("id", Array.from(ids));
+      if (!alive) return;
+      const map: UserMap = {};
+      (data ?? []).forEach((u: any) => (map[u.id] = u.email || u.id));
+      setLabels(map);
+    }
+    hydrateUsers();
+    return () => {
+      alive = false;
+    };
+  }, [task?.id]);
+
   if (!task) return null;
+
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
@@ -19,20 +51,23 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Created by" value={task.createdBy.name} />
-          <Field label="Owned by" value={task.ownedBy.name} />
-          <Field label="Collaborators" value={task.collaborators.map(c=>c.name).join(", ") || "—"} />
-          <Field label="Start Date" value={task.startDate} />
-          <Field label="End Date" value={task.endDate} />
-          <Field label="Title" value={task.title} />
-          <Field label="Parent Task" value={task.parentTaskId || "—"} />
-          <Field label="Tag" value={task.tag || "—"} />
-          <Field label="Priority" value={task.priority} />
-          <Field label="Status" value={task.status} />
+          <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
+          <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
+          <Field
+            label="Collaborators"
+            value={(task.collaborators ?? [])
+              .map((c) => labels[c.id] || c.id)
+              .join(", ") || "—"}
+          />
+          <Field label="Start Date" value={task.startDate || "—"} />
+          <Field label="End Date" value={task.endDate || "—"} />
+          <Field label="Priority" value={String(task.priority ?? "—")} />
+          <Field label="Status" value={task.status || "—"} />
+          <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
+          <Field label="Tags" value={(task.tags ?? []).join(", ") || "—"} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
-          <Field label="Comments" value={task.comments.length ? `${task.comments.length} comment(s)` : "—"} className="sm:col-span-2" />
-          <Field label="Last Updated" value={new Date(task.updatedAt).toLocaleString()} />
-          <Field label="Created" value={new Date(task.createdAt).toLocaleString()} />
+          <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
+          <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
         </div>
 
         <div className="mt-6 flex items-center gap-2">
@@ -48,7 +83,7 @@ function Field({ label, value, className="" }: { label: string; value: string; c
   return (
     <div className={className}>
       <div className="text-gray-500">{label}</div>
-      <div className="font-medium">{value}</div>
+      <div className="font-medium break-words">{value}</div>
     </div>
   );
 }

@@ -1,44 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Task } from "@/types/task";
-import { useUser } from "@/hooks/useAuth"; // your project exports this
+import { useEffect, useMemo, useState } from "react";
 import TaskDetailsModal from "./TaskDetailsModal";
 import TaskForm from "./TaskForm";
+import { fetchTasks } from "@/components/useTasks";
 
-/** Normalize whatever the auth context returns into a simple { id, name?, role? } */
-function normalizeAuthUser(auth: any): { id?: string; name?: string; role?: "manager" | "staff" } | null {
-  if (!auth) return null;
-  if (auth.user) return auth.user;                 // e.g. { user: { id, name, role } }
-  if (auth.currentUser) return auth.currentUser;   // e.g. { currentUser: {...} }
-  // or the hook might return the fields directly
-  if (auth.id || auth.userId || auth.username) {
-    return {
-      id: auth.id ?? auth.userId,
-      name: auth.name ?? auth.username,
-      role: auth.role ?? (auth.isManager ? "manager" : undefined),
-    };
-  }
-  return null;
+/** Minimal UI Task shape that matches what this screen renders */
+export type UITask = {
+  id: number;
+  title: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  priority?: string | number | null; // we'll show as text/number
+  status?: string | null;
+  // for details modal:
+  createdBy?: { id?: string | null; name?: string } | null;
+  ownedBy?: { id?: string | null; name?: string } | null;
+  collaborators?: Array<{ id: string; name?: string }> | null;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  parentTaskId?: number | null;
+};
+
+function mapDbToUI(t: any): UITask {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? null,
+    startDate: t.start_date ?? null,
+    endDate: t.end_date ?? null,
+    priority: t?.priority?.id ?? null,            // number (1..10)
+    status: t?.status?.status ?? null,            // text from status table
+    createdBy: t.created_by
+      ? { id: t.created_by, name: t.created_by_email || t.created_by }
+      : null,
+    ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email || t.owned_by } : null,
+    collaborators: Array.isArray(t.assignees)
+      ? t.assignees.map((id: string) => ({ id }))
+      : [],
+    tags: t.tags ?? [],
+    createdAt: t.created_at ?? undefined,
+    updatedAt: t.updated_at ?? undefined,
+    parentTaskId: t.parent_task_id ?? null,
+  };
 }
 
 export default function TaskDashboard() {
-  const auth = useUser() as any;
-  const me = normalizeAuthUser(auth);
-  const isManager = (me?.role === "manager") || Boolean(auth?.isManager);
-
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [detailsTask, setDetailsTask] = useState<Task | null>(null);
+  const [tasks, setTasks] = useState<UITask[]>([]);
+  const [detailsTask, setDetailsTask] = useState<UITask | null>(null);
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<Task | null>(null);
+  const [editing, setEditing] = useState<UITask | null>(null);
+  const refreshKey = useMemo(() => Date.now(), []); // simple re-run anchor
 
   async function load() {
     try {
-      const res = await fetch("/api/tasks", { headers: { "x-user-id": me?.id ?? "u-mgr" } });
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      setTasks(Array.isArray(data.tasks) ? data.tasks : []);
-    } catch {
+      const dbTasks = await fetchTasks(); // calls /api/tasks
+      setTasks(dbTasks.map(mapDbToUI));
+    } catch (e) {
+      console.error(e);
       setTasks([]);
     }
   }
@@ -46,7 +67,7 @@ export default function TaskDashboard() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id, isManager]);
+  }, [refreshKey]);
 
   return (
     <div className="space-y-6">
@@ -70,14 +91,16 @@ export default function TaskDashboard() {
           >
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{t.title}</h3>
-              <span className="text-xs rounded-full border px-2 py-0.5">{t.priority}</span>
+              <span className="text-xs rounded-full border px-2 py-0.5">
+                {t.priority ?? "—"}
+              </span>
             </div>
             <div className="mt-2 text-sm text-gray-600 line-clamp-2">
               {t.description || "No description"}
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-              <div>{t.status}</div>
-              <div>{new Date(t.endDate).toLocaleDateString()}</div>
+              <div>{t.status || "—"}</div>
+              <div>{t.endDate ? new Date(t.endDate).toLocaleDateString() : "—"}</div>
             </div>
           </div>
         ))}
@@ -91,9 +114,9 @@ export default function TaskDashboard() {
         <Modal title="Create Task" onClose={() => setCreating(false)}>
           <TaskForm
             mode="create"
-            onSaved={(task) => {
+            onSaved={(dbTask) => {
               setCreating(false);
-              setTasks((prev) => [...prev, task]);
+              setTasks((prev) => [...prev, mapDbToUI(dbTask)]);
             }}
             onCancel={() => setCreating(false)}
           />
@@ -118,9 +141,10 @@ export default function TaskDashboard() {
           <TaskForm
             mode="edit"
             initial={editing}
-            onSaved={(task) => {
+            onSaved={(dbTask) => {
               setEditing(null);
-              setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+              const updated = mapDbToUI(dbTask);
+              setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
             }}
             onCancel={() => setEditing(null)}
           />
