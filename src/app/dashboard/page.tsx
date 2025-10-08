@@ -1,9 +1,8 @@
-// src/app/dashboard/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db";      // 👈 call Supabase directly here
 import { useUser } from "@/hooks/useAuth";
 import GanttChart from "@/components/ui/GanttChart";
 
@@ -12,42 +11,28 @@ export default function DashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const r = useRouter();
 
-  // get session state from context
-  const { loading, userId, email, role } = useUser();
+  const { email, role } = useUser();
 
-  // ✅ client-side auth guard
-  useEffect(() => {
-    if (!loading && !userId) r.replace("/login");
-  }, [loading, userId, r]);
-
-  // show a tiny loader while auth state resolves
-  if (loading) {
-    return <div className="min-h-screen grid place-items-center">Loading…</div>;
-  }
-  // guard will navigate away if not logged in
-  if (!userId) return null;
-
-  // ✅ fast & robust logout
   const onLogout = async () => {
-    if (loggingOut) return;
-    setLoggingOut(true);
+  if (loggingOut) return;
+  setLoggingOut(true);
 
-    // force redirect if Supabase is slow
-    const force = setTimeout(() => {
-      window.location.href = "/login";
-    }, 1500);
+  // Race-safe timeout so redirect always happens
+  const redirectTimer = setTimeout(() => {
+    console.warn("⚠️ Supabase logout slow — forcing redirect");
+    window.location.href = "/login";
+  }, 1500); // force redirect after 1.5s max
 
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) console.error("Supabase signOut error:", error.message);
-    } catch (e) {
-      console.error("Unexpected logout error:", e);
-    } finally {
-      clearTimeout(force);
-      // always navigate away
-      window.location.href = "/login";
-    }
-  };
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error("Supabase signOut error:", error.message);
+  } catch (err) {
+    console.error("Unexpected logout error:", err);
+  } finally {
+    clearTimeout(redirectTimer);
+    window.location.href = "/login"; // always redirect even if supabase fails
+  }
+};
 
   return (
     <div className={`min-h-screen transition-colors ${isDarkMode ? "bg-gray-900" : "bg-gray-50"}`}>
@@ -58,7 +43,7 @@ export default function DashboardPage() {
       >
         <div className="flex items-center justify-between h-16 px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className={isDarkMode ? "text-gray-100" : "text-gray-800"}>
+            <span className={`${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>
               Signed in as <b>{email ?? "—"}</b>
             </span>
             <span className="px-2 py-1 rounded bg-green-600 text-white text-xs capitalize">
@@ -81,7 +66,7 @@ export default function DashboardPage() {
             </button>
 
             <button
-              type="button"
+              type="button"                               
               onClick={onLogout}
               disabled={loggingOut}
               className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60"
