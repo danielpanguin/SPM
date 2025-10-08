@@ -136,7 +136,7 @@ describe('TaskDashboard - Unit Tests', () => {
 
       render(<TaskDashboard />);
 
-      expect(screen.getByText('Team Task Dashboard')).toBeInTheDocument();
+      expect(screen.getByText('Tasks')).toBeInTheDocument();
       expect(screen.getByText('Manage and track your team\'s tasks')).toBeInTheDocument();
     });
 
@@ -264,20 +264,32 @@ describe('TaskDashboard - Unit Tests', () => {
       });
     });
 
-    it('should not render when no accessible user IDs', () => {
+    it('should render dashboard when no accessible user IDs', async () => {
       mockUseUser.mockReturnValue({ accessibleUserIds: [] });
 
-      const { container } = render(<TaskDashboard />);
+      render(<TaskDashboard />);
 
-      expect(container.firstChild).toBeNull();
+      // Component should still render with heading (not return null)
+      expect(screen.getByText('Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Manage and track your team\'s tasks')).toBeInTheDocument();
+
+      // Dashboard should render even with empty accessible users
+      expect(screen.getByText('Active Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Completed')).toBeInTheDocument();
     });
 
-    it('should not render when accessibleUserIds is null', () => {
+    it('should render dashboard when accessibleUserIds is null', async () => {
       mockUseUser.mockReturnValue({ accessibleUserIds: null });
 
-      const { container } = render(<TaskDashboard />);
+      render(<TaskDashboard />);
 
-      expect(container.firstChild).toBeNull();
+      // Component should still render with heading (not return null)
+      expect(screen.getByText('Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Manage and track your team\'s tasks')).toBeInTheDocument();
+
+      // Dashboard should render even with null accessible users
+      expect(screen.getByText('Active Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Completed')).toBeInTheDocument();
     });
   });
 

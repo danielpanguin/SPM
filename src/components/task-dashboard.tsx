@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/ViewTaskUi/input"
 import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
 import  TaskDetailsModal from "./tasks/TaskDetailsModal"
+import TaskForm from "./tasks/TaskForm"
 import { ArchiveView } from "./archive-view"
 import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
@@ -33,6 +34,69 @@ function normalizeStatus(dbStatus: string | null | undefined): Status {
   }
 }
 
+// Map API response (TaskHydrated) to Task type
+async function mapApiResponseToTask(apiTask: any): Promise<Task> {
+  // Fetch user details for created_by, owned_by, and assignees
+  const userIds = [
+    apiTask.created_by,
+    apiTask.owned_by,
+    ...(apiTask.assignees ?? [])
+  ].filter(Boolean)
+
+  const userMap = new Map<string, { username: string; role: string }>()
+
+  if (userIds.length > 0) {
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, username, roles(name)")
+      .in("id", userIds)
+
+    users?.forEach((user: any) => {
+      userMap.set(user.id, {
+        username: user.username || user.id,
+        role: user.roles?.name || "staff"
+      })
+    })
+  }
+
+  return {
+    id: String(apiTask.id),
+    title: apiTask.title,
+    description: apiTask.description ?? undefined,
+    createdBy: {
+      id: apiTask.created_by ?? "",
+      name: userMap.get(apiTask.created_by)?.username ?? apiTask.created_by ?? "",
+      role: (userMap.get(apiTask.created_by)?.role ?? "staff") as any,
+    },
+    ownedBy: {
+      id: apiTask.owned_by ?? "",
+      name: userMap.get(apiTask.owned_by)?.username ?? apiTask.owned_by ?? "",
+      role: (userMap.get(apiTask.owned_by)?.role ?? "staff") as any,
+    },
+    collaborators: (apiTask.assignees ?? []).map((id: string) => ({
+      id,
+      name: userMap.get(id)?.username ?? id,
+      role: (userMap.get(id)?.role ?? "staff") as any,
+    })),
+    startDate: apiTask.start_date ?? "",
+    endDate: apiTask.end_date ?? "",
+    parentTaskId: apiTask.parent_task_id ? String(apiTask.parent_task_id) : undefined,
+    tag: apiTask.tags?.[0],
+    priority: mapPriority(apiTask.priority?.id),
+    status: normalizeStatus(apiTask.status?.status),
+    comments: [],
+    updatedAt: apiTask.updated_at ?? new Date().toISOString(),
+    createdAt: apiTask.created_at ?? new Date().toISOString(),
+  }
+}
+
+function mapPriority(priorityId: number | null | undefined): "Low" | "Medium" | "High" {
+  if (!priorityId) return "Medium"
+  if (priorityId <= 3) return "Low"
+  if (priorityId <= 6) return "Medium"
+  return "High"
+}
+
 export function TaskDashboard() {
   const { accessibleUserIds } = useUser()
 
@@ -40,6 +104,8 @@ export function TaskDashboard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [showArchive, setShowArchive] = useState(false)
+  const [editing, setEditing] = useState<Task | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const [filters, setFilters] = useState<TaskFilters>({
     search: "",
@@ -221,6 +287,14 @@ export function TaskDashboard() {
     setSelectedTask(null)
   }
 
+  const handleOpenEdit = () => {
+    if (selectedTask) {
+      setEditing(selectedTask)
+      setIsModalOpen(false)
+      setSelectedTask(null)
+    }
+  }
+
   const handleTaskUpdate = (updatedTask: Task) => {
     console.log("Task updated:", updatedTask)
     // optional: update local state
@@ -269,7 +343,6 @@ export function TaskDashboard() {
   }, [tasks])
 
   // ✅ Early returns only AFTER all hooks are declared:
-  if (!accessibleUserIds || accessibleUserIds.length === 0) return null
   if (showArchive) {
     return (
       <div data-testid="archive-view">
@@ -284,7 +357,7 @@ export function TaskDashboard() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Team Task Dashboard</h1>
+              <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
               <p className="text-muted-foreground">Manage and track your team's tasks</p>
             </div>
             <div className="flex items-center gap-4">
@@ -400,8 +473,13 @@ export function TaskDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Task Overview</CardTitle>
-                <p className="text-sm text-muted-foreground">All tasks across your projects</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Task Overview</CardTitle>
+                    <p className="text-sm text-muted-foreground">All tasks across your projects</p>
+                  </div>
+                  <Button onClick={() => setCreating(true)}>Create Task</Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {error && (
@@ -428,16 +506,82 @@ export function TaskDashboard() {
       </div>
 
       {/* Task Details Modal */}
-{isModalOpen && (
-  <TaskDetailsModal
-    task={selectedTask}
-    onClose={handleCloseModal}
-    onEdit={() => {
-      if (selectedTask) handleTaskUpdate(selectedTask)
-    }}
-  />
-)}
+      {isModalOpen && (
+        <TaskDetailsModal
+          task={selectedTask}
+          onClose={handleCloseModal}
+          onEdit={handleOpenEdit}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editing && (
+        <Modal title="Edit Task" onClose={() => setEditing(null)}>
+          <TaskForm
+            mode="edit"
+            initial={editing}
+            onSaved={async (apiResponse) => {
+              setEditing(null)
+              // Map API response to Task type and update the task in the list
+              const updatedTask = await mapApiResponseToTask(apiResponse)
+              setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)))
+              setTitleById((prev) => {
+                const next = new Map(prev)
+                next.set(updatedTask.id, updatedTask.title)
+                return next
+              })
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
+      )}
+
+      {/* Create Modal */}
+      {creating && (
+        <Modal title="Create Task" onClose={() => setCreating(false)}>
+          <TaskForm
+            mode="create"
+            onSaved={async (apiResponse) => {
+              setCreating(false)
+              // Map API response to Task type and add the new task to the list
+              const newTask = await mapApiResponseToTask(apiResponse)
+              setTasks((prev) => [...prev, newTask])
+              setTitleById((prev) => {
+                const next = new Map(prev)
+                next.set(newTask.id, newTask.title)
+                return next
+              })
+            }}
+            onCancel={() => setCreating(false)}
+          />
+        </Modal>
+      )}
 
     </div>
   )
+}
+
+// Modal Component
+function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose(): void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
+      <div role="dialog" aria-labelledby="modal-title" className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between">
+          <h3 id="modal-title" className="text-xl font-semibold">{title}</h3>
+          <button className="text-sm text-gray-500" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
 }

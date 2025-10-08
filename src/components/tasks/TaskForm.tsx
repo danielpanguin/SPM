@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
-import type { UITask } from "./TaskDashboard";
+import type { UITask } from "./TaskDetailsModal";
 
 type Mode = "create" | "edit";
 
@@ -141,7 +141,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" role="dialog">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <div>
