@@ -1,6 +1,8 @@
 export type Priority = "Low" | "Medium" | "High";
-export type Status = "To Do" | "In Progress" | "Completed" | "Blocked" | "Archived";
-export type Role = "manager" | "staff";
+
+export type Status = "pending" | "in-progress" | "completed" | "blocked";
+
+export type Role = "manager" | "staff" | "admin";
 
 export interface UserRef {
   id: string;
@@ -62,4 +64,4 @@ export interface UpdateTaskPayload {
 }
 
 export const PRIORITIES: Priority[]  = ["Low","Medium","High"];
-export const STATUSES: Status[]      = ["To Do","In Progress","Completed","Blocked","Archived"];
+export const STATUSES: Status[]      = ["pending","in-progress","completed","blocked"];

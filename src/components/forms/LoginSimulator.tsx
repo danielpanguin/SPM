@@ -129,7 +129,7 @@ export default function LoginSimulator({ isDarkMode = false }: LoginSimulatorPro
   // Handle user selection change
   const handleUserChange = (selectedUserId: string) => {
     console.log('👤 User login simulation - Selected user ID:', selectedUserId)
-    console.log('👥 Available users for reference:', allUsers.map(u => ({ id: u.id, name: u.name })))
+    console.log('👥 Available users for reference:', allUsers.map(u => ({ id: u.id, username: u.username })))
     setCurrentUserId(selectedUserId)
     
     if (selectedUserId) {
@@ -161,7 +161,7 @@ export default function LoginSimulator({ isDarkMode = false }: LoginSimulatorPro
         <option value="">Select User</option>
         {allUsers.map(user => (
           <option key={user.id} value={user.id}>
-            {user.name || user.email || `User ${user.id}`}
+            {user.username || user.email || `User ${user.id}`}
           </option>
         ))}
       </select>
