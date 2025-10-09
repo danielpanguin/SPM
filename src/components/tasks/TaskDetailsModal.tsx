@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Pencil, X } from "lucide-react";
 import type { ReactNode } from "react";
 import Comments from "@/components/tasks/comments/Comments";
 
@@ -45,6 +46,7 @@ type DetailsTask = {
   createdAt?: string;
   updatedAt?: string;
 };
+
 interface Props {
   task: UITask | DetailsTask | null;
   onClose(): void;
@@ -114,102 +116,125 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
       .join(", ");
   };
 
+  const getPriorityColor = (p: string | number) => {
+    const val = String(p).toLowerCase();
+    if (val.includes("high")) return "bg-red-100 text-red-700 border-red-300";
+    if (val.includes("medium")) return "bg-yellow-100 text-yellow-700 border-yellow-300";
+    if (val.includes("low")) return "bg-green-100 text-green-700 border-green-300";
+    return "bg-gray-100 text-gray-600 border-gray-300";
+  };
+
+  const getStatusColor = (s: string) => {
+    const val = s.toLowerCase();
+    if (val.includes("open") || val.includes("todo")) return "bg-blue-100 text-blue-700 border-blue-300";
+    if (val.includes("in progress") || val.includes("doing")) return "bg-yellow-100 text-yellow-700 border-yellow-300";
+    if (val.includes("done") || val.includes("completed")) return "bg-green-100 text-green-700 border-green-300";
+    return "bg-gray-100 text-gray-600 border-gray-300";
+  };
+
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6 space-x-3">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl h-5/6 my-auto">
-        <div className="flex items-start justify-between">
-          <h3 className="text-xl font-semibold">{task.title}</h3>
-          <button className="text-sm text-gray-500" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+      <div className="w-full max-w-5xl h-5/6 bg-white rounded-2xl shadow-xl flex overflow-hidden">
+        {/* LEFT SECTION */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {/* 🟣 Header Row */}
+          <div className="flex justify-between flex-wrap">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-xl font-semibold">{task.title}</h3>
+            </div>
+            {/* 🏷️ Priority badge */}
+            <div className="justify-evenly space-x-2">
+              {task.priority && (
+                <span
+                  className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(task.priority)}`}
+                >
+                  Priority: {task.priority}
+                </span>
+              )}
+
+              {/* 🏷️ Status badge */}
+              {task.status && (
+                <span
+                  className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(task.status)}`}
+                >
+                  {task.status}
+                </span>
+              )}
+            </div>
+            <button className="text-sm text-gray-500" onClick={onClose}>
             Close
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Project" value={(task as any).project?.name || "—"} />
+          {/* 🧾 Details Grid */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <Field label="Project" value={(task as any).project?.name || "—"} />
           <Field label="Status" value={task.status || "—"} />
           <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
           <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
           <Field label="Collaborators" value={getCollaboratorsDisplay()} />
           <Field label="Priority" value={task.priority || "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />
-          <Field label="End Date" value={task.endDate || "—"} />
-          <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
-          <Field label="Priority" value={String(task.priority ?? "—")} />
-          <Field label="Status" value={task.status || "—"} />
-          <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
+            <Field label="End Date" value={task.endDate || "—"} />
+            <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
+            <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
           <Field label="Tags" value={tagsValue} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
           <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
           <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
         </div>
-        <Comments 
-          key={task.id}                 // re-mount when task changes
-          taskId={String(task.id)}
-          onCountChange={setCommentCount}
-          onPosted={() => setCommentCount((c) => c + 1)} // optional optimistic bump
-        />
 
-      </div>
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl h-5/6 my-auto">
-        <div className="flex items-center gap-2 justify-end">
-          <button
-            onClick={onEdit}
-            title="Edit Task"
-            className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-              />
-            </svg>
-          </button>
-
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            title="Close"
-            className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18 18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-        <div className="text-sm grid grid-cols-1 gap-4">
-          <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
-          <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
-          <Field
-            label="Collaborators"
-            value={(task.collaborators ?? [])
-              .map((c) => labels[c.id] || c.id)
-              .join(", ") || "—"}
+          {/* 💬 Comments */}
+          <Comments
+            key={task.id}
+            taskId={String(task.id)}
+            onCountChange={setCommentCount}
+            onPosted={() => setCommentCount((c) => c + 1)}
           />
-          <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
-          <Field label="Tags" value={(task.tags ?? []).join(", ") || "—"} />
-          <Field label="Last Updated On" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
-          <Field label="Created On" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
         </div>
-        
+
+        {/* Divider */}
+        <div className="w-px bg-gray-200" />
+
+        {/* RIGHT SECTION */}
+        <div className="w-80 p-6 overflow-y-auto flex flex-col">
+          <div className="justify-end flex items-center gap-2">
+              {/* ACTION BUTTONS (Edit / Close) */}
+              <button
+                onClick={onEdit}
+                title="Edit Task"
+                className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onClose}
+                title="Close"
+                className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          <div className="text-sm grid grid-cols-1 gap-4">
+            <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
+            <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
+            <Field
+              label="Collaborators"
+              value={(task.collaborators ?? []).map((c) => labels[c.id] || c.id).join(", ") || "—"}
+            />
+            <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
+            <Field label="Tags" value={(task.tags ?? []).join(", ") || "—"} />
+            <Field
+              label="Last Updated On"
+              value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"}
+            />
+            <Field
+              label="Created On"
+              value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

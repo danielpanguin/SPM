@@ -23,9 +23,11 @@ type Props = {
 
 export default function Comments({ taskId, onCountChange, onPosted }: Props) {
   const { currentUserId } = useUser();
+
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [comments, setComments] = useState<CommentUI[]>([]);
+  const [canComment, setCanComment] = useState<boolean>(false); 
   const disabled = submitting || text.trim().length === 0 || !currentUserId;
 
   // ✏️ edit state
@@ -48,6 +50,60 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
     shaped.sort((a, b) => (a.createdAtTs - b.createdAtTs) || (a.id - b.id)); // oldest -> newest
     return shaped;
   };
+
+  // 🔐 Compute permission to comment
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      if (!currentUserId || !Number.isFinite(taskIdNum)) {
+        setCanComment(false);
+        return;
+      }
+
+      // 1) Get current user's role_id
+      const { data: me, error: meErr } = await supabase
+        .from("users")
+        .select("id, role_id")
+        .eq("id", currentUserId)
+        .single();
+
+      if (!alive) return;
+      if (meErr || !me) {
+        console.error("role lookup error:", meErr);
+        setCanComment(false);
+        return;
+      }
+
+      // If not staff (role_id !== 3), allow
+      if (me.role_id !== 3) {
+        setCanComment(true);
+        return;
+      }
+
+      // 2) Staff: fetch owner + collaborators for this task
+      const [{ data: t, error: tErr }, { data: collabs, error: cErr }] = await Promise.all([
+        supabase.from("tasks").select("owned_by").eq("id", taskIdNum).single(),
+        supabase.from("task_collaborator").select("user_id").eq("task_id", taskIdNum),
+      ]);
+
+      if (!alive) return;
+      if (tErr || cErr || !t) {
+        console.error("task/colabs lookup error:", tErr || cErr);
+        setCanComment(false);
+        return;
+      }
+
+      const collaboratorIds = new Set((collabs ?? []).map((r: any) => r.user_id as string));
+      const isOwner = t.owned_by === currentUserId;
+      const isCollaborator = collaboratorIds.has(currentUserId);
+
+      setCanComment(isOwner || isCollaborator); // true only if owner/collab
+    })();
+
+    return () => { alive = false; };
+  }, [currentUserId, taskIdNum]);
+
 
   // auto-scroll to bottom when list changes
   useEffect(() => {
@@ -92,6 +148,8 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
     })();
     return () => { alive = false; };
   }, [taskIdNum, onCountChange]);
+
+  const composerDisabled = submitting || text.trim().length === 0 || !currentUserId || !canComment;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -204,11 +262,11 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
 
   return (
     <section aria-labelledby="comments-title" className="mt-4">
-      <div className="text-gray-500 text-sm">Comments</div>
+      <div className="text-gray-500 text-sm mb-2">Comments</div>
 
       <div
         ref={scrollRef}
-        className="border border-gray-400 rounded-2xl p-4 max-h-[20vh] overflow-y-auto"
+        className="border border-gray-200 rounded-sm p-4 max-h-[24vh] overflow-y-auto"
       >
         <div className="space-y-3">
           {comments.length === 0 && <div className="text-xs text-gray-500">No comments yet.</div>}
@@ -217,7 +275,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
             const isEditing = editingId === c.id;
 
             return (
-              <div key={c.id} className="rounded-xl border p-3 bg-gray-50 text-sm">
+              <div key={c.id} className="rounded-sm border border-gray-400 p-3 bg-gray-50 text-sm">
                 <div className="mb-1 text-gray-600 flex items-center gap-2">
                   <span className="font-medium">{c.author?.username ?? c.author?.id ?? "Unknown"}</span>
                   <span className="text-xs text-gray-400">• {new Date(c.createdAtTs).toLocaleString()}</span>
@@ -256,7 +314,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
                 ) : (
                   <textarea
                     className="w-full rounded border p-2 text-sm focus:outline-none focus:ring"
-                    rows={3}
+                    rows={2}
                     value={editText}
                     onChange={(e) => setEditText(e.target.value)}
                     onKeyDown={onEditKeyDown}
@@ -272,18 +330,20 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       {/* composer */}
       <form onSubmit={handleSubmit} className="mt-2">
         <textarea
-          className="w-full rounded-xl border border-gray-400 p-3 text-sm focus:outline-none focus:ring"
-          rows={3}
+          className="w-full rounded-sm border border-gray-400 p-3 text-sm focus:outline-none focus:ring"
+          rows={2}
           placeholder={currentUserId ? "Write your comment…" : "Sign in to comment…"}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          disabled={!currentUserId}
+          hidden={!canComment}
+          disabled={!currentUserId || !canComment}
         />
         <div className="flex justify-end">
           <button
             type="submit"
+            hidden={!canComment}
             disabled={disabled}
-            className="rounded-xl bg-black px-4 py-2 text-white disabled:opacity-50"
+            className="rounded-xl text-sm bg-black px-4 py-2 text-white disabled:opacity-50"
           >
             {submitting ? "Posting…" : "Comment"}
           </button>
