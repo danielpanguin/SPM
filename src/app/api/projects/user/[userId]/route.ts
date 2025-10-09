@@ -4,10 +4,10 @@ import { supabase } from "@/lib/supabaseClient";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const userId = params.userId;
+    const { userId } = await params;
 
     // Fetch projects where the user is a member
     const { data: projectMembers, error: memberError } = await supabase
