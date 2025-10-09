@@ -368,7 +368,6 @@ export default function TaskDashboard() {
             </button>
           ))}
         </div>
-        </div>
       ) : (
         !busy && (
           <p className="text-gray-900">No tasks yet. Create your first task.</p>

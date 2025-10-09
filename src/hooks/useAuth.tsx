@@ -12,6 +12,7 @@ type Ctx = {
   email: string | null;
   role: Role;
   profile: Profile | null;
+  accessibleUserIds: string[];
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -32,17 +33,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [accessibleUserIds, setAccessibleUserIds] = useState<string[]>([]);
   const refOnce = useRef(false);
 
   const load = async () => {
     setLoading(true);
-    
+
     // Read session directly from localStorage since supabase.auth.getSession() hangs
     try {
       const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
       const storageKey = `sb-${projectRef}-auth-token`;
       const storedSession = localStorage.getItem(storageKey);
-      
+
       let u = null;
       if (storedSession) {
         const session = JSON.parse(storedSession);
@@ -58,16 +60,47 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (u?.id) {
         const username = u.email ? u.email.split("@")[0] : null;
         setProfile({ id: u.id, username, role: roleFromEmail(u.email ?? null) });
+
+        // Load accessible user IDs based on role
+        const userRole = roleFromEmail(u.email ?? null);
+        if (userRole === 'staff') {
+          // Staff can only see their own tasks
+          setAccessibleUserIds([u.id]);
+        } else if (userRole === 'manager' || userRole === 'admin') {
+          // Managers and admins can see all users in their organization
+          try {
+            // For now, get all users - in a real system you'd filter by organization
+            const { data: users } = await supabase
+              .from('users')
+              .select('id')
+              .limit(1000);
+
+            if (users && Array.isArray(users)) {
+              const ids = users.map(user => user.id);
+              setAccessibleUserIds(ids);
+            } else {
+              // Fallback to just current user if query fails
+              setAccessibleUserIds([u.id]);
+            }
+          } catch (error) {
+            console.warn("[useAuth] Failed to load accessible users, using current user only:", error);
+            setAccessibleUserIds([u.id]);
+          }
+        } else {
+          setAccessibleUserIds([u.id]);
+        }
       } else {
         setProfile(null);
+        setAccessibleUserIds([]);
       }
     } catch (err) {
       console.error("[useAuth] Error loading session:", err);
       setUserId(null);
       setEmail(null);
       setProfile(null);
+      setAccessibleUserIds([]);
     }
-    
+
     setLoading(false);
   };
 
@@ -87,13 +120,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       email,
       role: profile?.role ?? null,
       profile,
+      accessibleUserIds,
       refresh: load,
       signOut: async () => {
         // Clear localStorage session manually
         const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
         const storageKey = `sb-${projectRef}-auth-token`;
         localStorage.removeItem(storageKey);
-        
+
         // Also try Supabase signOut (may hang but localStorage is already cleared)
         try {
           await Promise.race([
@@ -103,12 +137,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         } catch (err) {
           console.warn("[useAuth] signOut timed out, but localStorage already cleared");
         }
-        
+
         // Reload to clear state
         await load();
       },
     }),
-    [loading, userId, email, profile]
+    [loading, userId, email, profile, accessibleUserIds]
   );
 
   return <UserCtx.Provider value={value}>{children}</UserCtx.Provider>;
