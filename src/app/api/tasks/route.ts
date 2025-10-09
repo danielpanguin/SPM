@@ -1,97 +1,70 @@
+// src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuid } from "uuid";
-import { readTasks, writeTasks, findUserById } from "@/lib/store";
-import { CreateTaskPayload, Task, PRIORITIES, STATUSES, UserRef } from "@/types/task";
+import { listTasks, createTask } from "@/lib/tasks.repo";
+import { TaskCreateSchema } from "@/lib/tasks.scheme";
 
-/** Mock auth – replace with your real auth.
- *  We re-use the existing `useAuth.tsx` client hook, but for API we simulate via header:
- *    x-user-id: u-mgr | u-stf-1 | ...
- */
-function getAuthUser(req: NextRequest): UserRef {
-  const all = require("fs").existsSync(".data/users.json")
-    ? JSON.parse(require("fs").readFileSync(".data/users.json","utf-8"))
-    : [];
-  const id = req.headers.get("x-user-id") ?? "u-mgr";
-  const found = all.find((u: UserRef) => u.id === id) || all[0];
-  return found;
+function json(data: any, init?: number | ResponseInit) {
+  return NextResponse.json(data, typeof init === "number" ? { status: init } : init);
+}
+function badRequest(msg: string | string[]) {
+  return json({ error: Array.isArray(msg) ? msg.join("; ") : msg }, 400);
+}
+function serverError(e: unknown) {
+  const message = e instanceof Error ? e.message : String(e);
+  return json({ error: message }, 500);
 }
 
-function validateCreate(payload: CreateTaskPayload, me: UserRef) {
-  const errors: string[] = [];
+export async function GET(req: NextRequest) {
+  try {
+    // Get user context from headers
+    const userIdHeader = req.headers.get("x-user-id") || null;
+    const viewRole = req.headers.get("x-view-role") || "staff";
+    
+    // Optional filters: /api/tasks?project_id=123&assignee_id=<uuid>
+    const { searchParams } = new URL(req.url);
+    const project_id = searchParams.get("project_id");
+    const assignee_id = searchParams.get("assignee_id");
 
-  // mandatory fields
-  if (!payload.title?.trim()) errors.push("Title is required.");
-  if (!payload.startDate) errors.push("Start Date is required.");
-  if (!payload.endDate) errors.push("End Date is required.");
-  if (!payload.priority || !PRIORITIES.includes(payload.priority)) errors.push("Priority must be Low, Medium, or High.");
+    // SECURITY: Staff users can ONLY see tasks they're assigned to
+    // Managers/Admins can see all tasks
+    let finalAssigneeId = assignee_id || undefined;
+    if (viewRole === "staff" && userIdHeader) {
+      finalAssigneeId = userIdHeader; // Force filter to current user
+    }
 
-  // dates
-  if (payload.startDate && payload.endDate) {
-    const s = new Date(payload.startDate).getTime();
-    const e = new Date(payload.endDate).getTime();
-    if (isFinite(s) && isFinite(e) && e < s) errors.push("End Date must be on/after Start Date.");
+    const tasks = await listTasks({
+      project_id: project_id ? Number(project_id) : undefined,
+      assignee_id: finalAssigneeId,
+    });
+
+    // The UI maps fields itself (TaskDashboard -> mapDbToUI), so return raw hydrated rows
+    return json({ data: tasks }, { status: 200, headers: { "Cache-Control": "no-store" } });
+  } catch (e) {
+    return serverError(e);
   }
-
-  // assignee rules
-  if (me.role === "manager") {
-    if (!payload.ownedById) errors.push("Owned By (assignee) must be selected by managers.");
-  } else {
-    // staff: server will auto-assign to self; ignore provided ownedById if present
-  }
-
-  // collaborators rules
-  const ids = payload.collaboratorsIds ?? [];
-  if (ids.length > 5) errors.push("Collaborators cannot exceed 5.");
-  // allow duplicates check
-  const unique = new Set(ids);
-  if (unique.size !== ids.length) errors.push("Collaborators list has duplicates.");
-
-  return errors;
-}
-
-export async function GET() {
-  const tasks = readTasks();
-  return NextResponse.json({ tasks });
 }
 
 export async function POST(req: NextRequest) {
-  const me = getAuthUser(req);
-  const body = (await req.json()) as CreateTaskPayload;
+  try {
+    const body = await req.json();
 
-  const errors = validateCreate(body, me);
-  if (errors.length) {
-    return NextResponse.json({ status: "error", errors }, { status: 400 });
+    // Validate incoming payload with Zod (expects DB field names)
+    const parsed = TaskCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      const messages = parsed.error.issues.map((i) => i.message);
+      return badRequest(messages);
+    }
+
+    // If the client didn’t set created_by, fall back to header
+    const userIdHeader = req.headers.get("x-user-id") || null;
+    const payload = {
+      ...parsed.data,
+      created_by: parsed.data.created_by ?? userIdHeader,
+    };
+
+    const task = await createTask(payload);
+    return json({ data: task }, 201);
+  } catch (e) {
+    return serverError(e);
   }
-
-  const now = new Date().toISOString();
-  const ownedBy = me.role === "manager" ? (findUserById(body.ownedById) ?? me) : me;
-
-  // collaborators map
-  const collabs = (body.collaboratorsIds ?? [])
-    .map(id => findUserById(id))
-    .filter(Boolean) as UserRef[];
-
-  const task: Task = {
-    id: uuid(),
-    title: body.title.trim(),
-    description: body.description?.trim() ?? "",
-    createdBy: me,
-    ownedBy,
-    collaborators: collabs,
-    startDate: body.startDate,
-    endDate: body.endDate,
-    parentTaskId: body.parentTaskId ?? null,
-    tag: body.tag?.trim() ?? "",
-    priority: body.priority,
-    status: me.role === "manager" && body.status && STATUSES.includes(body.status) ? body.status : "To Do",
-    comments: [],
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const tasks = readTasks();
-  tasks.push(task);
-  writeTasks(tasks);
-
-  return NextResponse.json({ task }, { status: 201 });
 }

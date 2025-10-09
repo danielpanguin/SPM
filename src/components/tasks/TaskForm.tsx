@@ -1,74 +1,57 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { PRIORITIES, STATUSES, Task, UserRef } from "@/types/task";
-import { useUser } from "@/hooks/useAuth";
-import { supabase } from "@/lib/db";
+import { supabaseFetch } from "@/lib/db"
+import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
+import type { UITask } from "./TaskDashboard";
 
 type Mode = "create" | "edit";
 
 interface Props {
   mode: Mode;
-  initial?: Partial<Task>;
-  onSaved(task: Task): void;
+  initial?: Partial<UITask>;
+  onSaved(taskFromApi: any): void;   // we map in parent
   onCancel?(): void;
 }
 
-interface UsersState {
-  all: UserRef[];
-  me: UserRef | null;
-}
-
-type DbUser = {
-  id: string;
-  // your table may not have 'name'; keep optional
-  name?: string | null;
-  email?: string | null;
-  roles?: { name?: string | null } | null; // via select('roles(name)')
-};
-
-function toUserRef(u: DbUser): UserRef {
-  const roleName = (u.roles?.name || "").toLowerCase();
-  const role: "manager" | "staff" = roleName === "manager" ? "manager" : "staff";
-  const label = u.name || u.email || u.id;
-  return { id: u.id, name: label, role };
-}
+type DbRoleUser = { id: string; email?: string | null; roles?: { name?: string | null } | null };
+type Option = { id: number; label: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
-  const {
-    currentUserId,
-    currentUserRoleName, // 'manager' | 'staff'
-    accessibleUserIds,
-  } = useUser();
+  // TODO: wire to your auth if available
+  const currentUserId = (initial as any)?.createdBy?.id || ""; // fallback
+  const isManager = true; // set from your auth/role if you have it
 
-  const isManager = (currentUserRoleName || "").toLowerCase() === "manager";
-
-  const [users, setUsers] = useState<UsersState>({ all: [], me: null });
+  const [users, setUsers] = useState<DbRoleUser[]>([]);
+  const [statusOpts, setStatusOpts] = useState<Option[]>([]);
+  const [prioOpts, setPrioOpts] = useState<Option[]>([]);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [ownedById, setOwnedById] = useState<string | undefined>(initial?.ownedBy?.id);
-  const [collaboratorsIds, setCollaboratorsIds] = useState<string[]>(
-    initial?.collaborators?.map((c) => c.id) ?? []
+  const [ownedById, setOwnedById] = useState<string | undefined>(
+    (initial?.ownedBy as any)?.id
+  );
+  const [collaboratorIds, setCollaboratorIds] = useState<string[]>(
+    (initial?.collaborators ?? []).map((c: any) => c.id)
   );
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
-  const [parentTaskId, setParentTaskId] = useState<string | undefined>(
-    (initial?.parentTaskId ?? undefined) as string | undefined
+  const [parentTaskId, setParentTaskId] = useState<number | "">(
+    (initial?.parentTaskId as number) ?? ""
   );
-  const [tag, setTag] = useState(initial?.tag ?? "");
-  const [priority, setPriority] = useState(initial?.priority ?? "Medium");
-  const [status, setStatus] = useState(initial?.status ?? "To Do");
-  const [error, setError] = useState<string | null>(null);
+  const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
+  const [priorityId, setPriorityId] = useState<number | "">("");
+  const [statusId, setStatusId] = useState<number | "">("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Accessibility/testing-friendly ids
+  // field ids
   const uid = useId();
   const id = {
     title: `${uid}-title`,
     start: `${uid}-start`,
     end: `${uid}-end`,
-    priority: `${uid}-priority`,
+    prio: `${uid}-prio`,
     status: `${uid}-status`,
     assignee: `${uid}-assignee`,
     parent: `${uid}-parent`,
@@ -76,179 +59,93 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     desc: `${uid}-desc`,
   };
 
-  /** For staff, only allow these ids (always include self) */
-  const staffAllowedIds = useMemo(() => {
-    const s = new Set<string>(accessibleUserIds ?? []);
-    if (currentUserId) s.add(currentUserId);
-    return Array.from(s);
-  }, [accessibleUserIds, currentUserId]);
-
-  /** Load users (NO 'users.name' selected) */
+  /* Load pickers from DB */
   useEffect(() => {
     let alive = true;
-    async function loadUsers() {
-      if (!currentUserId) {
-        setUsers({ all: [], me: null });
-        return;
-      }
-
+    async function run() {
       try {
-        // IMPORTANT: do NOT select 'name' if your users table doesn't have it
-        const { data, error } = await supabase
-          .from("users")
-          .select("id,email,roles(name)");
+        const [users, statuses, priorities] = await Promise.all([
+          supabaseFetch("users", { select: "id,email" }),
+          supabaseFetch("status", { select: "id,status" }),
+          supabaseFetch("priority", { select: "id" }),
+        ]);
 
         if (!alive) return;
 
-        if (error) {
-          const msg = (error as any)?.message || JSON.stringify(error || {});
-          console.error("❌ TaskForm: error fetching users", msg);
-          setUsers({ all: [], me: null });
-          return;
-        }
+        setUsers(users as any[]);
+        setStatusOpts((statuses ?? []).map((s: any) => ({ id: s.id, label: s.status })));
+        setPrioOpts((priorities ?? []).map((p: any) => ({ id: p.id, label: `P${p.id}` })));
 
-        const allRefs = (data as DbUser[]).map(toUserRef);
-        const filtered = isManager
-          ? allRefs
-          : allRefs.filter((u) => staffAllowedIds.includes(u.id));
-
-        const me = allRefs.find((u) => u.id === currentUserId) ?? null;
-        setUsers({ all: filtered, me });
-
-        // Staff: lock assignee to self in CREATE
-        if (mode === "create" && !isManager && me?.id) {
-          setOwnedById(me.id);
-        }
-        // Staff EDIT with no owner in initial → ensure self
-        if (mode === "edit" && !isManager && !initial?.ownedBy?.id && me?.id) {
-          setOwnedById(me.id);
-        }
-      } catch (e: any) {
-        console.error("❌ TaskForm: exception fetching users", e?.message || e);
-        setUsers({ all: [], me: null });
+        // default values if empty
+        if (!statusId && statuses.length) setStatusId(statuses[0].id);
+        if (!priorityId && priorities.length) setPriorityId(priorities[0].id);
+      } catch (err) {
+        console.error("[TaskForm] Error loading options:", err);
       }
     }
-
-    loadUsers();
+    run();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManager, staffAllowedIds.join("|"), currentUserId, mode]);
+  }, []);
 
-  const canChangeAssignee = isManager;
-  const canChangeStatusOnCreate = isManager;
-  const maxCollabs = 5;
+  const allowedUsers = useMemo(() => users, [users]);
 
-  /** Acceptance-criteria validations */
   function validate(): string | null {
     if (!title.trim()) return "Title is required.";
-    if (!startDate || !endDate) return "Start Date and End Date are required.";
-    if (new Date(startDate) > new Date(endDate)) {
-      return "Start Date must be earlier than or equal to End Date.";
-    }
-    if (mode === "create" && canChangeAssignee && !ownedById) {
-      return "Assignee (Owned By) is required for managers.";
-    }
-    if (collaboratorsIds.length > maxCollabs) {
-      return `You can only add up to ${maxCollabs} collaborators.`;
-    }
+    if (!startDate || !endDate) return "Start date and End date are required.";
+    if (new Date(startDate) > new Date(endDate)) return "Start must be before or equal to End.";
+    if (!ownedById) return "Assignee (Owned By) is required.";
+    if (!statusId) return "Status is required.";
+    if (!priorityId) return "Priority is required.";
     return null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const v = validate();
-    if (v) {
-      setError(v);
+    const msg = validate();
+    if (msg) {
+      setError(msg);
       return;
     }
-
     setBusy(true);
     setError(null);
 
     try {
-      const headers: HeadersInit = {
-        "Content-Type": "application/json",
-        "x-user-id": currentUserId || "",
+      const payload = {
+        title,
+        description,
+        status_id: Number(statusId),
+        priority_id: Number(priorityId),
+        start_date: startDate,
+        end_date: endDate,
+        created_by: currentUserId || ownedById, // fallback
+        owned_by: ownedById!,
+        parent_task_id: parentTaskId === "" ? null : Number(parentTaskId),
+        assignee_ids: collaboratorIds,
+        tags: tag ? [tag] : [],
       };
 
-      if (mode === "create") {
-        const payload = {
-          title,
-          description,
-          ownedById: canChangeAssignee ? ownedById : undefined,
-          collaboratorsIds,
-          startDate,
-          endDate,
-          parentTaskId: parentTaskId || null,
-          tag,
-          priority,
-          status: canChangeStatusOnCreate ? status : undefined, // staff → default To Do
-        };
-        const res = await fetch("/api/tasks", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error((data?.errors || [data?.error || res.statusText]).join("; "));
-        onSaved(data.task);
-      } else {
-        const payload = {
-          title,
-          description,
-          ownedById: canChangeAssignee ? ownedById : undefined,
-          collaboratorsIds,
-          startDate,
-          endDate,
-          parentTaskId: parentTaskId || null,
-          tag,
-          priority,
-          status,
-        };
-        const res = await fetch(`/api/tasks/${initial?.id}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || res.statusText);
-        onSaved(data.task);
-      }
+      const data =
+        mode === "create"
+          ? await createTaskAPI(payload)
+          : await updateTaskAPI(Number(initial?.id), payload);
+
+      onSaved(data);
     } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+      setError(err?.message || "Failed to save task.");
     } finally {
       setBusy(false);
     }
   }
 
-  function toggleCollaborator(id: string) {
-    setCollaboratorsIds((prev) => {
-      const has = prev.includes(id);
-      if (has) {
-        // Staff cannot remove collaborators on edit
-        if (mode === "edit" && !isManager) return prev;
-        return prev.filter((x) => x !== id);
-      }
-      if (prev.length >= maxCollabs) return prev;
-      return [...prev, id];
-    });
+  function toggleCollaborator(x: string) {
+    setCollaboratorIds((prev) => (prev.includes(x) ? prev.filter((i) => i !== x) : [...prev, x]));
   }
 
-  const staffBanner =
-    mode === "create" && !canChangeAssignee
-      ? "Owned By (assignee) must be selected by managers."
-      : null;
-
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4"
-      role="dialog"
-      aria-label={mode === "create" ? "Create Task" : "Edit Task"}
-    >
-      {staffBanner && <p className="text-red-600 text-sm">{staffBanner}</p>}
+    <form onSubmit={handleSubmit} className="space-y-4" role="dialog">
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <div>
@@ -295,38 +192,33 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor={id.priority} className="block text-sm font-medium">
+          <label htmlFor={id.prio} className="block text-sm font-medium">
             Priority *
           </label>
           <select
-            id={id.priority}
+            id={id.prio}
             className="mt-1 w-full rounded border p-2"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as any)}
+            value={priorityId}
+            onChange={(e) => setPriorityId(Number(e.target.value))}
           >
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
+            {prioOpts.map((o) => (
+              <option key={o.id} value={o.id}>{o.label}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label htmlFor={id.status} className="block text-sm font-medium">
-            Status {mode === "create" && !isManager ? "(defaults to To Do)" : ""}
+            Status *
           </label>
           <select
             id={id.status}
             className="mt-1 w-full rounded border p-2"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
-            disabled={mode === "create" && !isManager}
+            value={statusId}
+            onChange={(e) => setStatusId(Number(e.target.value))}
           >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+            {statusOpts.map((o) => (
+              <option key={o.id} value={o.id}>{o.label}</option>
             ))}
           </select>
         </div>
@@ -341,49 +233,31 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           className="mt-1 w-full rounded border p-2"
           value={ownedById ?? ""}
           onChange={(e) => setOwnedById(e.target.value)}
-          disabled={!isManager}
           required
         >
-          <option value="" disabled>
-            Select user
-          </option>
-          {users.all.map((u) => (
+          <option value="" disabled>Select user</option>
+          {allowedUsers.map((u) => (
             <option key={u.id} value={u.id}>
-              {u.name} ({u.role})
+              {u.email || u.id}
             </option>
           ))}
         </select>
-        {!isManager && (
-          <p className="text-xs text-gray-500 mt-1">
-            Staff: assignee is auto-set to you.
-          </p>
-        )}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Collaborators (max 5)</label>
+        <label className="block text-sm font-medium">Collaborators</label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {users.all.map((u) => (
-            <label
-              key={u.id}
-              className={`flex items-center gap-2 rounded border p-2 ${
-                collaboratorsIds.includes(u.id) ? "bg-gray-50" : ""
-              }`}
-            >
+          {allowedUsers.map((u) => (
+            <label key={u.id} className={`flex items-center gap-2 rounded border p-2 ${collaboratorIds.includes(u.id) ? "bg-gray-50" : ""}`}>
               <input
                 type="checkbox"
-                checked={collaboratorsIds.includes(u.id)}
+                checked={collaboratorIds.includes(u.id)}
                 onChange={() => toggleCollaborator(u.id)}
               />
-              <span className="text-sm">{u.name}</span>
+              <span className="text-sm">{u.email || u.id}</span>
             </label>
           ))}
         </div>
-        {mode === "edit" && !isManager && (
-          <p className="text-xs text-gray-500 mt-1">
-            Staff can add collaborators but cannot remove existing ones.
-          </p>
-        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -395,18 +269,21 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             id={id.parent}
             className="mt-1 w-full rounded border p-2"
             placeholder="Optional task id"
-            value={parentTaskId ?? ""}
-            onChange={(e) => setParentTaskId(e.target.value || undefined)}
+            value={parentTaskId}
+            onChange={(e) => {
+              const v = e.target.value;
+              setParentTaskId(v === "" ? "" : Number(v));
+            }}
           />
         </div>
         <div>
           <label htmlFor={id.tag} className="block text-sm font-medium">
-            Tag
+            Tag (single)
           </label>
           <input
             id={id.tag}
             className="mt-1 w-full rounded border p-2"
-            placeholder="e.g. frontend, ops"
+            placeholder="e.g. frontend, urgent"
             value={tag}
             onChange={(e) => setTag(e.target.value)}
           />
@@ -421,7 +298,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           id={id.desc}
           className="mt-1 w-full rounded border p-2"
           rows={4}
-          value={description}
+          value={description ?? ""}
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
