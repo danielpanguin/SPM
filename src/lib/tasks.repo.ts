@@ -287,9 +287,9 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
       ...r,
       assignees,
       tags,
-      project: r.project_id ? projMap.get(r.project_id) ?? null : null,
-      status: r.status_id ? statusMap.get(r.status_id) ?? null : null,
-      priority: r.priority_id ? prioMap.get(r.priority_id) ?? null : null,
+      project: r.project_id ? (projMap.get(r.project_id) ?? null) : null,
+      status: r.status_id ? (statusMap.get(r.status_id) ?? null) : null,
+      priority: r.priority_id ? (prioMap.get(r.priority_id) ?? null) : null,
     };
   });
 }
