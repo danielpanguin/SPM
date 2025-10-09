@@ -20,6 +20,8 @@ export type UITask = {
   createdAt?: string;
   updatedAt?: string;
   parentTaskId?: string | number | null;
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
 };
 
 interface Props {
@@ -76,6 +78,8 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <Field label="Project" value={task.project?.name || "—"} />
+          <Field label="Status" value={task.status || "—"} />
           <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
           <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
           <Field
@@ -84,10 +88,9 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
               .map((c) => labels[c.id] || c.id)
               .join(", ") || "—"}
           />
+          <Field label="Priority" value={task.priority != null ? String(task.priority) : "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
-          <Field label="Priority" value={task.priority != null ? String(task.priority) : "—"} />
-          <Field label="Status" value={task.status || "—"} />
           <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
           <Field label="Tags" value={tagsValue} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
