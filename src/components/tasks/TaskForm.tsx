@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
 import type { UITask } from "./TaskDetailsModal";
+import { useUser } from "@/hooks/useAuth";
 
 type Mode = "create" | "edit";
 
@@ -16,24 +17,26 @@ interface Props {
 
 type DbRoleUser = { id: string; email?: string | null; roles?: { name?: string | null } | null };
 type Option = { id: number; label: string };
+type Project = { id: number; name: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
-  // TODO: wire to your auth if available
-  const currentUserId = (initial as any)?.createdBy?.id || ""; // fallback
+  const { currentUserId } = useUser();
   const isManager = true; // set from your auth/role if you have it
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
   const [prioOpts, setPrioOpts] = useState<Option[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [ownedById, setOwnedById] = useState<string | undefined>(
     (initial?.ownedBy as any)?.id
   );
-  const [collaboratorIds, setCollaboratorIds] = useState<string[]>(
-    (initial?.collaborators ?? []).map((c: any) => c.id)
-  );
+  const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
+    const collabs = initial?.collaborators ?? [];
+    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === 'string');
+  });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
   const [parentTaskId, setParentTaskId] = useState<number | "">(
@@ -42,6 +45,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
   const [priorityId, setPriorityId] = useState<number | "">("");
   const [statusId, setStatusId] = useState<number | "">("");
+  const [projectId, setProjectId] = useState<number | "">(
+    (initial?.project_id as number) ?? ""
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +63,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     parent: `${uid}-parent`,
     tag: `${uid}-tag`,
     desc: `${uid}-desc`,
+    project: `${uid}-project`,
   };
 
   /* Load pickers from DB */
@@ -78,13 +85,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       // default values if empty
       if (!statusId && (statusRes.data ?? []).length) setStatusId((statusRes.data as any[])[0].id);
       if (!priorityId && (prioRes.data ?? []).length) setPriorityId((prioRes.data as any[])[0].id);
+
+      // Fetch user's assigned projects
+      if (currentUserId) {
+        fetch(`/api/projects/user/${currentUserId}`)
+          .then((res) => res.json())
+          .then((result) => {
+            if (alive && result.ok) {
+              setProjects(result.data ?? []);
+            }
+          })
+          .catch((err) => console.error("Failed to fetch projects:", err));
+      }
     }
     run();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUserId]);
 
   const allowedUsers = useMemo(() => users, [users]);
 
@@ -109,6 +128,18 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     setError(null);
 
     try {
+      // UUID regex pattern
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+      // Filter out any invalid UUIDs from collaboratorIds
+      const validCollaboratorIds = collaboratorIds.filter((id) => {
+        const isValid = uuidPattern.test(id);
+        if (!isValid) {
+          console.warn("Invalid UUID in collaborators:", id);
+        }
+        return isValid;
+      });
+
       const payload = {
         title,
         description,
@@ -119,17 +150,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         created_by: currentUserId || ownedById, // fallback
         owned_by: ownedById!,
         parent_task_id: parentTaskId === "" ? null : Number(parentTaskId),
-        assignee_ids: collaboratorIds,
+        project_id: projectId === "" ? null : Number(projectId),
+        assignee_ids: validCollaboratorIds,
         tags: tag ? [tag] : [],
       };
+
+      console.log("Submitting task payload:", payload);
+      console.log("Mode:", mode, "Task ID:", initial?.id);
+      console.log("Original collaboratorIds:", collaboratorIds);
+      console.log("Filtered validCollaboratorIds:", validCollaboratorIds);
 
       const data =
         mode === "create"
           ? await createTaskAPI(payload)
           : await updateTaskAPI(Number(initial?.id), payload);
 
+      console.log("Task saved successfully:", data);
       onSaved(data);
     } catch (err: any) {
+      console.error("Error saving task:", err);
       setError(err?.message || "Failed to save task.");
     } finally {
       setBusy(false);
@@ -218,6 +257,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div>
+        <label htmlFor={id.project} className="block text-sm font-medium">
+          Project
+        </label>
+        <select
+          id={id.project}
+          className="mt-1 w-full rounded border p-2"
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value === "" ? "" : Number(e.target.value))}
+        >
+          <option value="">None (No Project)</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
