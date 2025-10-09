@@ -16,14 +16,25 @@ function serverError(e: unknown) {
 
 export async function GET(req: NextRequest) {
   try {
+    // Get user context from headers
+    const userIdHeader = req.headers.get("x-user-id") || null;
+    const viewRole = req.headers.get("x-view-role") || "staff";
+    
     // Optional filters: /api/tasks?project_id=123&assignee_id=<uuid>
     const { searchParams } = new URL(req.url);
     const project_id = searchParams.get("project_id");
     const assignee_id = searchParams.get("assignee_id");
 
+    // SECURITY: Staff users can ONLY see tasks they're assigned to
+    // Managers/Admins can see all tasks
+    let finalAssigneeId = assignee_id || undefined;
+    if (viewRole === "staff" && userIdHeader) {
+      finalAssigneeId = userIdHeader; // Force filter to current user
+    }
+
     const tasks = await listTasks({
       project_id: project_id ? Number(project_id) : undefined,
-      assignee_id: assignee_id || undefined,
+      assignee_id: finalAssigneeId,
     });
 
     // The UI maps fields itself (TaskDashboard -> mapDbToUI), so return raw hydrated rows

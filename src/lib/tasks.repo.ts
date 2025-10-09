@@ -1,5 +1,5 @@
 // src/lib/tasks.repo.ts
-import { supabase } from "./supabaseClient";
+import { supabase } from "@/lib/db";
 
 export type UUID = string;
 
@@ -39,10 +39,13 @@ export type TaskUpdateInput = Partial<TaskCreateInput>;
 
 export type TaskHydrated = TaskRow & {
   assignees: UUID[];
+  assignee_emails?: string[];
   tags: string[];
   project?: { id: number; name: string } | null;
   status?: { id: number; status: string } | null;
   priority?: { id: number } | null;
+  created_by_email?: string | null;
+  owned_by_email?: string | null;
 };
 
 /* ---------- READ ---------- */
@@ -50,7 +53,7 @@ export async function listTasks(params?: {
   project_id?: number;
   assignee_id?: UUID;
 }): Promise<TaskHydrated[]> {
-  let query = supabase.from("tasks").select("*").order("id", { ascending: false });
+  let query = supabase.from("tasks").select("id,title,description,project_id,status_id,priority_id,start_date,end_date,created_by,owned_by,parent_task_id,is_overdue").order("id", { ascending: false });
 
   if (params?.project_id) query = query.eq("project_id", params.project_id);
 
@@ -256,12 +259,22 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
     tagsByTask.set(t.task_id, list);
   });
 
-  // Fetch reference tables
+  // Fetch reference tables including users for created_by, owned_by, and collaborators
   const projIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean) as number[])];
   const statusIds = [...new Set(rows.map((r) => r.status_id).filter(Boolean) as number[])];
   const prioIds = [...new Set(rows.map((r) => r.priority_id).filter(Boolean) as number[])];
+  
+  // Collect all collaborator user IDs
+  const allCollaboratorIds = [...new Set((collab ?? []).map((c: any) => c.user_id))];
+  
+  // Combine all user IDs (created_by, owned_by, and collaborators)
+  const userIds = [...new Set([
+    ...rows.map((r) => r.created_by).filter(Boolean) as UUID[],
+    ...rows.map((r) => r.owned_by).filter(Boolean) as UUID[],
+    ...allCollaboratorIds,
+  ])];
 
-  const [projects, statuses, prios] = await Promise.all([
+  const [projects, statuses, prios, users] = await Promise.all([
     projIds.length
       ? supabase.from("projects").select("id,name").in("id", projIds)
       : Promise.resolve({ data: [] as any[] }),
@@ -271,21 +284,39 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
     prioIds.length
       ? supabase.from("priority").select("id").in("id", prioIds)
       : Promise.resolve({ data: [] as any[] }),
+    userIds.length
+      ? supabase.from("users").select("id,email").in("id", userIds)
+      : Promise.resolve({ data: [] as any[] }),
   ]).then((res: any[]) => res.map((r) => r.data));
 
   const projMap = new Map(projects.map((p: any) => [p.id, p]));
   const statusMap = new Map(statuses.map((s: any) => [s.id, s]));
   const prioMap = new Map(prios.map((p: any) => [p.id, p]));
+  const userMap = new Map(users.map((u: any) => [u.id, u.email]));
+
+  // Debug logging
+  console.log("[tasks.repo] userMap:", userMap);
+  console.log("[tasks.repo] collabByTask:", collabByTask);
 
   // Return normalized hydrated rows
   return rows.map(
-    (r): TaskHydrated => ({
-      ...r,
-      assignees: collabByTask.get(r.id) ?? [],
-      tags: tagsByTask.get(r.id) ?? [],
-      project: r.project_id ? projMap.get(r.project_id) ?? null : null,
-      status: r.status_id ? statusMap.get(r.status_id) ?? null : null,
-      priority: r.priority_id ? prioMap.get(r.priority_id) ?? null : null,
-    })
+    (r): TaskHydrated => {
+      const assigneeIds = collabByTask.get(r.id) ?? [];
+      const assigneeEmails = assigneeIds.map(id => userMap.get(id) as string | undefined).filter(Boolean) as string[];
+      
+      console.log(`[tasks.repo] Task ${r.id}: assigneeIds=${assigneeIds}, assigneeEmails=${assigneeEmails}`);
+      
+      return {
+        ...r,
+        assignees: assigneeIds,
+        assignee_emails: assigneeEmails,
+        tags: tagsByTask.get(r.id) ?? [],
+        project: r.project_id ? (projMap.get(r.project_id) as { id: number; name: string } | undefined) ?? null : null,
+        status: r.status_id ? (statusMap.get(r.status_id) as { id: number; status: string } | undefined) ?? null : null,
+        priority: r.priority_id ? (prioMap.get(r.priority_id) as { id: number } | undefined) ?? null : null,
+        created_by_email: r.created_by ? (userMap.get(r.created_by) as string | undefined) ?? null : null,
+        owned_by_email: r.owned_by ? (userMap.get(r.owned_by) as string | undefined) ?? null : null,
+      };
+    }
   );
 }

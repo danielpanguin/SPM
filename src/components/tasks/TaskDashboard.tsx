@@ -51,6 +51,10 @@ function normalizeAuthUser(auth: any): {
 
 /* ---------- Map DB → UI ---------- */
 function mapDbToUI(t: any): UITask {
+  console.log("[TaskDashboard] Raw task data:", t);
+  console.log("[TaskDashboard] assignee_emails:", t.assignee_emails);
+  console.log("[TaskDashboard] assignees:", t.assignees);
+  
   return {
     id: t.id,
     title: t.title,
@@ -65,9 +69,15 @@ function mapDbToUI(t: any): UITask {
     ownedBy: t.owned_by
       ? { id: t.owned_by, name: t.owned_by_email ?? t.owned_by }
       : null,
-    collaborators: Array.isArray(t.assignees)
-      ? t.assignees.map((id: string) => ({ id }))
-      : [],
+      collaborators: Array.isArray(t.assignee_emails)
+      ? t.assignee_emails.map((email: string, idx: number) => ({ 
+        id: t.assignees?.[idx] ?? email, 
+        name: email,
+        email 
+      }))
+    : Array.isArray(t.assignees)
+    ? t.assignees.map((id: string) => ({ id }))
+    : [],
     tags: t.tags ?? [],
     parentTaskId: t.parentTaskId ?? t.parent_task_id ?? null,
     createdAt: t.created_at ?? undefined,
@@ -151,7 +161,7 @@ export default function TaskDashboard() {
           {error}
         </div>
       )}
-      {busy && <div className="text-gray-500">Loading tasks…</div>}
+      {busy && <div className="text-gray-700">Loading tasks…</div>}
 
       {/* Task Grid */}
       {!busy && tasks.length > 0 ? (
@@ -167,15 +177,15 @@ export default function TaskDashboard() {
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">{t.title}</h3>
                 {t.priority && (
-                  <span className="text-xs rounded-full border px-2 py-0.5 text-gray-600">
+                  <span className="text-xs rounded-full border px-2 py-0.5 text-gray-700">
                     {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
                   </span>
                 )}
               </div>
-              <p className="mt-2 text-sm text-gray-600 line-clamp-2">
+              <p className="mt-2 text-sm text-gray-700 line-clamp-2">
                 {t.description || "No description"}
               </p>
-              <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+              <div className="mt-3 flex items-center justify-between text-xs text-gray-700">
                 <div>{t.status ?? "To Do"}</div>
                 <div>
                   {t.endDate
@@ -188,7 +198,7 @@ export default function TaskDashboard() {
         </div>
       ) : (
         !busy && (
-          <p className="text-gray-600">No tasks yet. Create your first task.</p>
+          <p className="text-gray-700">No tasks yet. Create your first task.</p>
         )
       )}
 
@@ -254,7 +264,7 @@ function Modal({
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between">
           <h3 className="text-xl font-semibold">{title}</h3>
-          <button className="text-sm text-gray-500" onClick={onClose}>
+          <button className="text-sm text-gray-700 hover:text-gray-900" onClick={onClose}>
             ✕
           </button>
         </div>

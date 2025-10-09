@@ -3,153 +3,190 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/db";
+import { supabase, refreshSupabaseAuth } from "@/lib/db";
+import { useUser } from "@/hooks/useAuth";
 
 function meetsPolicy(pw: string) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pw);
 }
 
 export default function LoginPage() {
-  const router = useRouter();
+  const r = useRouter();
+  const { loading: authLoading, userId } = useUser();
 
-  const [mounted, setMounted] = useState(false);
+  // If already signed in, go to dashboard
+  useEffect(() => {
+    if (!authLoading && userId) r.replace("/dashboard");
+  }, [authLoading, userId, r]);
+
   const [email, setEmail] = useState("");
-  const [password, setPw] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [pw, setPw] = useState("");
+  const [uiErr, setUiErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [debug, setDebug] = useState<any>(null); // visible diagnostic block
 
   useEffect(() => setMounted(true), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setErr(null);
+    setUiErr(null);
+    setDebug(null);
 
-    if (!email.trim() && !password) return setErr("Email and password are required.");
-    if (!email.trim()) return setErr("Email is required.");
-    if (!password) return setErr("Password is required.");
-    if (!meetsPolicy(password))
-      return setErr("Password must be ≥8 characters and include upper, lower, and a digit.");
+    console.log("===== LOGIN DEBUG START =====");
+    console.log("[step 1] email:", email, "| password length:", pw.length);
 
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setLoading(false);
+    if (!email.trim() && !pw) return setUiErr("Email and password are required.");
+    if (!email.trim()) return setUiErr("Email is required.");
+    if (!pw) return setUiErr("Password is required.");
+    if (!meetsPolicy(pw)) {
+      console.warn("[step 1] password fails policy check");
+      return setUiErr("Password must be ≥8 characters and include upper, lower, and a digit.");
+    }
 
-    if (error) return setErr("Invalid email or password.");
-    router.push("/dashboard");
+    // Step 2️⃣: Try to sign in
+    setBusy(true);
+    console.log("[step 2] calling supabase.auth.signInWithPassword...");
+    
+    try {
+      // Direct fetch to bypass potential client library issue
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`;
+      console.log("[step 2] Making direct fetch to:", url);
+      
+      const fetchResponse = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: pw,
+        }),
+      });
+      
+      console.log("[step 2] Fetch response status:", fetchResponse.status);
+      const fetchData = await fetchResponse.json();
+      console.log("[step 2] Fetch response data:", fetchData);
+      if (!fetchResponse.ok) {
+        setUiErr(`Login failed: ${fetchData.error_description || fetchData.msg || "Unknown error"}`);
+        return;
+      }
+      
+      // Try to set session with timeout
+      console.log("[step 2] Setting session with Supabase client...");
+      
+      const setSessionPromise = supabase.auth.setSession({
+        access_token: fetchData.access_token,
+        refresh_token: fetchData.refresh_token,
+      });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("setSession timeout")), 2000)
+      );
+      
+      try {
+        const { data: sessionData, error: sessionError } = await Promise.race([
+          setSessionPromise,
+          timeoutPromise
+        ]) as any;
+
+        if (sessionError) {
+          console.error("[step 2 ❌] Session error:", sessionError);
+          setUiErr(`Login failed: ${sessionError.message}`);
+          return;
+        }
+
+        console.log("[step 2] ✅ Session set successfully:", sessionData);
+      } catch (timeoutErr) {
+        console.warn("[step 2] ⚠️ setSession timed out - Supabase client is broken, skipping");
+        // Just continue - session will be managed manually via useAuth reading localStorage
+      }
+
+      // Step 3️⃣: Store session manually as backup
+      console.log("[step 3] Storing session manually in localStorage...");
+      const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
+      const storageKey = `sb-${projectRef}-auth-token`;
+      const session = {
+        access_token: fetchData.access_token,
+        refresh_token: fetchData.refresh_token,
+        expires_at: fetchData.expires_at,
+        expires_in: fetchData.expires_in,
+        token_type: fetchData.token_type,
+        user: fetchData.user,
+      };
+      localStorage.setItem(storageKey, JSON.stringify(session));
+      console.log("[step 3] ✅ Session stored manually");
+      
+      // Wait a moment for cookies to be set
+      await new Promise(r => setTimeout(r, 500));
+      
+      // Step 4️⃣: Redirect to dashboard immediately
+      console.log("[step 4] ✅ Redirecting to /dashboard");
+      console.log("[step 4] Current cookies:", document.cookie);
+      
+      // Use hard redirect to ensure middleware sees the auth cookies
+      window.location.href = "/dashboard";
+
+    } catch (err: any) {
+      console.error("[step ❌ CATCH] unexpected error", err);
+      setUiErr(`Unexpected error: ${err.message || String(err)}`);
+    } finally {
+      console.log("===== LOGIN DEBUG END =====");
+      setBusy(false);
+    }
   }
 
-  // Static placeholder on first paint to avoid SSR/CSR drift
   if (!mounted) return <div className="min-h-screen bg-[#f5f3ef]" />;
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#f5f3ef]">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#f5f3ef] via-[#e8e3dc] to-[#d6ccc2]" />
+    <div className="min-h-screen grid place-items-center bg-[#f5f3ef] p-6">
+      <form onSubmit={onSubmit} noValidate className="w-full max-w-md rounded-2xl bg-white p-6 shadow">
+        <h1 className="text-xl font-semibold mb-4">Sign in</h1>
 
-      {/* Card */}
-      <div className="relative z-10 grid min-h-screen place-items-center p-4">
-        <div className="w-full max-w-lg">
-          <div className="rounded-2xl border border-[#e3d5ca] bg-[#fefcfb] shadow-xl">
-            <div className="px-8 pt-8">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#b08968] grid place-items-center text-white shadow">
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 12h14M12 5v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-                <h1 className="text-2xl font-semibold text-[#4a3f35]">TaskHub</h1>
-              </div>
-              <p className="mt-2 text-sm text-[#7d7461]">
-                Sign in with your staff, manager, or admin account.
-              </p>
-            </div>
-
-            <form onSubmit={onSubmit} noValidate className="p-8 pt-6">
-              {err && (
-                <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-700 px-4 py-3 text-sm">
-                  {err}
-                </div>
-              )}
-
-              {/* Email */}
-              <label htmlFor="email" className="block text-sm text-[#4a3f35] mb-1.5">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="username"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full mb-4 rounded-xl bg-white text-[#4a3f35] placeholder-[#a99f91] border border-[#d6ccc2] px-3 py-2.5 shadow-sm outline-none focus:ring-4 focus:ring-[#b08968]/30"
-              />
-
-              {/* Password */}
-              <label htmlFor="password" className="block text-sm text-[#4a3f35] mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPw ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPw(e.target.value)}
-                  className="w-full rounded-xl bg-white text-[#4a3f35] placeholder-[#a99f91] border border-[#d6ccc2] px-3 py-2.5 shadow-sm outline-none focus:ring-4 focus:ring-[#b08968]/30"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((s) => !s)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#7d7461] hover:text-[#4a3f35] focus:outline-none"
-                  aria-label={showPw ? "Hide password" : "Show password"}
-                >
-                  {showPw ? (
-                    // Eye-off icon
-                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      <path
-                        d="M9.9 6.3A10.9 10.9 0 0 1 12 5c6 0 10 7 10 7a20.8 20.8 0 0 1-4.1 4.9M6.5 8.5A19 19 0 0 0 2 12s4 7 10 7a10.6 10.6 0 0 0 3.5-.6"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        fill="none"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  ) : (
-                    // Eye icon
-                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm10 4a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  )}
-                </button>
-              </div>
-
-              <p className="mt-2 text-xs text-[#7d7461]">
-                Password must be at least 8 characters and include upper, lower, and a digit.
-              </p>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-6 w-full rounded-xl bg-[#b08968] text-white font-medium py-2.5 shadow hover:bg-[#a1745c] transition disabled:opacity-60"
-              >
-                {loading ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
+        {uiErr && (
+          <div className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+            {uiErr}
           </div>
+        )}
 
-          <p className="mt-6 text-center text-xs text-[#7d7461]">© TaskHub</p>
-        </div>
-      </div>
+        {/* Diagnostic block (shows raw error/session info while we debug) */}
+        {debug && (
+          <pre className="mb-3 max-h-48 overflow-auto rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+            {JSON.stringify(debug, null, 2)}
+          </pre>
+        )}
+
+        <label className="block text-sm mb-1" htmlFor="email">Email</label>
+        <input
+          id="email"
+          className="w-full mb-3 rounded-lg border border-gray-300 p-2.5 outline-none focus:ring-2 focus:ring-[#b08968]"
+          type="email"
+          autoComplete="username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        <label className="block text-sm mb-1" htmlFor="password">Password</label>
+        <input
+          id="password"
+          className="w-full rounded-lg border border-gray-300 p-2.5 outline-none focus:ring-2 focus:ring-[#b08968]"
+          type="password"
+          autoComplete="current-password"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          required
+        />
+
+        <button
+          type="submit"
+          disabled={busy}
+          className="mt-4 w-full rounded bg-[#b08968] text-white font-medium py-2.5 shadow hover:bg-[#a1745c] transition disabled:opacity-60"
+        >
+          {busy ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
     </div>
   );
 }

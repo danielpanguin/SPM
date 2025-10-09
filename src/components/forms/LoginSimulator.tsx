@@ -3,10 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/db'; // 👈 keep only the client
+import { supabase } from '@/lib/db';
 import { useUser } from '@/hooks/useAuth';
 
-type Props = { isDarkMode?: boolean };
+type Props = { isDarkMode?: boolean; isActive?: boolean };
 
 // Match exactly the columns you SELECT below
 type DbUser = {
@@ -15,11 +15,11 @@ type DbUser = {
   email: string | null;
 };
 
-export default function LoginSimulator({ isDarkMode = false }: Props) {
+export default function LoginSimulator({ isDarkMode = false, isActive = true }: Props) {
   const r = useRouter();
 
   const {
-    // required from context
+    // from context
     loading,
     email,
     profile,
@@ -28,7 +28,7 @@ export default function LoginSimulator({ isDarkMode = false }: Props) {
     accessibleUserIds,
     refresh,
 
-    // OPTIONAL simulation setters (remove if your context doesn’t expose these)
+    // OPTIONAL simulation setters (only if your context provides them)
     setCurrentUserId,
     setCurrentUserRoleId,
     setCurrentUserRoleName,
@@ -39,33 +39,56 @@ export default function LoginSimulator({ isDarkMode = false }: Props) {
   const [allUsers, setAllUsers] = useState<DbUser[]>([]);
   const [viewAsId, setViewAsId] = useState<string>('');
 
-  // Fetch users that are accessible to this role
+  // Fetch users only when this control is active and we have access info
   useEffect(() => {
-    const fetchUsers = async () => {
+    let alive = true;
+    if (!isActive) return;
+
+    (async () => {
       if (!Array.isArray(accessibleUserIds) || accessibleUserIds.length === 0) {
+        if (!alive) return;
         setAllUsers([]);
         setViewAsId('');
         return;
       }
 
+      // Manager/Admin sentinel → fetch all users lazily
+      if (accessibleUserIds[0] === '*') {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, username, email');
+        if (!alive) return;
+        if (error) {
+          console.error('[fetch users error]', error);
+          setAllUsers([]);
+          return;
+        }
+        setAllUsers((data ?? []) as DbUser[]);
+        setViewAsId(authUserId ?? '');
+        return;
+      }
+
+      // Staff (or explicit list) → fetch those ids only
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, email') // 👈 matches DbUser
+        .select('id, username, email')
         .in('id', accessibleUserIds);
 
+      if (!alive) return;
       if (error) {
         console.error('[fetch users error]', error);
         setAllUsers([]);
         return;
       }
 
-      // Cast the untyped result to our local type
       setAllUsers((data ?? []) as DbUser[]);
       setViewAsId(authUserId ?? '');
-    };
+    })();
 
-    fetchUsers();
-  }, [accessibleUserIds, authUserId]);
+    return () => {
+      alive = false;
+    };
+  }, [isActive, accessibleUserIds, authUserId]);
 
   // OPTIONAL: when switching "view as", drive your context (if supported)
   const handleViewAsChange = async (id: string) => {
@@ -81,8 +104,14 @@ export default function LoginSimulator({ isDarkMode = false }: Props) {
       setBusy(true);
       const { error } = await supabase.auth.signOut();
       if (error) console.error('Logout error:', error.message);
-      await refresh();                // clear context
-      r.replace('/login');            // SPA redirect
+      await refresh?.(); // clear local auth context
+      // SPA redirect with hard fallback
+      r.replace('/login');
+      setTimeout(() => {
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }, 600);
     } finally {
       setBusy(false);
     }
@@ -113,7 +142,7 @@ export default function LoginSimulator({ isDarkMode = false }: Props) {
         )}
       </div>
 
-      {/* View as (simulator) — show only when there’s more than one accessible user */}
+      {/* View as (simulator) — only when >1 accessible user */}
       {allUsers.length > 1 && (
         <div className="flex items-center gap-2">
           <label className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>View as:</label>

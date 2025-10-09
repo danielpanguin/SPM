@@ -109,8 +109,8 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <div className="text-gray-500">{label}</div>
-      <div className="font-medium">{value}</div>
+      <div className="text-gray-700 font-medium">{label}</div>
+      <div className="text-gray-900 font-semibold">{value}</div>
     </div>
   );
 }

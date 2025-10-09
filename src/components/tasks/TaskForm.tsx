@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { supabase } from "@/lib/db"
+import { supabaseFetch } from "@/lib/db"
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
 import type { UITask } from "./TaskDashboard";
 
@@ -63,21 +63,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   useEffect(() => {
     let alive = true;
     async function run() {
-      const [usersRes, statusRes, prioRes] = await Promise.all([
-        supabase.from("users").select("id,email,roles(name)"),
-        supabase.from("status").select("id,status"),
-        supabase.from("priority").select("id").order("id", { ascending: true }),
-      ]);
+      try {
+        const [users, statuses, priorities] = await Promise.all([
+          supabaseFetch("users", { select: "id,email" }),
+          supabaseFetch("status", { select: "id,status" }),
+          supabaseFetch("priority", { select: "id" }),
+        ]);
 
-      if (!alive) return;
+        if (!alive) return;
 
-      setUsers((usersRes.data ?? []) as any[]);
-      setStatusOpts((statusRes.data ?? []).map((s: any) => ({ id: s.id, label: s.status })));
-      setPrioOpts((prioRes.data ?? []).map((p: any) => ({ id: p.id, label: `P${p.id}` })));
+        setUsers(users as any[]);
+        setStatusOpts((statuses ?? []).map((s: any) => ({ id: s.id, label: s.status })));
+        setPrioOpts((priorities ?? []).map((p: any) => ({ id: p.id, label: `P${p.id}` })));
 
-      // default values if empty
-      if (!statusId && (statusRes.data ?? []).length) setStatusId((statusRes.data as any[])[0].id);
-      if (!priorityId && (prioRes.data ?? []).length) setPriorityId((prioRes.data as any[])[0].id);
+        // default values if empty
+        if (!statusId && statuses.length) setStatusId(statuses[0].id);
+        if (!priorityId && priorities.length) setPriorityId(priorities[0].id);
+      } catch (err) {
+        console.error("[TaskForm] Error loading options:", err);
+      }
     }
     run();
     return () => {
