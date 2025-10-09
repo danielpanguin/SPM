@@ -2,6 +2,9 @@ import { supabase } from '@/lib/db';
 import { NextRequest } from "next/server";
 import nodemailer from "nodemailer";
 
+export { sendTaskEmails };
+
+
 const EMAIL_USER = process.env.GMAIL_ADDRESS!;
 const EMAIL_PASS = process.env.GMAIL_APP_PASSWORD!;
 
@@ -12,6 +15,21 @@ const transporter = nodemailer.createTransport({
     pass: EMAIL_PASS
   }
 });
+
+type TaskWithStatus = {
+  id: string;
+  title: string;
+  end_date: string;
+  owned_by: string;
+  status_id: string;
+  is_overdue: boolean;
+  is_archived: boolean;
+  status?: {
+    id: string;
+    status: string; // This is the display string from the status table
+  };
+};
+
 
 async function sendEmail(to: string, subject: string, html: string) {
   const mailOptions = {
@@ -30,9 +48,9 @@ async function sendEmail(to: string, subject: string, html: string) {
   }
 }
 
-function generateReminderEmail(userName: string, tasks: { title: string; dueDate: Date }[]) {
+function generateReminderEmail(userName: string, tasks: { title: string; dueDate: Date; status: string }[]) {
   const tasksList = sortTasksByDate(tasks)
-    .map(t => `<li>${t.title} - due by ${formatDateDDMMYYYY(t.dueDate)}</li>`)
+    .map(t => `<li>[${t.status}] ${t.title} - due by ${formatDateDDMMYYYY(t.dueDate)}</li>`)
     .join('');
 
   return `
@@ -45,10 +63,10 @@ function generateReminderEmail(userName: string, tasks: { title: string; dueDate
   `;
 }
 
-function generateOverdueTasksEmail(userName: string, tasks: { title: string; dueDate: Date }[]) {
+function generateOverdueTasksEmail(userName: string, tasks: { title: string; dueDate: Date; status: string }[]) {
   const tasksList = sortTasksByDate(tasks)
     .map(
-      t => `<li><span style="color:red;">${t.title} (Overdue)</span> - due on ${formatDateDDMMYYYY(t.dueDate)}</li>`
+      t => `<li><span style="color:red;">[${t.status}] ${t.title} (Overdue)</span> - due on ${formatDateDDMMYYYY(t.dueDate)}</li>`
     )
     .join('');
 
@@ -64,14 +82,14 @@ function generateOverdueTasksEmail(userName: string, tasks: { title: string; due
 
 function generateDailySummaryEmail(
   userName: string,
-  tasks: { title: string; dueDate: Date; isOverdue: boolean }[]
+  tasks: { title: string; dueDate: Date; isOverdue: boolean ; status: string}[]
 ) {
   const tasksList = sortTasksByDate(tasks)
     .map(t => {
       const titleText = t.isOverdue
-        ? `<span style="color:red;">${t.title} (Overdue)</span>`
+        ? `<span style="color:red;">[${t.status}] ${t.title}  (Overdue)</span>`
         : t.title;
-      return `<li>${titleText} - due on ${formatDateDDMMYYYY(t.dueDate)}</li>`;
+      return `<li>[${t.status}] ${titleText} - due on ${formatDateDDMMYYYY(t.dueDate)}</li>`;
     })
     .join('');
 
@@ -100,14 +118,15 @@ function sortTasksByDate<T extends { dueDate?: Date; end_date?: string | Date }>
   });
 }
 
-async function fetchAllTasksByUserIds(userIds: string[]) {
+async function fetchAllTasksByUserIds(userIds: string[]): Promise<TaskWithStatus[]> {
   try {
     const { data, error } = await supabase
       .from('tasks')
-      .select('id, title, end_date, owned_by, status_id, is_overdue, is_archived')
+      .select('id, title, end_date, owned_by, status_id, is_overdue, is_archived, status:status_id(id, status)')
       .in('owned_by', userIds)
       .neq('status_id', '3')
-      .eq('is_archived', false);
+      .eq('is_archived', false)
+      .returns<TaskWithStatus[]>();;
 
     if (error) {
       console.error('Error fetching all tasks:', error);
@@ -122,25 +141,6 @@ async function fetchAllTasksByUserIds(userIds: string[]) {
   }
 }
 
-async function fetchUsers(userIds: string[]) {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, email, username')
-      .in('id', userIds);
-
-    if (error) {
-      console.error('Error fetching users:', error);
-      throw error;
-    }
-
-    console.log(`Fetched ${data?.length ?? 0} users`);
-    return data ?? [];
-  } catch (e) {
-    console.error('Exception in fetchUsers:', e);
-    throw e;
-  }
-}
 
 async function sendTaskEmails(
   emailType: 'reminder' | 'overdue' | 'dailySummary'
@@ -187,6 +187,7 @@ async function sendTaskEmails(
         const html = generateReminderEmail(user.username ?? 'User', dueTomorrowTasks.map(t => ({
           title: t.title,
           dueDate: new Date(t.end_date),
+          status: t.status?.status || '',
         })));
         await sendEmail(user.email, subject, html);
         console.log(`Reminder email sent to ${user.email} with ${dueTomorrowTasks.length} tasks.`);
@@ -198,6 +199,7 @@ async function sendTaskEmails(
         const html = generateOverdueTasksEmail(user.username ?? 'User', overdueTasks.map(t => ({
           title: t.title,
           dueDate: new Date(t.end_date),
+          status: t.status?.status || '',
         })));
         await sendEmail(user.email, subject, html);
         console.log(`Overdue email sent to ${user.email}`);
@@ -211,6 +213,7 @@ async function sendTaskEmails(
             title: t.title,
             dueDate: new Date(t.end_date),
             isOverdue: new Date(t.end_date) < now,
+            status: t.status?.status || '',
           }))
         );
         await sendEmail(user.email, subject, html);
