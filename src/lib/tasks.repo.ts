@@ -261,20 +261,26 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   const [projects, statuses, prios] = await Promise.all([
     projIds.length
       ? supabase.from("projects").select("id,name").in("id", projIds)
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] }),
     statusIds.length
       ? supabase.from("status").select("id,status").in("id", statusIds)
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] }),
     prioIds.length
       ? supabase.from("priority").select("id").in("id", prioIds)
-      : Promise.resolve({ data: [] as any[] }),
-  ]).then((res: any[]) => res.map((r) => r.data));
+      : Promise.resolve({ data: [] }),
+  ]).then((res) => res.map((r) => r.data || []));
 
-  const projMap = new Map(projects.map((p: any) => [p.id, p]));
-  const statusMap = new Map(statuses.map((s: any) => [s.id, s]));
-  const prioMap = new Map(prios.map((p: any) => [p.id, p]));
+  const projMap = new Map<number, { id: number; name: string }>(
+    projects.map((p: any) => [p.id, { id: p.id, name: p.name }])
+  );
+  const statusMap = new Map<number, { id: number; status: string }>(
+    statuses.map((s: any) => [s.id, { id: s.id, status: s.status }])
+  );
+  const prioMap = new Map<number, { id: number }>(
+    prios.map((p: any) => [p.id, { id: p.id }])
+  );
 
-  return rows.map((r) => {
+  return rows.map((r): TaskHydrated => {
     const assignees =
       (collab ?? []).filter((c) => c.task_id === r.id).map((c) => c.user_id);
     const tags =
@@ -287,9 +293,9 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
       ...r,
       assignees,
       tags,
-      project: r.project_id ? projMap.get(r.project_id) ?? null : null,
-      status: r.status_id ? statusMap.get(r.status_id) ?? null : null,
-      priority: r.priority_id ? prioMap.get(r.priority_id) ?? null : null,
+      project: r.project_id ? (projMap.get(r.project_id) || null) : null,
+      status: r.status_id ? (statusMap.get(r.status_id) || null) : null,
+      priority: r.priority_id ? (prioMap.get(r.priority_id) || null) : null,
     };
   });
 }
