@@ -2,10 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { UITask } from "./TaskDashboard";
+import type { Task } from "@/types/task";
+
+// UITask type that's compatible with Task from task-dashboard
+export type UITask = {
+  id: string | number;
+  title: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  priority?: string | number | null;
+  status?: string | null;
+  createdBy?: { id?: string | null; name?: string } | null;
+  ownedBy?: { id?: string | null; name?: string } | null;
+  collaborators?: Array<{ id: string; name?: string }> | null;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  parentTaskId?: string | number | null;
+};
 
 interface Props {
-  task: UITask | null;
+  task: Task | UITask | null;
   onClose(): void;
   onEdit(): void;
 }
@@ -42,6 +60,13 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
 
   if (!task) return null;
 
+  // Handle both Task (with 'tag') and UITask (with 'tags')
+  const tagsValue = 'tags' in task && task.tags
+    ? task.tags.join(", ")
+    : ('tag' in task && task.tag)
+      ? task.tag
+      : "—";
+
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
@@ -61,10 +86,10 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           />
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
-          <Field label="Priority" value={String(task.priority ?? "—")} />
+          <Field label="Priority" value={task.priority != null ? String(task.priority) : "—"} />
           <Field label="Status" value={task.status || "—"} />
           <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
-          <Field label="Tags" value={(task.tags ?? []).join(", ") || "—"} />
+          <Field label="Tags" value={tagsValue} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
           <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
           <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
