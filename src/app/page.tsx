@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import GanttChart from '@/components/ui/GanttChart'
-import ProjectDashboard from "@/components/projects/ProjectDashboard"
 import LoginSimulator from '@/components/forms/LoginSimulator'
 import { UserProvider } from '@/hooks/useAuth'
 import { TaskDashboard } from "@/components/task-dashboard"
@@ -10,7 +9,7 @@ import { TaskDashboard } from "@/components/task-dashboard"
 
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [activeTab, setActiveTab] = useState<'gantt' | 'tasks' | 'projects'>('gantt')
+  const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
 
   return (
     <UserProvider>
@@ -52,20 +51,6 @@ export default function Home() {
               >
                 Tasks
               </button>
-              <button
-                onClick={() => setActiveTab('projects')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'projects'
-                    ? isDarkMode
-                      ? 'bg-gray-700 text-white'
-                      : 'bg-white text-gray-900 shadow'
-                    : isDarkMode
-                    ? 'text-gray-400 hover:text-gray-200'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Projects
-              </button>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -98,7 +83,6 @@ export default function Home() {
         {/* Main Content */}
         {activeTab === 'gantt' && <GanttChart isDarkMode={isDarkMode} />}
         {activeTab === 'tasks' && <TaskDashboard />}
-        {activeTab === 'projects' && <ProjectDashboard />}
       </div>
     </UserProvider>
   );
