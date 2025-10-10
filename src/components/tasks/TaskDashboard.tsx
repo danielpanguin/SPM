@@ -273,12 +273,21 @@ export default function TaskDashboard() {
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{t.title}</h3>
               <span className="text-xs rounded-full border px-2 py-0.5">
-                {t.priority ?? "—"}
+                {t.priority ? `P${t.priority}` : "—"}
               </span>
             </div>
             <div className="mt-1 text-xs text-gray-500">
               Project: {t.project?.name || "(none)"}
             </div>
+            {t.tags && t.tags.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {t.tags.map((tag, idx) => (
+                  <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="mt-2 text-sm text-gray-600 line-clamp-2">
               {t.description || "No description"}
             </div>
