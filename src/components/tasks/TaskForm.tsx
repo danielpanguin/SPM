@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
 import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
+import { notifyTaskSync } from "@/lib/notifyTaskSync";
 
 type Mode = "create" | "edit";
 
@@ -35,7 +36,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === 'string');
+    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
   });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
@@ -129,7 +130,8 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
     try {
       // UUID regex pattern
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
       // Filter out any invalid UUIDs from collaboratorIds
       const validCollaboratorIds = collaboratorIds.filter((id) => {
@@ -166,6 +168,31 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           : await updateTaskAPI(Number(initial?.id), payload);
 
       console.log("Task saved successfully:", data);
+
+      // --- NEW: fire-and-forget notification sync (robust id extraction) ---
+      let savedTaskId: number | null = null;
+      if (mode === "edit" && typeof initial?.id === "number") {
+        savedTaskId = Number(initial.id);
+      } else {
+        const candidates = [
+          (data as any)?.id,
+          (data as any)?.task?.id,
+          Array.isArray(data) ? (data as any)[0]?.id : undefined,
+          (data as any)?.data?.id,
+          Array.isArray((data as any)?.data) ? (data as any)?.data?.[0]?.id : undefined,
+        ];
+        for (const v of candidates) {
+          if (typeof v === "number") {
+            savedTaskId = v;
+            break;
+          }
+        }
+      }
+      if (savedTaskId) {
+        notifyTaskSync(savedTaskId);
+      }
+      // --------------------------------------------------------------------
+
       onSaved(data);
     } catch (err: any) {
       console.error("Error saving task:", err);
@@ -237,7 +264,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             onChange={(e) => setPriorityId(Number(e.target.value))}
           >
             {prioOpts.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -253,7 +282,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             onChange={(e) => setStatusId(Number(e.target.value))}
           >
             {statusOpts.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -289,7 +320,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           onChange={(e) => setOwnedById(e.target.value)}
           required
         >
-          <option value="" disabled>Select user</option>
+          <option value="" disabled>
+            Select user
+          </option>
           {allowedUsers.map((u) => (
             <option key={u.id} value={u.id}>
               {u.email || u.id}
@@ -302,7 +335,12 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         <label className="block text-sm font-medium">Collaborators</label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
           {allowedUsers.map((u) => (
-            <label key={u.id} className={`flex items-center gap-2 rounded border p-2 ${collaboratorIds.includes(u.id) ? "bg-gray-50" : ""}`}>
+            <label
+              key={u.id}
+              className={`flex items-center gap-2 rounded border p-2 ${
+                collaboratorIds.includes(u.id) ? "bg-gray-50" : ""
+              }`}
+            >
               <input
                 type="checkbox"
                 checked={collaboratorIds.includes(u.id)}

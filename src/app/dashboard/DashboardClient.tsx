@@ -5,6 +5,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useUser } from "@/hooks/useAuth";
 
+
 // Lazy-load heavy UI
 const GanttChart = dynamic(() => import("@/components/ui/GanttChart"), {
   ssr: false,

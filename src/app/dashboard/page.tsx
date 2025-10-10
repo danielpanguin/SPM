@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useAuth";
+import NotificationBell from "@/components/notifications/NotificationBell";
+
 
 const GanttChart = dynamic(() => import("@/components/ui/GanttChart"), {
   ssr: false,
@@ -62,6 +64,10 @@ export default function DashboardPage() {
             >
               {isDarkMode ? "☀️" : "🌙"}
             </button>
+
+            <NotificationBell /> {/* ← ADDED */}
+
+
             <button
               type="button"
               onClick={onLogout}

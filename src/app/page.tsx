@@ -5,6 +5,8 @@ import GanttChart from '@/components/ui/GanttChart'
 import { useUser } from '@/hooks/useAuth'
 import { TaskDashboard } from "@/components/task-dashboard"
 import LoginSimulator from '@/components/forms/LoginSimulator'
+import NotificationBell from "@/components/notifications/NotificationBell" // ← ADDED
+
 
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false)
@@ -67,6 +69,8 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             {/* Login Simulator - Shows current user and role */}
             <LoginSimulator isDarkMode={isDarkMode} isActive={true} />
+
+            <NotificationBell /> {/* ← ADDED */}
 
             {/* Dark Mode Toggle */}
             <button
