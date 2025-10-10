@@ -8,7 +8,7 @@ import { User, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
 
-type SortField = 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title'
+type SortField = 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
 
 type Props = {
@@ -150,6 +150,10 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
           aValue = a.title.toLowerCase()
           bValue = b.title.toLowerCase()
           break
+        case 'createdAt':
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          break
         default:
           return 0
       }
@@ -246,6 +250,13 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
               Task Deadline
               <SortIcon field="deadline" />
             </TableHead>
+            <TableHead 
+              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('createdAt')}
+            >
+              Date Created
+              <SortIcon field="createdAt" />
+            </TableHead>
             <TableHead className="w-[240px]">Parent Task</TableHead>
           </TableRow>
         </TableHeader>
@@ -253,7 +264,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
         <TableBody>
           {sortedTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                 No tasks found matching your filters
               </TableCell>
             </TableRow>
@@ -303,6 +314,8 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   </TableCell>
 
                   <TableCell>{niceDate(t.endDate)}</TableCell>
+
+                  <TableCell>{niceDate(t.createdAt)}</TableCell>
 
                   <TableCell>
                     {t.parentTaskId ? (

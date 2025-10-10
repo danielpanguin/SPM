@@ -129,7 +129,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         status_id: statusId,
         start_date: startDate || null,
         end_date: endDate || null,
-        tags: tags.length ? tags : null,
+        tag: tags.length ? tags.join(", ") : null,  // Convert array to single string
         parent_task_id: parentTaskId || null,
       };
 
