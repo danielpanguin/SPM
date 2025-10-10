@@ -10,7 +10,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-<<<<<<< HEAD
 // Custom storage adapter that doesn't hang and works in SSR
 const customStorage = {
   getItem: (key: string) => {
@@ -138,28 +137,6 @@ export async function supabaseFetch(
   return response.json();
 }
 
-// Optional table types (purely for TS intellisense)
-export interface Task {
-  id: string;
-  title: string;
-  description?: string | null;
-  start_date: string;
-  end_date: string;
-  owned_by: string;
-  user_name?: string | null;
-  progress?: number | null;
-  status_id: string;
-  status?: { status: string } | null;
-  is_overdue?: boolean | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email?: string | null;
-=======
 // Database Types matching your Supabase schema
 export interface User {
   id: string // uuid
@@ -189,6 +166,7 @@ export interface Status {
 
 export interface Priority {
   id: number
+  priority: string
 }
 
 export interface Project {
@@ -214,6 +192,7 @@ export interface Task {
   owned_by: string | null // uuid
   is_archived: boolean
   created_at: string
+  updated_at?: string
   status?: Status
   priority?: Priority
   project?: Project
@@ -276,5 +255,4 @@ export interface TriggerLog {
   task_id: number | null
   executed_at: string | null
   message: string | null
->>>>>>> dev
 }
