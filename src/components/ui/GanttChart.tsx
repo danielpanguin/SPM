@@ -173,15 +173,19 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
           }
         };
       } else {
-        // Managers/Admins: Group by owner
+        // Managers/Admins: Group by owner, but ONLY show rows for accessible users
+        const accessibleUserIdsSet = new Set(ids);
         grouped = (tasks ?? []).reduce<Record<string, TasksByUser>>(
           (acc: Record<string, TasksByUser>, task: any) => {
             const uid = task.owned_by as string;
-            if (!acc[uid]) {
-              const u = userMap[uid] ?? { id: uid, name: uid };
-              acc[uid] = { user: u, tasks: [] };
+            // Only create rows for users in accessibleUserIds
+            if (accessibleUserIdsSet.has(uid)) {
+              if (!acc[uid]) {
+                const u = userMap[uid] ?? { id: uid, name: uid };
+                acc[uid] = { user: u, tasks: [] };
+              }
+              acc[uid].tasks.push(task as Task);
             }
-            acc[uid].tasks.push(task as Task);
             return acc;
           }, {}) ?? {};
       }
