@@ -68,9 +68,11 @@ export default function TaskDashboard() {
     try {
       console.log("Loading tasks from API...");
       const dbTasks = await fetchTasks(); // calls /api/tasks
+      console.log("Fetched tasks count:", dbTasks.length);
       console.log("Fetched tasks:", dbTasks);
       const mappedTasks = dbTasks.map(mapDbToUI);
-      console.log("Mapped tasks:", mappedTasks);
+      console.log("Mapped tasks count:", mappedTasks.length);
+      console.log("Mapped tasks with priorities:", mappedTasks.map(t => ({ id: t.id, title: t.title, priority: t.priority })));
       setTasks(mappedTasks);
     } catch (e) {
       console.error("Error loading tasks:", e);
