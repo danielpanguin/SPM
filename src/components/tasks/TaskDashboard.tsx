@@ -34,14 +34,14 @@ function mapDbToUI(t: any): UITask {
     id: t.id,
     title: t.title,
     description: t.description ?? null,
-    startDate: t.start_date ?? null,
-    endDate: t.end_date ?? null,
-    priority: t?.priority?.id ?? null,      // number (1..10)
-    status: t?.status?.status ?? null,      // text from status table
+    startDate: t.startDate ?? t.start_date ?? null,
+    endDate: t.endDate ?? t.end_date ?? null,
+    priority: t.priority?.id ?? t.priority_id ?? null,      // number (1..10)
+    status: t.status?.status ?? t.status ?? null,      // text from status table
     createdBy: t.created_by
-      ? { id: t.created_by, name: t.created_by_email || t.created_by }
+      ? { id: t.created_by, name: t.created_by_email ?? t.created_by }
       : null,
-    ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email || t.owned_by } : null,
+    ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email ?? t.owned_by } : null,
     collaborators: Array.isArray(t.assignees)
       ? t.assignees.map((id: string) => ({ id }))
       : [],
@@ -274,9 +274,11 @@ export default function TaskDashboard() {
           >
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{t.title}</h3>
-              <span className="text-xs rounded-full border px-2 py-0.5">
-                {t.priority ? `P${t.priority}` : "—"}
-              </span>
+              {t.priority && (
+                <span className="text-xs rounded-full border px-2 py-0.5">
+                  {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
+                </span>
+              )}
             </div>
             <div className="mt-1 text-xs text-gray-500">
               Project: {t.project?.name || "(none)"}
