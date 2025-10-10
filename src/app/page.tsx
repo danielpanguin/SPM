@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import GanttChart from '@/components/ui/GanttChart'
 import { useUser } from '@/hooks/useAuth'
-import TaskDashboard from "@/components/tasks/TaskDashboard"
+import { TaskDashboard } from "@/components/task-dashboard"
 import LoginSimulator from '@/components/forms/LoginSimulator'
 
 export default function Home() {
