@@ -12,7 +12,7 @@ type Mode = "create" | "edit";
 interface Props {
   mode: Mode;
   initial?: Partial<UITask>;
-  onSaved(taskFromApi: any): void;   // we map in parent
+  onSaved(taskFromApi: any): void; // we map in parent
   onCancel?(): void;
 }
 
@@ -50,6 +50,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     (initial?.project_id as number) ?? ""
   );
   const [busy, setBusy] = useState(false);
+  const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // field ids
@@ -106,6 +107,97 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 
+  /**
+   * Always hydrate latest DB values when editing.
+   * This pulls:
+   * - tasks row (for core fields)
+   * - task_collaborator (user_ids)
+   * - task_tasktag -> task_tag (single tag name)
+   */
+  useEffect(() => {
+    if (mode !== "edit") return;
+    const taskId = Number(initial?.id);
+    if (!taskId) return;
+
+    let alive = true;
+    async function hydrate() {
+      setHydrating(true);
+      try {
+        // 1) task core row
+        const { data: tRows, error: tErr } = await supabase
+          .from("tasks")
+          .select(
+            "id,title,description,start_date,end_date,priority_id,status_id,created_by,owned_by,parent_task_id,project_id"
+          )
+          .eq("id", taskId)
+          .limit(1);
+
+        if (tErr) throw tErr;
+        const t = (tRows && tRows[0]) || null;
+        if (!t) throw new Error("Task not found");
+
+        // 2) collaborators
+        const { data: collabRows, error: cErr } = await supabase
+          .from("task_collaborator")
+          .select("user_id")
+          .eq("task_id", taskId);
+
+        if (cErr) throw cErr;
+
+        // 3) tag id then name
+        let tagName = "";
+        const { data: tagJoin, error: ttErr } = await supabase
+          .from("task_tasktag")
+          .select("tag_id")
+          .eq("task_id", taskId)
+          .limit(1);
+
+        if (ttErr) throw ttErr;
+        if (tagJoin && tagJoin.length) {
+          const tagId = tagJoin[0]?.tag_id;
+          if (tagId != null) {
+            const { data: tagRow, error: tagErr } = await supabase
+              .from("task_tag")
+              .select("name")
+              .eq("id", tagId)
+              .limit(1);
+            if (tagErr) throw tagErr;
+            tagName = (tagRow && tagRow[0]?.name) || "";
+          }
+        }
+
+        if (!alive) return;
+
+        // apply to form
+        setTitle(t.title ?? "");
+        setDescription(t.description ?? "");
+        setStartDate(t.start_date ?? "");
+        setEndDate(t.end_date ?? "");
+        setPriorityId(t.priority_id ?? "");
+        setStatusId(t.status_id ?? "");
+        setOwnedById(t.owned_by ?? undefined);
+        setParentTaskId(t.parent_task_id ?? "");
+        setProjectId(t.project_id ?? "");
+        setCollaboratorIds((collabRows ?? []).map((r: any) => String(r.user_id)));
+        setTag(tagName ?? "");
+        setError(null);
+      } catch (err: any) {
+        console.error("[TaskForm] hydrate error:", err);
+        if (err?.message) {
+          setError("Failed to load latest task data. You can still edit and save.");
+        }
+      } finally {
+        if (alive) setHydrating(false);
+      }
+    }
+
+    hydrate();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, initial?.id]);
+
   const allowedUsers = useMemo(() => users, [users]);
 
   function validate(): string | null {
@@ -157,41 +249,17 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         tags: tag ? [tag] : [],
       };
 
-      console.log("Submitting task payload:", payload);
-      console.log("Mode:", mode, "Task ID:", initial?.id);
-      console.log("Original collaboratorIds:", collaboratorIds);
-      console.log("Filtered validCollaboratorIds:", validCollaboratorIds);
-
+      // save
       const data =
         mode === "create"
           ? await createTaskAPI(payload)
           : await updateTaskAPI(Number(initial?.id), payload);
 
-      console.log("Task saved successfully:", data);
-
-      // --- NEW: fire-and-forget notification sync (robust id extraction) ---
-      let savedTaskId: number | null = null;
-      if (mode === "edit" && typeof initial?.id === "number") {
-        savedTaskId = Number(initial.id);
-      } else {
-        const candidates = [
-          (data as any)?.id,
-          (data as any)?.task?.id,
-          Array.isArray(data) ? (data as any)[0]?.id : undefined,
-          (data as any)?.data?.id,
-          Array.isArray((data as any)?.data) ? (data as any)?.data?.[0]?.id : undefined,
-        ];
-        for (const v of candidates) {
-          if (typeof v === "number") {
-            savedTaskId = v;
-            break;
-          }
-        }
-      }
+      // fire the sync notifier
+      const savedTaskId = (Array.isArray(data) ? data[0]?.id : data?.id) ?? initial?.id;
       if (savedTaskId) {
-        notifyTaskSync(savedTaskId);
+        notifyTaskSync(savedTaskId as any);
       }
-      // --------------------------------------------------------------------
 
       onSaved(data);
     } catch (err: any) {
@@ -208,7 +276,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {(error || hydrating) && (
+        <p className="text-sm">
+          {hydrating ? "Loading latest task data…" : <span className="text-red-600">{error}</span>}
+        </p>
+      )}
 
       <div>
         <label htmlFor={id.title} className="block text-sm font-medium">
