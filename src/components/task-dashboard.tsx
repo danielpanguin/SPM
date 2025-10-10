@@ -94,9 +94,9 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
 
 function mapPriority(priorityId: number | null | undefined): "Low" | "Medium" | "High" {
   if (!priorityId) return "Medium"
-  if (priorityId <= 3) return "Low"
-  if (priorityId <= 6) return "Medium"
-  return "High"
+  if (priorityId <= 3) return "High"   // P1-P3 = High
+  if (priorityId <= 6) return "Medium" // P4-P6 = Medium
+  return "Low"                          // P7-P10 = Low
 }
 
 export function TaskDashboard() {
