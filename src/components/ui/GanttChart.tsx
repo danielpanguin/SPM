@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { supabaseFetch } from "@/lib/db";
+import { supabaseFetch, supabase } from "@/lib/db";
 import { useUser } from "@/hooks/useAuth";
 
 type Task = {
@@ -79,15 +79,45 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
     try {
       console.log("[GanttChart] Fetching tasks for ids:", ids, "month:", monthStart, "to", monthEnd);
       
-      // Use direct fetch to bypass broken Supabase client
-      const tasks = await supabaseFetch("tasks", {
+      // Fetch tasks owned by accessible users
+      const ownedTasks = await supabaseFetch("tasks", {
         select: "*, status(status)",
         in: { owned_by: ids },
         gte: { start_date: monthStart },
         lte: { end_date: monthEnd },
       });
 
-      console.log("[GanttChart] Tasks response:", tasks);
+      console.log("[GanttChart] Owned tasks response:", ownedTasks);
+      
+      // Also fetch tasks where users are collaborators
+      const { data: collaboratorTaskIds } = await supabase
+        .from("task_collaborator")
+        .select("task_id")
+        .in("user_id", ids);
+      
+      let collabTasks: any[] = [];
+      if (collaboratorTaskIds && collaboratorTaskIds.length > 0) {
+        const taskIds = collaboratorTaskIds.map((c: any) => c.task_id);
+        collabTasks = await supabaseFetch("tasks", {
+          select: "*, status(status)",
+          in: { id: taskIds },
+          gte: { start_date: monthStart },
+          lte: { end_date: monthEnd },
+        });
+        console.log("[GanttChart] Collaborator tasks response:", collabTasks);
+      }
+      
+      // Merge and deduplicate tasks
+      const allTasks = [...(ownedTasks || [])];
+      const existingIds = new Set(allTasks.map((t: any) => t.id));
+      (collabTasks || []).forEach((task: any) => {
+        if (!existingIds.has(task.id)) {
+          allTasks.push(task);
+        }
+      });
+      
+      const tasks = allTasks;
+      console.log("[GanttChart] Total tasks after merge:", tasks.length);
 
       // Fetch users for labels
       const users = await supabaseFetch("users", {
