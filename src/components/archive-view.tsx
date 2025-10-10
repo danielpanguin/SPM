@@ -13,7 +13,7 @@ const mockArchivedTasks = [
   {
     id: "TSK-009",
     title: "Old Website Migration",
-    priority: "low",
+    priority: "P2",
     project: "Website Redesign",
     tags: ["migration", "legacy"],
     status: "completed",
@@ -25,7 +25,7 @@ const mockArchivedTasks = [
   {
     id: "TSK-010",
     title: "Legacy API Cleanup",
-    priority: "medium",
+    priority: "P5",
     project: "API Integration",
     tags: ["cleanup", "api"],
     status: "completed",
@@ -37,7 +37,7 @@ const mockArchivedTasks = [
   {
     id: "TSK-011",
     title: "Old Design System",
-    priority: "low",
+    priority: "P2",
     project: "Website Redesign",
     tags: ["design", "deprecated"],
     status: "cancelled",
@@ -59,18 +59,19 @@ export function ArchiveView({ onClose }: ArchiveViewProps) {
   const filteredTasks = archivedTasks.filter((task) => task.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "high":
-        return "bg-orange-100 text-orange-800 border-orange-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+    // P1-P3: High priority (red)
+    if (priority === "P1" || priority === "P2" || priority === "P3") {
+      return "bg-red-100 text-red-800 border-red-200"
     }
+    // P4-P6: Medium priority (yellow)
+    if (priority === "P4" || priority === "P5" || priority === "P6") {
+      return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    }
+    // P7-P10: Low priority (green)
+    if (priority === "P7" || priority === "P8" || priority === "P9" || priority === "P10") {
+      return "bg-green-100 text-green-800 border-green-200"
+    }
+    return "bg-gray-100 text-gray-800 border-gray-200"
   }
 
   const getStatusColor = (status: string) => {

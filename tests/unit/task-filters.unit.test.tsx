@@ -8,9 +8,10 @@ describe('TaskFilters - Unit Tests', () => {
     search: '',
     status: 'all',
     priority: 'all',
-    project: 'all',
-    assignee: 'all',
-    tag: 'all',
+    project: [],
+    assignee: [],
+    tag: [],
+    parentTask: [],
     deadline: 'all',
   };
 
@@ -181,10 +182,11 @@ describe('TaskFilters - Unit Tests', () => {
           filters={{
             search: 'test',
             status: 'in-progress',
-            priority: 'high',
-            project: 'all',
-            assignee: 'all',
-            tag: 'all',
+            priority: 'P8',
+            project: [],
+            assignee: [],
+            tag: [],
+            parentTask: [],
             deadline: 'this-week',
           }}
           onFiltersChange={mockOnFiltersChange}
@@ -201,10 +203,11 @@ describe('TaskFilters - Unit Tests', () => {
           filters={{
             search: 'important',
             status: 'pending',
-            priority: 'high',
-            project: 'all',
-            assignee: 'all',
-            tag: 'all',
+            priority: 'P8',
+            project: [],
+            assignee: [],
+            tag: [],
+            parentTask: [],
             deadline: 'all',
           }}
           onFiltersChange={mockOnFiltersChange}
@@ -215,7 +218,7 @@ describe('TaskFilters - Unit Tests', () => {
       expect(screen.getByText('Active filters:')).toBeInTheDocument();
       expect(screen.getByText(/search: important/i)).toBeInTheDocument();
       expect(screen.getByText(/status: pending/i)).toBeInTheDocument();
-      expect(screen.getByText(/priority: high/i)).toBeInTheDocument();
+      expect(screen.getByText(/priority: P8/i)).toBeInTheDocument();
     });
   });
 

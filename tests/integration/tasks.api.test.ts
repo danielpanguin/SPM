@@ -21,7 +21,7 @@ run("Tasks API", () => {
         collaboratorsIds: [],
         startDate: "2025-09-20",
         endDate: "2025-09-21",
-        priority: "High",
+        priority: "P8",
         status: "In Progress"
       })
     } as any);
@@ -36,7 +36,7 @@ run("Tasks API", () => {
         title: "Staff Create",
         startDate: "2025-09-20",
         endDate: "2025-09-21",
-        priority: "Low",
+        priority: "P2",
         ownedById: "u-mgr"
       })
     } as any);

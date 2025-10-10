@@ -43,8 +43,24 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     (initial?.parentTaskId as number) ?? ""
   );
   const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
-  const [priorityId, setPriorityId] = useState<number | "">("");
-  const [statusId, setStatusId] = useState<number | "">("");
+  const [priorityId, setPriorityId] = useState<number | "">(() => {
+    // Extract priority ID from P1-P10 format or use priority_id directly
+    const priority = (initial as any)?.priority;
+    if (typeof priority === 'string' && priority.startsWith('P')) {
+      return Number(priority.substring(1));
+    }
+    if (typeof (initial as any)?.priority_id === 'number') {
+      return (initial as any).priority_id;
+    }
+    return "";
+  });
+  const [statusId, setStatusId] = useState<number | "">(() => {
+    const statusId = (initial as any)?.status_id;
+    if (typeof statusId === 'number') {
+      return statusId;
+    }
+    return "";
+  });
   const [projectId, setProjectId] = useState<number | "">(
     (initial?.project_id as number) ?? ""
   );
