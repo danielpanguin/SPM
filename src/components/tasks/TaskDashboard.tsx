@@ -27,9 +27,20 @@ export type UITask = {
   project?: { id: number; name: string } | null;
 };
 
+// Helper function to convert priority number to text label
+function getPriorityLabel(priorityId: number | null): string {
+  if (!priorityId) return "—";
+  if (priorityId <= 3) return "High";
+  if (priorityId <= 6) return "Medium";
+  if (priorityId <= 10) return "Low";
+  return "—";
+}
+
 function mapDbToUI(t: any): UITask {
   console.log("mapDbToUI input:", t);
   console.log("project_id:", t.project_id, "project:", t.project);
+  
+  const priorityId = t.priority?.id ?? t.priority_id ?? null;
   
   return {
     id: t.id,
@@ -37,7 +48,7 @@ function mapDbToUI(t: any): UITask {
     description: t.description ?? null,
     startDate: t.startDate ?? t.start_date ?? null,
     endDate: t.endDate ?? t.end_date ?? null,
-    priority: t.priority?.id ?? t.priority_id ?? null,      // number (1..10)
+    priority: getPriorityLabel(priorityId),      // Convert to "High", "Medium", "Low"
     status: t.status?.status ?? t.status ?? null,      // text from status table
     createdBy: t.created_by
       ? { id: t.created_by, name: t.created_by_email ?? t.created_by }
@@ -110,8 +121,15 @@ export default function TaskDashboard() {
           bVal = b.status || '';
           break;
         case 'priority':
-          aVal = a.priority ? (typeof a.priority === 'number' ? a.priority : parseInt(String(a.priority))) : 999;
-          bVal = b.priority ? (typeof b.priority === 'number' ? b.priority : parseInt(String(b.priority))) : 999;
+          // Priority order: High > Medium > Low
+          const priorityOrder: Record<string, number> = {
+            'High': 3,
+            'Medium': 2,
+            'Low': 1,
+            '—': 0
+          };
+          aVal = priorityOrder[a.priority as string] ?? 0;
+          bVal = priorityOrder[b.priority as string] ?? 0;
           break;
         case 'endDate':
           aVal = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER;
@@ -287,9 +305,9 @@ export default function TaskDashboard() {
           >
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{t.title}</h3>
-              {t.priority && (
+              {t.priority && t.priority !== "—" && (
                 <span className="text-xs rounded-full border px-2 py-0.5">
-                  {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
+                  {t.priority}
                 </span>
               )}
             </div>

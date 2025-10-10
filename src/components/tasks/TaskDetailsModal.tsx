@@ -123,7 +123,7 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
           <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
           <Field label="Collaborators" value={getCollaboratorsDisplay()} />
-          <Field label="Priority" value={task.priority != null ? (typeof task.priority === 'number' ? `P${task.priority}` : String(task.priority)) : "—"} />
+          <Field label="Priority" value={task.priority || "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
           <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
