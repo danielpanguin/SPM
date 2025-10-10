@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 /* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
 
-type UITask = {
+export type UITask = {
   id: string | number;
   title: string;
   description?: string | null;

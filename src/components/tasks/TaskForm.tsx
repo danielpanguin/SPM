@@ -20,7 +20,7 @@ type Option = { id: number; label: string };
 type Project = { id: number; name: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
-  const { currentUserId } = useUser();
+  const { userId: currentUserId } = useUser();
   const isManager = true; // set from your auth/role if you have it
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
