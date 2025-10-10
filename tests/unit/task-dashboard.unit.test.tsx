@@ -548,9 +548,12 @@ describe('TaskDashboard - Unit Tests', () => {
 
       const { rerender } = render(<TaskDashboard />);
 
+      // Wait for initial fetch (owned tasks + collaborator tasks query)
       await waitFor(() => {
-        expect(mockFrom.in).toHaveBeenCalledTimes(1);
+        expect(mockFrom.in).toHaveBeenCalled();
       });
+
+      const initialCallCount = mockFrom.in.mock.calls.length;
 
       // Change accessible user IDs
       mockUseUser.mockReturnValue({
@@ -559,8 +562,9 @@ describe('TaskDashboard - Unit Tests', () => {
 
       rerender(<TaskDashboard />);
 
+      // Should refetch with new IDs (call count should increase)
       await waitFor(() => {
-        expect(mockFrom.in).toHaveBeenCalledTimes(2);
+        expect(mockFrom.in.mock.calls.length).toBeGreaterThan(initialCallCount);
       });
     });
   });

@@ -1,368 +1,345 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
-import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
+
+type UITask = {
+  id: string | number;
+  title: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  priority?: string | number | null;
+  status?: string | null;
+  createdBy?: { id?: string | null; name?: string } | null;
+  ownedBy?: { id?: string | null; name?: string } | null;
+  collaborators?: Array<{ id: string; name?: string }> | null;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  parentTaskId?: string | number | null;
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
+};
 
 type Mode = "create" | "edit";
 
 interface Props {
   mode: Mode;
   initial?: Partial<UITask>;
-  onSaved(taskFromApi: any): void;   // we map in parent
+  onSaved(taskFromApi: any): void;
   onCancel?(): void;
 }
 
-type DbRoleUser = { id: string; email?: string | null; roles?: { name?: string | null } | null };
-type Option = { id: number; label: string };
 type Project = { id: number; name: string };
+type Option = { id: number; label: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
-  const { currentUserId } = useUser();
-  const isManager = true; // set from your auth/role if you have it
+  const { userId: currentUserId } = useUser();
 
-  const [users, setUsers] = useState<DbRoleUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
   const [prioOpts, setPrioOpts] = useState<Option[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<{ id: string; email: string }[]>([]);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [ownedById, setOwnedById] = useState<string | undefined>(
     (initial?.ownedBy as any)?.id
   );
-  const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
-    const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === 'string');
-  });
+  const [projectId, setProjectId] = useState<number | undefined>(initial?.project_id);
+  const [priorityId, setPriorityId] = useState<number | undefined>(
+    typeof initial?.priority === "number" ? initial.priority : undefined
+  );
+  const [statusId, setStatusId] = useState<number | undefined>(
+    typeof initial?.status === "string" ? parseInt(initial.status) : undefined
+  );
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
-  const [parentTaskId, setParentTaskId] = useState<number | "">(
-    (initial?.parentTaskId as number) ?? ""
+  const [tag, setTag] = useState(initial?.tag ?? "");
+  const [parentTaskId, setParentTaskId] = useState<string | number | undefined>(
+    initial?.parentTaskId
   );
-  const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
-  const [priorityId, setPriorityId] = useState<number | "">("");
-  const [statusId, setStatusId] = useState<number | "">("");
-  const [projectId, setProjectId] = useState<number | "">(
-    (initial?.project_id as number) ?? ""
-  );
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // field ids
-  const uid = useId();
-  const id = {
-    title: `${uid}-title`,
-    start: `${uid}-start`,
-    end: `${uid}-end`,
-    prio: `${uid}-prio`,
-    status: `${uid}-status`,
-    assignee: `${uid}-assignee`,
-    parent: `${uid}-parent`,
-    tag: `${uid}-tag`,
-    desc: `${uid}-desc`,
-    project: `${uid}-project`,
-  };
-
-  /* Load pickers from DB */
+  // Load options
   useEffect(() => {
     let alive = true;
-    async function run() {
-      const [usersRes, statusRes, prioRes] = await Promise.all([
-        supabase.from("users").select("id,email,roles(name)"),
-        supabase.from("status").select("id,status"),
-        supabase.from("priority").select("id").order("id", { ascending: true }),
-      ]);
+    async function loadOptions() {
+      try {
+        // Load users
+        const { data: usersData } = await supabase
+          .from("users")
+          .select("id,email");
+        if (!alive) return;
+        setUsers((usersData ?? []).map(u => ({ id: u.id, email: u.email || u.id })));
 
-      if (!alive) return;
+        // Load projects
+        const { data: projectsData } = await supabase
+          .from("projects")
+          .select("id,name");
+        if (!alive) return;
+        setProjects((projectsData ?? []) as Project[]);
 
-      setUsers((usersRes.data ?? []) as any[]);
-      setStatusOpts((statusRes.data ?? []).map((s: any) => ({ id: s.id, label: s.status })));
-      setPrioOpts((prioRes.data ?? []).map((p: any) => ({ id: p.id, label: `P${p.id}` })));
+        // Load statuses
+        const { data: statusData } = await supabase
+          .from("status")
+          .select("id,status");
+        if (!alive) return;
+        setStatusOpts(
+          (statusData ?? []).map((s: any) => ({ id: s.id, label: s.status }))
+        );
 
-      // default values if empty
-      if (!statusId && (statusRes.data ?? []).length) setStatusId((statusRes.data as any[])[0].id);
-      if (!priorityId && (prioRes.data ?? []).length) setPriorityId((prioRes.data as any[])[0].id);
-
-      // Fetch user's assigned projects
-      if (currentUserId) {
-        fetch(`/api/projects/user/${currentUserId}`)
-          .then((res) => res.json())
-          .then((result) => {
-            if (alive && result.ok) {
-              setProjects(result.data ?? []);
-            }
-          })
-          .catch((err) => console.error("Failed to fetch projects:", err));
+        // Load priorities
+        const { data: prioData } = await supabase
+          .from("priority")
+          .select("id,priority");
+        if (!alive) return;
+        setPrioOpts(
+          (prioData ?? []).map((p: any) => ({ id: p.id, label: p.priority }))
+        );
+      } catch (e) {
+        console.error("Failed to load form options:", e);
       }
     }
-    run();
+    loadOptions();
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, []);
 
-  const allowedUsers = useMemo(() => users, [users]);
-
-  function validate(): string | null {
-    if (!title.trim()) return "Title is required.";
-    if (!startDate || !endDate) return "Start date and End date are required.";
-    if (new Date(startDate) > new Date(endDate)) return "Start must be before or equal to End.";
-    if (!ownedById) return "Assignee (Owned By) is required.";
-    if (!statusId) return "Status is required.";
-    if (!priorityId) return "Priority is required.";
-    return null;
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const msg = validate();
-    if (msg) {
-      setError(msg);
-      return;
-    }
+    if (busy) return;
+
     setBusy(true);
     setError(null);
 
     try {
-      // UUID regex pattern
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-      // Filter out any invalid UUIDs from collaboratorIds
-      const validCollaboratorIds = collaboratorIds.filter((id) => {
-        const isValid = uuidPattern.test(id);
-        if (!isValid) {
-          console.warn("Invalid UUID in collaborators:", id);
-        }
-        return isValid;
-      });
-
       const payload = {
         title,
         description,
-        status_id: Number(statusId),
-        priority_id: Number(priorityId),
-        start_date: startDate,
-        end_date: endDate,
-        created_by: currentUserId || ownedById, // fallback
-        owned_by: ownedById!,
-        parent_task_id: parentTaskId === "" ? null : Number(parentTaskId),
-        project_id: projectId === "" ? null : Number(projectId),
-        assignee_ids: validCollaboratorIds,
-        tags: tag ? [tag] : [],
+        owned_by: ownedById,
+        project_id: projectId,
+        priority_id: priorityId,
+        status_id: statusId,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        tag: tag || null,
+        parent_task_id: parentTaskId || null,
       };
 
-      console.log("Submitting task payload:", payload);
-      console.log("Mode:", mode, "Task ID:", initial?.id);
-      console.log("Original collaboratorIds:", collaboratorIds);
-      console.log("Filtered validCollaboratorIds:", validCollaboratorIds);
+      let result;
+      if (mode === "create") {
+        result = await createTaskAPI(payload);
+      } else if (initial?.id) {
+        result = await updateTaskAPI(initial.id, payload);
+      } else {
+        throw new Error("Missing task ID for edit mode");
+      }
 
-      const data =
-        mode === "create"
-          ? await createTaskAPI(payload)
-          : await updateTaskAPI(Number(initial?.id), payload);
-
-      console.log("Task saved successfully:", data);
-      onSaved(data);
-    } catch (err: any) {
-      console.error("Error saving task:", err);
-      setError(err?.message || "Failed to save task.");
+      onSaved(result);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to save task");
     } finally {
       setBusy(false);
     }
-  }
-
-  function toggleCollaborator(x: string) {
-    setCollaboratorIds((prev) => (prev.includes(x) ? prev.filter((i) => i !== x) : [...prev, x]));
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
+      {error && (
+        <div className="rounded border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">
+          {error}
+        </div>
+      )}
 
+      {/* Title */}
       <div>
-        <label htmlFor={id.title} className="block text-sm font-medium">
+        <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
           Title *
         </label>
         <input
-          id={id.title}
-          className="mt-1 w-full rounded border p-2"
+          id="task-title"
+          type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor={id.start} className="block text-sm font-medium">
-            Start Date *
-          </label>
-          <input
-            id={id.start}
-            type="date"
-            className="mt-1 w-full rounded border p-2"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor={id.end} className="block text-sm font-medium">
-            End Date *
-          </label>
-          <input
-            id={id.end}
-            type="date"
-            className="mt-1 w-full rounded border p-2"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            required
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor={id.prio} className="block text-sm font-medium">
-            Priority *
-          </label>
-          <select
-            id={id.prio}
-            className="mt-1 w-full rounded border p-2"
-            value={priorityId}
-            onChange={(e) => setPriorityId(Number(e.target.value))}
-          >
-            {prioOpts.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor={id.status} className="block text-sm font-medium">
-            Status *
-          </label>
-          <select
-            id={id.status}
-            className="mt-1 w-full rounded border p-2"
-            value={statusId}
-            onChange={(e) => setStatusId(Number(e.target.value))}
-          >
-            {statusOpts.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
+      {/* Description */}
       <div>
-        <label htmlFor={id.project} className="block text-sm font-medium">
-          Project
-        </label>
-        <select
-          id={id.project}
-          className="mt-1 w-full rounded border p-2"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value === "" ? "" : Number(e.target.value))}
-        >
-          <option value="">None (No Project)</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor={id.assignee} className="block text-sm font-medium">
-          Assignee (Owned By) *
-        </label>
-        <select
-          id={id.assignee}
-          className="mt-1 w-full rounded border p-2"
-          value={ownedById ?? ""}
-          onChange={(e) => setOwnedById(e.target.value)}
-          required
-        >
-          <option value="" disabled>Select user</option>
-          {allowedUsers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.email || u.id}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium">Collaborators</label>
-        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {allowedUsers.map((u) => (
-            <label key={u.id} className={`flex items-center gap-2 rounded border p-2 ${collaboratorIds.includes(u.id) ? "bg-gray-50" : ""}`}>
-              <input
-                type="checkbox"
-                checked={collaboratorIds.includes(u.id)}
-                onChange={() => toggleCollaborator(u.id)}
-              />
-              <span className="text-sm">{u.email || u.id}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor={id.parent} className="block text-sm font-medium">
-            Parent Task
-          </label>
-          <input
-            id={id.parent}
-            className="mt-1 w-full rounded border p-2"
-            placeholder="Optional task id"
-            value={parentTaskId}
-            onChange={(e) => {
-              const v = e.target.value;
-              setParentTaskId(v === "" ? "" : Number(v));
-            }}
-          />
-        </div>
-        <div>
-          <label htmlFor={id.tag} className="block text-sm font-medium">
-            Tag (single)
-          </label>
-          <input
-            id={id.tag}
-            className="mt-1 w-full rounded border p-2"
-            placeholder="e.g. frontend, urgent"
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor={id.desc} className="block text-sm font-medium">
+        <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-1">
           Description
         </label>
         <textarea
-          id={id.desc}
-          className="mt-1 w-full rounded border p-2"
-          rows={4}
-          value={description ?? ""}
+          id="task-description"
+          value={description}
           onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <button type="submit" disabled={busy} className="rounded bg-black text-white px-4 py-2">
-          {busy ? "Saving..." : mode === "create" ? "Create Task" : "Save Changes"}
+      {/* Owned By */}
+      <div>
+        <label htmlFor="task-owned-by" className="block text-sm font-medium text-gray-700 mb-1">
+          Assignee (Owned By)
+        </label>
+        <select
+          id="task-owned-by"
+          value={ownedById || ""}
+          onChange={(e) => setOwnedById(e.target.value || undefined)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select owner...</option>
+          {users.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.email}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Project */}
+      <div>
+        <label htmlFor="task-project" className="block text-sm font-medium text-gray-700 mb-1">
+          Project
+        </label>
+        <select
+          id="task-project"
+          value={projectId || ""}
+          onChange={(e) => setProjectId(e.target.value ? parseInt(e.target.value) : undefined)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select project...</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Priority */}
+      <div>
+        <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
+          Priority
+        </label>
+        <select
+          id="task-priority"
+          value={priorityId || ""}
+          onChange={(e) => setPriorityId(e.target.value ? parseInt(e.target.value) : undefined)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select priority...</option>
+          {prioOpts.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Status */}
+      <div>
+        <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
+          Status
+        </label>
+        <select
+          id="task-status"
+          value={statusId || ""}
+          onChange={(e) => setStatusId(e.target.value ? parseInt(e.target.value) : undefined)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select status...</option>
+          {statusOpts.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Start Date */}
+      <div>
+        <label htmlFor="task-start-date" className="block text-sm font-medium text-gray-700 mb-1">
+          Start Date
+        </label>
+        <input
+          id="task-start-date"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* End Date */}
+      <div>
+        <label htmlFor="task-end-date" className="block text-sm font-medium text-gray-700 mb-1">
+          End Date
+        </label>
+        <input
+          id="task-end-date"
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Tag */}
+      <div>
+        <label htmlFor="task-tag" className="block text-sm font-medium text-gray-700 mb-1">
+          Tag (single)
+        </label>
+        <input
+          id="task-tag"
+          type="text"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          placeholder="e.g., urgent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Parent Task ID */}
+      <div>
+        <label htmlFor="task-parent-id" className="block text-sm font-medium text-gray-700 mb-1">
+          Parent Task ID
+        </label>
+        <input
+          id="task-parent-id"
+          type="number"
+          value={parentTaskId || ""}
+          onChange={(e) => setParentTaskId(e.target.value ? parseInt(e.target.value) : undefined)}
+          placeholder="Leave empty for top-level task"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Buttons */}
+      <div className="flex items-center gap-2 pt-4">
+        <button
+          type="submit"
+          disabled={busy || !title.trim()}
+          className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {busy ? "Saving..." : mode === "create" ? "Create Task" : "Update Task"}
         </button>
         {onCancel && (
-          <button type="button" className="rounded border px-4 py-2" onClick={onCancel}>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+          >
             Cancel
           </button>
         )}

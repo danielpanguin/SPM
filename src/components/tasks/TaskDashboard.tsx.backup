@@ -1,17 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+<<<<<<< HEAD
+import { useEffect, useState, useMemo } from "react";
 import { useUser } from "@/hooks/useAuth";
-import TaskDetailsModal from "./TaskDetailsModal";
 import TaskForm from "./TaskForm";
+import TaskDetailsModal from "./TaskDetailsModal";
 
 /* ---------- Unified Task Type ---------- */
+=======
+import { useEffect, useMemo, useState } from "react";
+import TaskDetailsModal from "./TaskDetailsModal";
+import TaskForm from "./TaskForm";
+import { fetchTasks } from "@/components/useTasks";
+
+/** Minimal UI Task shape that matches what this screen renders */
+>>>>>>> dev
 export type UITask = {
   id: number;
   title: string;
   description?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+<<<<<<< HEAD
   priority?: string | number | null;
   status?: string | null;
   createdBy?: { id?: string | null; name?: string | null } | null;
@@ -47,6 +57,48 @@ function normalizeAuthUser(auth: any): {
     };
   }
   return null;
+=======
+  priority?: string | number | null; // we'll show as text/number
+  status?: string | null;
+  // for details modal:
+  createdBy?: { id?: string | null; name?: string } | null;
+  ownedBy?: { id?: string | null; name?: string } | null;
+  collaborators?: Array<{ id: string; name?: string }> | null;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  parentTaskId?: number | null;
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
+};
+
+function mapDbToUI(t: any): UITask {
+  console.log("mapDbToUI input:", t);
+  console.log("project_id:", t.project_id, "project:", t.project);
+
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? null,
+    startDate: t.start_date ?? null,
+    endDate: t.end_date ?? null,
+    priority: t?.priority?.id ?? null,            // number (1..10)
+    status: t?.status?.status ?? null,            // text from status table
+    createdBy: t.created_by
+      ? { id: t.created_by, name: t.created_by_email || t.created_by }
+      : null,
+    ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email || t.owned_by } : null,
+    collaborators: Array.isArray(t.assignees)
+      ? t.assignees.map((id: string) => ({ id }))
+      : [],
+    tags: t.tags ?? [],
+    createdAt: t.created_at ?? undefined,
+    updatedAt: t.updated_at ?? undefined,
+    parentTaskId: t.parent_task_id ?? null,
+    project_id: t.project_id ?? null,
+    project: t.project ?? null,
+  };
+>>>>>>> dev
 }
 
 /* ---------- Map DB → UI ---------- */
@@ -87,6 +139,7 @@ function mapDbToUI(t: any): UITask {
 
 /* ---------- Component ---------- */
 export default function TaskDashboard() {
+<<<<<<< HEAD
   const auth = useUser() as any;
   const { loading } = auth;
   const me = normalizeAuthUser(auth);
@@ -111,8 +164,15 @@ export default function TaskDashboard() {
     if (!me?.id && !isManager) return;
     setBusy(true);
     setError(null);
+=======
+  const [tasks, setTasks] = useState<UITask[]>([]);
+  const [detailsTask, setDetailsTask] = useState<UITask | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<UITask | null>(null);
+>>>>>>> dev
 
     try {
+<<<<<<< HEAD
       const res = await fetch("/api/tasks", {
         headers: {
           "x-user-id": me?.id ?? "",
@@ -134,6 +194,16 @@ export default function TaskDashboard() {
     } catch (e: any) {
       console.error("Task load error:", e);
       setError(e?.message ?? "Failed to load tasks");
+=======
+      console.log("Loading tasks from API...");
+      const dbTasks = await fetchTasks(); // calls /api/tasks
+      console.log("Fetched tasks:", dbTasks);
+      const mappedTasks = dbTasks.map(mapDbToUI);
+      console.log("Mapped tasks:", mappedTasks);
+      setTasks(mappedTasks);
+    } catch (e) {
+      console.error("Error loading tasks:", e);
+>>>>>>> dev
       setTasks([]);
     } finally {
       setBusy(false);
@@ -143,6 +213,7 @@ export default function TaskDashboard() {
   useEffect(() => {
     if (!loading) loadTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+<<<<<<< HEAD
   }, [loading, me?.id, isManager, refreshKey]);
 
   // Sorting function
@@ -179,6 +250,9 @@ export default function TaskDashboard() {
         default:
           return 0;
       }
+=======
+  }, []);
+>>>>>>> dev
 
       // Handle null/undefined values
       if (aVal === null && bVal === null) return 0;
@@ -209,6 +283,8 @@ export default function TaskDashboard() {
   const toggleSortDirection = () => {
     setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
   };
+
+  /* ---------- UI ---------- */
 
   /* ---------- UI ---------- */
   return (
@@ -307,6 +383,7 @@ export default function TaskDashboard() {
         </button>
       </div>
 
+<<<<<<< HEAD
       {/* Status + Error */}
       {error && (
         <div className="rounded border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">
@@ -332,43 +409,67 @@ export default function TaskDashboard() {
               <svg className={`w-3 h-3 ${sortDirection === 'asc' ? 'text-green-700' : 'text-blue-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
               </svg>
+=======
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {tasks.map((t) => (
+          <div
+            key={t.id}
+            className="rounded-2xl border p-4 hover:shadow cursor-pointer"
+            onClick={() => setDetailsTask(t)}
+            aria-label={`Open details for ${t.title}`}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">{t.title}</h3>
+              <span className="text-xs rounded-full border px-2 py-0.5">
+                {t.priority ?? "—"}
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-gray-600 line-clamp-2">
+              {t.description || "No description"}
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+              <div>{t.status || "—"}</div>
+              <div>{t.endDate ? new Date(t.endDate).toLocaleDateString() : "—"}</div>
+>>>>>>> dev
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sortedTasks.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setDetailsTask(t)}
-                aria-label={`Open details for ${t.title}`}
-                className="text-left rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">{t.title}</h3>
-                  {t.priority && (
-                    <span className="text-xs rounded-full border px-2 py-0.5 text-gray-800">
-                      {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
-                    </span>
-                  )}
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setDetailsTask(t)}
+              aria-label={`Open details for ${t.title}`}
+              className="text-left rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">{t.title}</h3>
+                {t.priority && (
+                  <span className="text-xs rounded-full border px-2 py-0.5 text-gray-800">
+                    {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-sm text-gray-800 line-clamp-2">
+                {t.description || "No description"}
+              </p>
+              <div className="mt-3 flex items-center justify-between text-xs text-gray-800">
+                <div>{t.status ?? "To Do"}</div>
+                <div>
+                  {t.endDate
+                    ? new Date(t.endDate).toLocaleDateString()
+                    : "No deadline"}
                 </div>
-                <p className="mt-2 text-sm text-gray-800 line-clamp-2">
-                  {t.description || "No description"}
-                </p>
-                <div className="mt-3 flex items-center justify-between text-xs text-gray-800">
-                  <div>{t.status ?? "To Do"}</div>
-                  <div>
-                    {t.endDate
-                      ? new Date(t.endDate).toLocaleDateString()
-                      : "No deadline"}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+              </div>
+            </button>
+          ))}
+        </div>
         </div>
       ) : (
-        <p className="text-gray-900">No tasks yet. Create your first task.</p>
+        !busy && (
+          <p className="text-gray-900">No tasks yet. Create your first task.</p>
+        )
       )}
 
       {/* ---------- Create Task Modal ---------- */}
@@ -376,9 +477,16 @@ export default function TaskDashboard() {
         <Modal title="Create Task" onClose={() => setCreating(false)}>
           <TaskForm
             mode="create"
+<<<<<<< HEAD
             onSaved={(dbTask) => {
               setCreating(false);
               setTasks((prev) => [...prev, mapDbToUI(dbTask)]);
+=======
+            onSaved={async () => {
+              console.log("Task created, reloading...");
+              setCreating(false);
+              await load(); // Reload all tasks from API
+>>>>>>> dev
             }}
             onCancel={() => setCreating(false)}
           />
@@ -403,12 +511,19 @@ export default function TaskDashboard() {
           <TaskForm
             mode="edit"
             initial={editing}
+<<<<<<< HEAD
             onSaved={(dbTask) => {
               setEditing(null);
               const updated = mapDbToUI(dbTask);
               setTasks((prev) =>
                 prev.map((t) => (t.id === updated.id ? updated : t))
               );
+=======
+            onSaved={async () => {
+              console.log("Task edited, reloading...");
+              setEditing(null);
+              await load(); // Reload all tasks from API
+>>>>>>> dev
             }}
             onCancel={() => setEditing(null)}
           />
