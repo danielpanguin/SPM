@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
+// Note: Using supabaseClient directly as this is a simple read-only endpoint
+
 function json(data: any, init?: number | ResponseInit) {
   return NextResponse.json(data, typeof init === "number" ? { status: init } : init);
 }

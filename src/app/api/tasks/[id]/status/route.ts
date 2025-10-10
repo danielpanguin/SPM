@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
+// Note: Using supabaseClient directly for this specialized endpoint
+// to avoid circular dependencies with tasks.repo
+
 function json(data: any, init?: number | ResponseInit) {
   return NextResponse.json(data, typeof init === "number" ? { status: init } : init);
 }
