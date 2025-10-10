@@ -64,7 +64,9 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
       const ids = new Set<string>();
       if (task.createdBy?.id) ids.add(String(task.createdBy.id));
       if (task.ownedBy?.id) ids.add(String(task.ownedBy.id));
-      (task.collaborators ?? []).forEach((c) => ids.add(String(c.id)));
+      (task.collaborators ?? []).forEach((c) => {
+        if (c?.id) ids.add(String(c.id));
+      });
       if (!ids.size) return;
 
       const { data } = await supabase
@@ -121,7 +123,7 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
           <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
           <Field label="Collaborators" value={getCollaboratorsDisplay()} />
-          <Field label="Priority" value={task.priority != null ? String(task.priority) : "—"} />
+          <Field label="Priority" value={task.priority != null ? (typeof task.priority === 'number' ? `P${task.priority}` : String(task.priority)) : "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
           <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />

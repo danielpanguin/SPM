@@ -278,7 +278,11 @@ export default function TaskDashboard() {
           <div
             key={t.id}
             className="rounded-2xl border p-4 hover:shadow cursor-pointer"
-            onClick={() => setDetailsTask(t)}
+            onClick={() => {
+              console.log("Clicked task:", t);
+              console.log("Task priority:", t.priority, "Type:", typeof t.priority);
+              setDetailsTask(t);
+            }}
             aria-label={`Open details for ${t.title}`}
           >
             <div className="flex items-center justify-between">
