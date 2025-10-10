@@ -1,12 +1,14 @@
 // task-table.tsx
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
 import { User, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
+import { fetchStatuses, updateTaskStatusAPI } from "@/components/useTasks"
+import { useUser } from "@/hooks/useAuth"
 
 type SortField = 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
@@ -23,6 +25,47 @@ type Props = {
 export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [statuses, setStatuses] = useState<Array<{ id: number; status: string }>>([])
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+  const { userId } = useUser()
+
+  // Load available statuses on mount
+  useEffect(() => {
+    async function loadStatuses() {
+      try {
+        const statusList = await fetchStatuses()
+        setStatuses(statusList)
+      } catch (error) {
+        console.error("Error loading statuses:", error)
+      }
+    }
+    loadStatuses()
+  }, [])
+
+  // Handle status change
+  async function handleStatusChange(taskId: string, newStatusId: number, e: React.MouseEvent) {
+    e.stopPropagation() // Prevent row click
+    
+    try {
+      setUpdatingStatus(taskId)
+      await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
+      // Reload page to refresh tasks
+      window.location.reload()
+    } catch (error) {
+      console.error("Error updating task status:", error)
+      alert("Failed to update task status")
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Map status string to status ID
+  function getStatusId(statusString: string | undefined): number {
+    if (!statusString) return 1
+    const normalized = statusString.toLowerCase().replace(/\s+/g, '-')
+    const status = statuses.find(s => s.status.toLowerCase().replace(/\s+/g, '-') === normalized)
+    return status?.id || 1
+  }
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -307,10 +350,20 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                     {t.tag ? <Badge variant="secondary" className="text-xs">{t.tag}</Badge> : "—"}
                   </TableCell>
 
-                  <TableCell>
-                    <Badge variant="outline" className={`${getStatusClass(t.status)} capitalize`}>
-                      {String(t.status).replace("-", " ")}
-                    </Badge>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={getStatusId(t.status)}
+                      onChange={(e) => handleStatusChange(t.id, Number(e.target.value), e as any)}
+                      disabled={updatingStatus === t.id}
+                      className="text-xs border border-gray-300 rounded px-2 py-1 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                      aria-label={`Change status for ${t.title}`}
+                    >
+                      {statuses.map((status) => (
+                        <option key={status.id} value={status.id}>
+                          {status.status}
+                        </option>
+                      ))}
+                    </select>
                   </TableCell>
 
                   <TableCell>{niceDate(t.endDate)}</TableCell>
