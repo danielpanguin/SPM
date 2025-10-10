@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import TaskDetailsModal from "./TaskDetailsModal";
 import TaskForm from "./TaskForm";
 import { fetchTasks } from "@/components/useTasks";
+import { useUser } from "@/hooks/useAuth";
 
 /** Minimal UI Task shape that matches what this screen renders */
 export type UITask = {
@@ -55,6 +56,7 @@ function mapDbToUI(t: any): UITask {
 }
 
 export default function TaskDashboard() {
+  const { userId, role } = useUser();
   const [tasks, setTasks] = useState<UITask[]>([]);
   const [detailsTask, setDetailsTask] = useState<UITask | null>(null);
   const [creating, setCreating] = useState(false);
@@ -67,7 +69,12 @@ export default function TaskDashboard() {
   async function load() {
     try {
       console.log("Loading tasks from API...");
-      const dbTasks = await fetchTasks(); // calls /api/tasks
+      console.log("User context:", { userId, role });
+      // Pass user context to API for role-based filtering
+      const dbTasks = await fetchTasks({ 
+        userId: userId || undefined, 
+        role: role || undefined 
+      });
       console.log("Fetched tasks count:", dbTasks.length);
       console.log("Fetched tasks:", dbTasks);
       const mappedTasks = dbTasks.map(mapDbToUI);
@@ -81,9 +88,11 @@ export default function TaskDashboard() {
   }
 
   useEffect(() => {
-    load();
+    if (userId) {
+      load();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userId, role]);
 
   // Sorting function
   const sortTasks = (tasks: UITask[], field: typeof sortField, direction: typeof sortDirection) => {
