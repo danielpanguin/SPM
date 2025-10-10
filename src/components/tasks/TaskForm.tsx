@@ -58,7 +58,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   );
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
-  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [tag, setTag] = useState(initial?.tag ?? "");
   const [parentTaskId, setParentTaskId] = useState<string | number | undefined>(
     initial?.parentTaskId
   );
@@ -129,7 +129,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         status_id: statusId,
         start_date: startDate || null,
         end_date: endDate || null,
-        tag: tags.length ? tags.join(", ") : null,  // Convert array to single string
+        tag: tag || null,
         parent_task_id: parentTaskId || null,
       };
 
@@ -295,17 +295,17 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         />
       </div>
 
-      {/* Tags */}
+      {/* Tag */}
       <div>
-        <label htmlFor="task-tags" className="block text-sm font-medium text-gray-700 mb-1">
-          Tags (comma-separated)
+        <label htmlFor="task-tag" className="block text-sm font-medium text-gray-700 mb-1">
+          Tag (single)
         </label>
         <input
-          id="task-tags"
+          id="task-tag"
           type="text"
-          value={tags.join(", ")}
-          onChange={(e) => setTags(e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-          placeholder="urgent, frontend, bug"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          placeholder="e.g., urgent"
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
