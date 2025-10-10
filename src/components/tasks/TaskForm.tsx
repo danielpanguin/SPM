@@ -160,10 +160,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Title */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
           Title *
         </label>
         <input
+          id="task-title"
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -174,10 +175,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-1">
           Description
         </label>
         <textarea
+          id="task-description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
@@ -187,10 +189,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Owned By */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Owned By
+        <label htmlFor="task-owned-by" className="block text-sm font-medium text-gray-700 mb-1">
+          Assignee (Owned By)
         </label>
         <select
+          id="task-owned-by"
           value={ownedById || ""}
           onChange={(e) => setOwnedById(e.target.value || undefined)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -206,10 +209,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Project */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-project" className="block text-sm font-medium text-gray-700 mb-1">
           Project
         </label>
         <select
+          id="task-project"
           value={projectId || ""}
           onChange={(e) => setProjectId(e.target.value ? parseInt(e.target.value) : undefined)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -225,10 +229,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Priority */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
           Priority
         </label>
         <select
+          id="task-priority"
           value={priorityId || ""}
           onChange={(e) => setPriorityId(e.target.value ? parseInt(e.target.value) : undefined)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -244,10 +249,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Status */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
           Status
         </label>
         <select
+          id="task-status"
           value={statusId || ""}
           onChange={(e) => setStatusId(e.target.value ? parseInt(e.target.value) : undefined)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -263,10 +269,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Start Date */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-start-date" className="block text-sm font-medium text-gray-700 mb-1">
           Start Date
         </label>
         <input
+          id="task-start-date"
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
@@ -276,10 +283,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* End Date */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-end-date" className="block text-sm font-medium text-gray-700 mb-1">
           End Date
         </label>
         <input
+          id="task-end-date"
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
@@ -289,10 +297,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Tags */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-tags" className="block text-sm font-medium text-gray-700 mb-1">
           Tags (comma-separated)
         </label>
         <input
+          id="task-tags"
           type="text"
           value={tags.join(", ")}
           onChange={(e) => setTags(e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
@@ -303,10 +312,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       {/* Parent Task ID */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="task-parent-id" className="block text-sm font-medium text-gray-700 mb-1">
           Parent Task ID
         </label>
         <input
+          id="task-parent-id"
           type="number"
           value={parentTaskId || ""}
           onChange={(e) => setParentTaskId(e.target.value ? parseInt(e.target.value) : undefined)}
