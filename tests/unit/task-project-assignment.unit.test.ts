@@ -44,8 +44,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
       mockSupabaseFrom.mockReturnValue({
         insert: jest.fn().mockReturnValue({
           select: jest.fn().mockReturnValue({
-            limit: jest.fn().mockResolvedValue({
-              data: [mockTaskData],
+            single: jest.fn().mockResolvedValue({
+              data: mockTaskData,
               error: null,
             }),
           }),
@@ -58,8 +58,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
-                  data: [mockTaskData],
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskData,
                   error: null,
                 }),
               }),
@@ -90,16 +90,22 @@ describe('Task-Project Assignment - Unit Tests', () => {
         }
         if (table === 'projects') {
           return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
-            }),
+            select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
           };
         }
-        if (table === 'status' || table === 'priority') {
+        if (table === 'status') {
           return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [], error: null }),
-            }),
+            select: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'priority') {
+          return {
+            select: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'users') {
+          return {
+            select: jest.fn().mockResolvedValue({ data: [], error: null }),
           };
         }
         return {
@@ -145,8 +151,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
-                  data: [mockTaskData],
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskData,
                   error: null,
                 }),
               }),
@@ -200,8 +206,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
-                  data: [mockTaskData],
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskData,
                   error: null,
                 }),
               }),
@@ -280,9 +286,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
         }
         if (table === 'projects') {
           return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
-            }),
+            select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
           };
         }
         return {
@@ -456,9 +460,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
         }
         if (table === 'projects') {
           return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
-            }),
+            select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
           };
         }
         if (table === 'status') {
@@ -614,9 +616,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
         }
         if (table === 'projects') {
           return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
-            }),
+            select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
           };
         }
         return {
@@ -755,7 +755,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
+                single: jest.fn().mockResolvedValue({
                   data: null,
                   error: dbError,
                 }),
@@ -797,9 +797,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
         }
         if (table === 'projects') {
           return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
-            }),
+            select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
           };
         }
         return {
