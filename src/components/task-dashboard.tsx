@@ -145,13 +145,19 @@ export function TaskDashboard() {
       setLoading(true)
       setError(null)
 
+      // accessibleUserIds are UUIDs (strings), not numbers - use them directly
+      const ownedByIds = accessibleUserIds.filter((id) => id && id.trim() !== '')
+
+      if (ownedByIds.length === 0) {
+        console.log("[Supabase] No accessible user IDs, skipping query")
+        setTasks([])
+        setLoading(false)
+        return
+      }
+
       try {
-        // For staff: fetch tasks where they are collaborators
-        // For managers/admins: fetch all tasks for accessible user IDs
-        const allTasks: any[] = []
-        
-        // Fetch tasks owned by accessible users
-        const { data: ownedTasks, error: ownedError } = await supabase
+        // Pull everything needed to fill your Task interface
+        const { data, error } = await supabase
           .from("tasks")
           .select(`
           id,
@@ -185,69 +191,7 @@ export function TaskDashboard() {
             users ( id, username )
           )
         `)
-        .in("owned_by", accessibleUserIds)
-        
-        if (ownedError) throw ownedError
-        if (ownedTasks) allTasks.push(...ownedTasks)
-        
-        // Also fetch tasks where user is a collaborator (for staff users)
-        const { data: collaboratorTaskIds } = await supabase
-          .from("task_collaborator")
-          .select("task_id")
-          .in("user_id", accessibleUserIds)
-        
-        if (collaboratorTaskIds && collaboratorTaskIds.length > 0) {
-          const taskIds = collaboratorTaskIds.map(c => c.task_id)
-          const { data: collabTasks, error: collabError } = await supabase
-            .from("tasks")
-            .select(`
-            id,
-            title,
-            description,
-            created_by,
-            owned_by,
-            parent_task_id,
-            start_date,
-            end_date,
-            created_at,
-            priority_id,
-            status_id,
-            project_id,
-            created_by_user:created_by (
-              id,
-              username,
-              roles ( id, name )
-            ),
-            owned_by_user:owned_by (
-              id,
-              username,
-              roles ( id, name )
-            ),
-            status:status_id ( id, status ),
-            project:project_id ( id, name ),
-            task_tasktag (
-              task_tag ( id, name )
-            ),
-            task_collaborator (
-              users ( id, username )
-            )
-          `)
-          .in("id", taskIds)
-          
-          if (collabError) throw collabError
-          if (collabTasks) {
-            // Merge and deduplicate by task ID
-            const existingIds = new Set(allTasks.map(t => t.id))
-            collabTasks.forEach(task => {
-              if (!existingIds.has(task.id)) {
-                allTasks.push(task)
-              }
-            })
-          }
-        }
-        
-        const data = allTasks
-        const error = null
+        .in("owned_by", ownedByIds);
 
 
       console.log("Supabase fetch result:", { data, error })
@@ -415,7 +359,7 @@ export function TaskDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-card">
+      <header className="border-b border-border bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>

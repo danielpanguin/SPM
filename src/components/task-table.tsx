@@ -1,15 +1,12 @@
 // task-table.tsx
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-import { User, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { User } from "lucide-react"
 import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
-
-type SortField = 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
-type SortDirection = 'asc' | 'desc'
 
 type Props = {
   tasks: Task[]
@@ -21,24 +18,6 @@ type Props = {
 }
 
 export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      // Toggle direction or clear sort
-      if (sortDirection === 'asc') {
-        setSortDirection('desc')
-      } else {
-        setSortField(null)
-        setSortDirection('asc')
-      }
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
-  }
-
   const filteredTasks = useMemo(() => {
     const q = filters.search?.toLowerCase() ?? ""
 
@@ -111,61 +90,6 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
     })
   }, [tasks, filters, projectByTaskId])
 
-  const sortedTasks = useMemo(() => {
-    if (!sortField) return filteredTasks
-
-    const sorted = [...filteredTasks].sort((a, b) => {
-      let aValue: any
-      let bValue: any
-
-      switch (sortField) {
-        case 'status':
-          aValue = a.status?.toLowerCase() || ''
-          bValue = b.status?.toLowerCase() || ''
-          break
-        case 'priority':
-          // Priority order: urgent > high > medium > low
-          const priorityOrder: Record<string, number> = {
-            urgent: 4,
-            high: 3,
-            medium: 2,
-            low: 1
-          }
-          aValue = priorityOrder[a.priority?.toLowerCase()] || 0
-          bValue = priorityOrder[b.priority?.toLowerCase()] || 0
-          break
-        case 'project':
-          aValue = (projectByTaskId?.get(a.id) || '').toLowerCase()
-          bValue = (projectByTaskId?.get(b.id) || '').toLowerCase()
-          break
-        case 'deadline':
-          aValue = a.endDate ? new Date(a.endDate).getTime() : 0
-          bValue = b.endDate ? new Date(b.endDate).getTime() : 0
-          break
-        case 'tag':
-          aValue = (a.tag || '').toLowerCase()
-          bValue = (b.tag || '').toLowerCase()
-          break
-        case 'title':
-          aValue = a.title.toLowerCase()
-          bValue = b.title.toLowerCase()
-          break
-        case 'createdAt':
-          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0
-          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0
-          break
-        default:
-          return 0
-      }
-
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-
-    return sorted
-  }, [filteredTasks, sortField, sortDirection, projectByTaskId])
-
   const getPriorityClass = (p: Task["priority"]) => {
     const pLower = p.toLowerCase()
     const map: Record<string, string> = {
@@ -193,83 +117,31 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
   const niceDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—"
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="ml-2 h-4 w-4 inline" />
-    }
-    return sortDirection === 'asc' 
-      ? <ArrowUp className="ml-2 h-4 w-4 inline" />
-      : <ArrowDown className="ml-2 h-4 w-4 inline" />
-  }
-
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-[120px]">Task ID</TableHead>
-            <TableHead 
-              className="cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('title')}
-            >
-              Task Title
-              <SortIcon field="title" />
-            </TableHead>
-            <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('priority')}
-            >
-              Task Priority
-              <SortIcon field="priority" />
-            </TableHead>
-            <TableHead 
-              className="w-[160px] cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('project')}
-            >
-              Project
-              <SortIcon field="project" />
-            </TableHead>
-            <TableHead 
-              className="w-[180px] cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('tag')}
-            >
-              Task Tag
-              <SortIcon field="tag" />
-            </TableHead>
-            <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('status')}
-            >
-              Task Status
-              <SortIcon field="status" />
-            </TableHead>
-            <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('deadline')}
-            >
-              Task Deadline
-              <SortIcon field="deadline" />
-            </TableHead>
-            <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
-              onClick={() => handleSort('createdAt')}
-            >
-              Date Created
-              <SortIcon field="createdAt" />
-            </TableHead>
+            <TableHead>Task Title</TableHead>
+            <TableHead className="w-[140px]">Task Priority</TableHead>
+            <TableHead className="w-[160px]">Project</TableHead>
+            <TableHead className="w-[180px]">Task Tag</TableHead>
+            <TableHead className="w-[140px]">Task Status</TableHead>
+            <TableHead className="w-[140px]">Task Deadline</TableHead>
             <TableHead className="w-[240px]">Parent Task</TableHead>
           </TableRow>
         </TableHeader>
 
         <TableBody>
-          {sortedTasks.length === 0 ? (
+          {filteredTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 No tasks found matching your filters
               </TableCell>
             </TableRow>
           ) : (
-            sortedTasks.map((t) => {
+            filteredTasks.map((t) => {
               const project = projectByTaskId?.get(t.id) ?? null
               const parentTitle = t.parentTaskId ? titleById?.get(t.parentTaskId) : null
 
@@ -314,8 +186,6 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   </TableCell>
 
                   <TableCell>{niceDate(t.endDate)}</TableCell>
-
-                  <TableCell>{niceDate(t.createdAt)}</TableCell>
 
                   <TableCell>
                     {t.parentTaskId ? (
