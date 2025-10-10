@@ -22,9 +22,14 @@ export type UITask = {
   createdAt?: string;
   updatedAt?: string;
   parentTaskId?: number | null;
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
 };
 
 function mapDbToUI(t: any): UITask {
+  console.log("mapDbToUI input:", t);
+  console.log("project_id:", t.project_id, "project:", t.project);
+
   return {
     id: t.id,
     title: t.title,
@@ -44,6 +49,8 @@ function mapDbToUI(t: any): UITask {
     createdAt: t.created_at ?? undefined,
     updatedAt: t.updated_at ?? undefined,
     parentTaskId: t.parent_task_id ?? null,
+    project_id: t.project_id ?? null,
+    project: t.project ?? null,
   };
 }
 
@@ -52,14 +59,17 @@ export default function TaskDashboard() {
   const [detailsTask, setDetailsTask] = useState<UITask | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<UITask | null>(null);
-  const refreshKey = useMemo(() => Date.now(), []); // simple re-run anchor
 
   async function load() {
     try {
+      console.log("Loading tasks from API...");
       const dbTasks = await fetchTasks(); // calls /api/tasks
-      setTasks(dbTasks.map(mapDbToUI));
+      console.log("Fetched tasks:", dbTasks);
+      const mappedTasks = dbTasks.map(mapDbToUI);
+      console.log("Mapped tasks:", mappedTasks);
+      setTasks(mappedTasks);
     } catch (e) {
-      console.error(e);
+      console.error("Error loading tasks:", e);
       setTasks([]);
     }
   }
@@ -67,7 +77,7 @@ export default function TaskDashboard() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -114,9 +124,10 @@ export default function TaskDashboard() {
         <Modal title="Create Task" onClose={() => setCreating(false)}>
           <TaskForm
             mode="create"
-            onSaved={(dbTask) => {
+            onSaved={async () => {
+              console.log("Task created, reloading...");
               setCreating(false);
-              setTasks((prev) => [...prev, mapDbToUI(dbTask)]);
+              await load(); // Reload all tasks from API
             }}
             onCancel={() => setCreating(false)}
           />
@@ -141,10 +152,10 @@ export default function TaskDashboard() {
           <TaskForm
             mode="edit"
             initial={editing}
-            onSaved={(dbTask) => {
+            onSaved={async () => {
+              console.log("Task edited, reloading...");
               setEditing(null);
-              const updated = mapDbToUI(dbTask);
-              setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+              await load(); // Reload all tasks from API
             }}
             onCancel={() => setEditing(null)}
           />

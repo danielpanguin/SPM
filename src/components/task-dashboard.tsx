@@ -87,6 +87,8 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
     comments: [],
     updatedAt: apiTask.updated_at ?? new Date().toISOString(),
     createdAt: apiTask.created_at ?? new Date().toISOString(),
+    project_id: apiTask.project_id ?? null,
+    project: apiTask.project ?? null,
   }
 }
 
@@ -118,6 +120,8 @@ export function TaskDashboard() {
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
+
+  console.log("TaskDashboard render - tasks count:", tasks.length)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -127,6 +131,7 @@ export function TaskDashboard() {
 
   // Load tasks with nested relationships (filtered by accessibleUserIds)
   useEffect(() => {
+    console.log("useEffect triggered, accessibleUserIds:", accessibleUserIds)
     if (!accessibleUserIds || accessibleUserIds.length === 0) {
       setTasks([])
       setProjectByTaskId(new Map())
@@ -136,6 +141,7 @@ export function TaskDashboard() {
     }
 
     const load = async () => {
+      console.log("Loading tasks from database...")
       setLoading(true)
       setError(null)
 
@@ -521,15 +527,29 @@ export function TaskDashboard() {
             mode="edit"
             initial={editing}
             onSaved={async (apiResponse) => {
-              setEditing(null)
+              console.log("EDIT onSaved called with:", apiResponse)
               // Map API response to Task type and update the task in the list
               const updatedTask = await mapApiResponseToTask(apiResponse)
+              console.log("Mapped updated task:", updatedTask)
+
+              // Update the tasks list with the edited task
               setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)))
+
+              // Update project mapping for the edited task
+              setProjectByTaskId((prev) => {
+                const next = new Map(prev)
+                next.set(updatedTask.id, updatedTask.project?.name ?? null)
+                return next
+              })
+
               setTitleById((prev) => {
                 const next = new Map(prev)
                 next.set(updatedTask.id, updatedTask.title)
                 return next
               })
+
+              // Close modal after state is updated
+              setEditing(null)
             }}
             onCancel={() => setEditing(null)}
           />
@@ -542,15 +562,36 @@ export function TaskDashboard() {
           <TaskForm
             mode="create"
             onSaved={async (apiResponse) => {
-              setCreating(false)
+              console.log("CREATE onSaved called with:", apiResponse)
               // Map API response to Task type and add the new task to the list
               const newTask = await mapApiResponseToTask(apiResponse)
-              setTasks((prev) => [...prev, newTask])
+              console.log("Mapped new task:", newTask)
+
+              // Update the tasks list with the new task
+              setTasks((prev) => {
+                const updated = [...prev, newTask]
+                console.log("Tasks after adding new task:", updated)
+                console.log("New task details:", JSON.stringify(newTask, null, 2))
+                return updated
+              })
+
+              // Update project mapping for the new task
+              setProjectByTaskId((prev) => {
+                const next = new Map(prev)
+                next.set(newTask.id, newTask.project?.name ?? null)
+                console.log("Updated projectByTaskId, added:", newTask.id, "->", newTask.project?.name)
+                return next
+              })
+
               setTitleById((prev) => {
                 const next = new Map(prev)
                 next.set(newTask.id, newTask.title)
                 return next
               })
+
+              // Close modal after state is updated
+              setCreating(false)
+              console.log("Modal closed, creating set to false")
             }}
             onCancel={() => setCreating(false)}
           />
