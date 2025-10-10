@@ -66,10 +66,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         if (userRole === 'staff') {
           // Staff can only see their own tasks
           setAccessibleUserIds([u.id]);
-        } else if (userRole === 'manager' || userRole === 'admin') {
-          // Managers and admins can see all users in their organization
+        } else if (userRole === 'admin') {
+          // Admins can see ALL users
           try {
-            // For now, get all users - in a real system you'd filter by organization
             const { data: users } = await supabase
               .from('users')
               .select('id')
@@ -78,12 +77,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             if (users && Array.isArray(users)) {
               const ids = users.map(user => user.id);
               setAccessibleUserIds(ids);
+              console.log("[useAuth] Admin - accessible user IDs:", ids.length);
             } else {
-              // Fallback to just current user if query fails
               setAccessibleUserIds([u.id]);
             }
           } catch (error) {
             console.warn("[useAuth] Failed to load accessible users, using current user only:", error);
+            setAccessibleUserIds([u.id]);
+          }
+        } else if (userRole === 'manager') {
+          // Managers can only see their team members (where manager_id = their id)
+          try {
+            const { data: teamMembers } = await supabase
+              .from('users')
+              .select('id')
+              .eq('manager_id', u.id);
+
+            if (teamMembers && Array.isArray(teamMembers)) {
+              // Include manager themselves + their team members
+              const ids = [u.id, ...teamMembers.map(member => member.id)];
+              setAccessibleUserIds(ids);
+              console.log("[useAuth] Manager - accessible user IDs:", ids);
+            } else {
+              // Fallback to just manager if query fails
+              setAccessibleUserIds([u.id]);
+            }
+          } catch (error) {
+            console.warn("[useAuth] Failed to load team members, using current user only:", error);
             setAccessibleUserIds([u.id]);
           }
         } else {
