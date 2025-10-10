@@ -35,10 +35,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
       return badRequest("status_id is required and must be a number");
     }
 
-    // Get current task to log the old status
+    // Get current task to log the old status AND preserve updated_at
     const { data: currentTask, error: fetchError } = await supabase
       .from("tasks")
-      .select("status_id")
+      .select("status_id, updated_at")
       .eq("id", taskId)
       .single();
 
@@ -47,24 +47,22 @@ export async function PATCH(req: NextRequest, { params }: P) {
     }
 
     const oldStatusId = currentTask.status_id;
+    const originalUpdatedAt = currentTask.updated_at;
 
-    // Update status WITHOUT triggering updated_at (we'll use a raw SQL update)
-    // Note: Supabase automatically updates updated_at on UPDATE, so we need to preserve it
-    const { data: taskData, error: updateError } = await supabase
+    // Update status - this will automatically update updated_at
+    const { error: updateError } = await supabase
       .from("tasks")
       .update({ status_id })
-      .eq("id", taskId)
-      .select("*, updated_at")
-      .single();
+      .eq("id", taskId);
 
     if (updateError) {
       throw new Error(`Error updating task status: ${updateError.message}`);
     }
 
-    // Now restore the original updated_at timestamp
+    // Restore the original updated_at timestamp to preserve it
     const { error: restoreError } = await supabase
       .from("tasks")
-      .update({ updated_at: taskData.updated_at })
+      .update({ updated_at: originalUpdatedAt })
       .eq("id", taskId);
 
     if (restoreError) {
