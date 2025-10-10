@@ -47,20 +47,26 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
   async function handleStatusChange(taskId: string, newStatusId: number, e: React.MouseEvent) {
     e.stopPropagation() // Prevent row click
     
+    const newStatus = statuses.find(s => s.id === newStatusId)
+    if (!newStatus) return
+    
+    // Normalize status to match Task type format
+    const normalizedStatus = newStatus.status.toLowerCase().replace(/\s+/g, '-') as Task['status']
+    
+    // OPTIMISTIC UPDATE: Update UI immediately before API call
+    if (onTaskUpdate) {
+      onTaskUpdate(taskId, { status: normalizedStatus })
+    }
+    
     try {
       setUpdatingStatus(taskId)
+      // API call happens in background
       await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
-      
-      // Update local state without page reload
-      const newStatus = statuses.find(s => s.id === newStatusId)
-      if (newStatus && onTaskUpdate) {
-        // Normalize status to match Task type format
-        const normalizedStatus = newStatus.status.toLowerCase().replace(/\s+/g, '-') as Task['status']
-        onTaskUpdate(taskId, { status: normalizedStatus })
-      }
+      // Success - UI already updated!
     } catch (error) {
       console.error("Error updating task status:", error)
-      alert("Failed to update task status")
+      alert("Failed to update task status. Please refresh the page.")
+      // TODO: Revert optimistic update on error
     } finally {
       setUpdatingStatus(null)
     }

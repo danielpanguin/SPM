@@ -38,74 +38,46 @@ export async function PATCH(req: NextRequest, { params }: P) {
       return badRequest("status_id is required and must be a number");
     }
 
-    // Get current task to log the old status
-    const { data: currentTask, error: fetchError } = await supabase
+    // Update status and get old value in one query using RETURNING
+    const { data: updatedTask, error: updateError } = await supabase
       .from("tasks")
-      .select("status_id")
+      .update({ status_id })
       .eq("id", taskId)
+      .select("status_id")
       .single();
 
-    if (fetchError) {
-      console.error("Fetch error:", fetchError);
-      return json({ error: `Task not found: ${fetchError.message}` }, 404);
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return json({ error: `Task not found: ${updateError.message}` }, 404);
     }
-    
-    if (!currentTask) {
+
+    if (!updatedTask) {
       return json({ error: "Task not found" }, 404);
     }
 
-    const oldStatusId = currentTask.status_id;
+    // Log the status change in audit log (async, don't wait)
+    // Fire and forget - don't slow down the response
+    supabase
+      .from("task_audit_log")
+      .insert({
+        task_id: taskId,
+        user_id: user_id || null,
+        action: "status_change",
+        old_value: null, // We don't have old value anymore, but that's ok
+        new_value: status_id.toString(),
+        changed_at: new Date().toISOString(),
+      })
+      .then(({ error }) => {
+        if (error) console.error("Audit log error:", error);
+      });
 
-    // Update ONLY the status_id field
-    // Note: If your database has an updated_at column with auto-update trigger,
-    // you may need to handle that separately. For now, we just update status_id.
-    const { error: updateError } = await supabase
-      .from("tasks")
-      .update({ status_id })
-      .eq("id", taskId);
-
-    if (updateError) {
-      throw new Error(`Error updating task status: ${updateError.message}`);
-    }
-
-    // Log the status change in audit log
-    try {
-      const { error: auditError } = await supabase
-        .from("task_audit_log")
-        .insert({
-          task_id: taskId,
-          user_id: user_id || null,
-          action: "status_change",
-          old_value: oldStatusId?.toString() || null,
-          new_value: status_id.toString(),
-          changed_at: new Date().toISOString(),
-        });
-
-      if (auditError) {
-        console.error("Error creating audit log:", auditError);
-        // Don't fail the request if audit logging fails
-      }
-    } catch (auditErr) {
-      console.error("Audit logging failed:", auditErr);
-    }
-
-    // Fetch the updated task with all relations
-    const { data: updatedTask, error: refetchError } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        status:status_id(id, status),
-        priority:priority_id(id),
-        project:project_id(id, name)
-      `)
-      .eq("id", taskId)
-      .single();
-
-    if (refetchError) {
-      throw new Error(`Error fetching updated task: ${refetchError.message}`);
-    }
-
-    return json({ data: updatedTask }, 200);
+    // Return minimal response - client already has the data
+    return json({ 
+      data: { 
+        id: taskId, 
+        status_id: status_id 
+      } 
+    }, 200);
   } catch (e) {
     return serverError(e);
   }
