@@ -101,7 +101,7 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   const getCollaboratorsDisplay = () => {
     if (!task.collaborators || task.collaborators.length === 0) return "—";
     return task.collaborators
-      .map(c => labels[String(c.id)] || c.name || c.email || String(c.id))
+      .map(c => labels[String(c.id)] || c.name || (c as any).email || String(c.id))
       .join(", ");
   };
 
@@ -116,10 +116,10 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Project" value={task.project?.name || "—"} />
+          <Field label="Project" value={(task as any).project?.name || "—"} />
           <Field label="Status" value={task.status || "—"} />
-          <Field label="Created by" value={getUserDisplay(task.createdBy)} />
-          <Field label="Owned by" value={getUserDisplay(task.ownedBy)} />
+          <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
+          <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
           <Field label="Collaborators" value={getCollaboratorsDisplay()} />
           <Field label="Priority" value={task.priority != null ? String(task.priority) : "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />

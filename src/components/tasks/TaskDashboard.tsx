@@ -166,7 +166,7 @@ export default function TaskDashboard() {
           break;
         case 'endDate':
           aVal = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER;
-          bVal = b.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER;
+          bVal = b.endDate ? new Date(b.endDate).getTime() : Number.MAX_SAFE_INTEGER;
           break;
         case 'tags':
           aVal = a.tags?.join(', ') || '';

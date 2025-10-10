@@ -3,8 +3,26 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
-import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
+
+type UITask = {
+  id: string | number;
+  title: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  priority?: string | number | null;
+  status?: string | null;
+  createdBy?: { id?: string | null; name?: string } | null;
+  ownedBy?: { id?: string | null; name?: string } | null;
+  collaborators?: Array<{ id: string; name?: string }> | null;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  parentTaskId?: string | number | null;
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
+};
 
 type Mode = "create" | "edit";
 
