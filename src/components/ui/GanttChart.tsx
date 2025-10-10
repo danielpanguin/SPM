@@ -29,6 +29,7 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
   const auth = useUser() as any;
   const authLoading: boolean = !!auth.loading;
   const userId: string | null = auth.userId ?? null;
+  const role: string | null = auth.role ?? null;
   const accessibleUserIds: string[] = Array.isArray(auth.accessibleUserIds) ? auth.accessibleUserIds : [];
 
   // Use accessible ids if available; otherwise just the signed-in user
@@ -158,8 +159,22 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
         }
       }
 
-      const grouped =
-        (tasks ?? []).reduce<Record<string, TasksByUser>>(
+      // For staff users, only show their own row even if they're collaborators on other tasks
+      // For managers/admins, show all accessible users' rows
+      let grouped: Record<string, TasksByUser>;
+      
+      if (role === 'staff' && userId) {
+        // Staff: Only show tasks in their own row (owned OR collaborating)
+        const userInfo = userMap[userId] ?? { id: userId, name: userId };
+        grouped = {
+          [userId]: {
+            user: userInfo,
+            tasks: tasks ?? []
+          }
+        };
+      } else {
+        // Managers/Admins: Group by owner
+        grouped = (tasks ?? []).reduce<Record<string, TasksByUser>>(
           (acc: Record<string, TasksByUser>, task: any) => {
             const uid = task.owned_by as string;
             if (!acc[uid]) {
@@ -169,6 +184,7 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
             acc[uid].tasks.push(task as Task);
             return acc;
           }, {}) ?? {};
+      }
 
       setTasksByUser(Object.values(grouped));
     } catch (e: any) {
@@ -177,7 +193,7 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
     } finally {
       setLoading(false);
     }
-  }, [ids, monthStart, monthEnd]);
+  }, [ids, monthStart, monthEnd, role, userId]);
 
   useEffect(() => {
     console.log("[GanttChart useEffect] Triggered with:", {
