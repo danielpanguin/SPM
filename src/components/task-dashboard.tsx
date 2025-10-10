@@ -93,9 +93,20 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
 }
 
 function mapPriority(priorityId: number | null | undefined): "Low" | "Medium" | "High" {
-  if (!priorityId) return "Medium"
-  if (priorityId <= 3) return "High"   // P1-P3 = High
-  if (priorityId <= 6) return "Medium" // P4-P6 = Medium
+  console.log(`mapPriority called with: ${priorityId}`);
+  if (!priorityId) {
+    console.log(`  → No priority, returning Medium`);
+    return "Medium"
+  }
+  if (priorityId <= 3) {
+    console.log(`  → ${priorityId} <= 3, returning High`);
+    return "High"   // P1-P3 = High
+  }
+  if (priorityId <= 6) {
+    console.log(`  → ${priorityId} <= 6, returning Medium`);
+    return "Medium" // P4-P6 = Medium
+  }
+  console.log(`  → ${priorityId} > 6, returning Low`);
   return "Low"                          // P7-P10 = Low
 }
 
