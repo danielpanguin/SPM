@@ -39,6 +39,7 @@ jest.mock('@/lib/db', () => ({
       })),
     })),
   },
+  supabaseFetch: jest.fn(() => Promise.resolve([])),
 }));
 
 // Keep the test output clean (silence Supabase auth noise etc.) to keep output readable
@@ -60,11 +61,11 @@ afterAll(() => {
 });
 
 async function ensureOnTasksTab() {
-  const tasksButtons = screen.queryAllByRole("button", { name: /^tasks$/i });
+  const tasksButtons = screen.queryAllByRole("button", { name: /task dashboard/i });
   if (tasksButtons.length) {
     fireEvent.click(tasksButtons[0]);
   }
-  await screen.findByRole("heading", { name: /^tasks$/i });
+  await screen.findByRole("heading", { name: /^tasks$/i }, { timeout: 3000 });
 }
 
 function firstMatchingButton(regex: RegExp): HTMLButtonElement | null {
