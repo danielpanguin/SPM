@@ -88,22 +88,30 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         } else if (userRole === 'manager') {
           // Managers can only see their team members (where manager_id = their id)
           try {
-            const { data: teamMembers } = await supabase
+            console.log("[useAuth] Manager loading team members for:", u.id);
+            const { data: teamMembers, error: teamError } = await supabase
               .from('users')
-              .select('id')
+              .select('id, email, username')
               .eq('manager_id', u.id);
 
-            if (teamMembers && Array.isArray(teamMembers)) {
+            console.log("[useAuth] Team members query result:", { teamMembers, teamError });
+
+            if (teamError) {
+              console.error("[useAuth] Error fetching team members:", teamError);
+              setAccessibleUserIds([u.id]);
+            } else if (teamMembers && Array.isArray(teamMembers)) {
               // Include manager themselves + their team members
               const ids = [u.id, ...teamMembers.map(member => member.id)];
               setAccessibleUserIds(ids);
               console.log("[useAuth] Manager - accessible user IDs:", ids);
+              console.log("[useAuth] Manager - team member details:", teamMembers);
             } else {
               // Fallback to just manager if query fails
+              console.warn("[useAuth] No team members found, using manager only");
               setAccessibleUserIds([u.id]);
             }
           } catch (error) {
-            console.warn("[useAuth] Failed to load team members, using current user only:", error);
+            console.error("[useAuth] Exception loading team members:", error);
             setAccessibleUserIds([u.id]);
           }
         } else {
