@@ -569,6 +569,12 @@ export function TaskDashboard() {
                     tasks={tasks}
                     filters={filters}
                     onTaskClick={handleTaskClick}
+                    onTaskUpdate={(taskId, updates) => {
+                      // Update task in local state without reloading
+                      setTasks(prev => prev.map(t => 
+                        t.id === taskId ? { ...t, ...updates } : t
+                      ))
+                    }}
                     projectByTaskId={projectByTaskId}
                     titleById={titleById}
                   />

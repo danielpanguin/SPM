@@ -17,12 +17,13 @@ type Props = {
   tasks: Task[]
   filters: TaskFilters
   onTaskClick: (task: Task) => void
+  onTaskUpdate?: (taskId: string, updates: Partial<Task>) => void
   /** Display-only lookups (not stored in Task) */
   projectByTaskId?: Map<string, string | null>
   titleById?: Map<string, string>
 }
 
-export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
+export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectByTaskId, titleById }: Props) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [statuses, setStatuses] = useState<Array<{ id: number; status: string }>>([])
@@ -49,8 +50,14 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
     try {
       setUpdatingStatus(taskId)
       await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
-      // Reload page to refresh tasks
-      window.location.reload()
+      
+      // Update local state without page reload
+      const newStatus = statuses.find(s => s.id === newStatusId)
+      if (newStatus && onTaskUpdate) {
+        // Normalize status to match Task type format
+        const normalizedStatus = newStatus.status.toLowerCase().replace(/\s+/g, '-') as Task['status']
+        onTaskUpdate(taskId, { status: normalizedStatus })
+      }
     } catch (error) {
       console.error("Error updating task status:", error)
       alert("Failed to update task status")
