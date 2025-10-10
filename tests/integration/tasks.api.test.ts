@@ -1,25 +1,16 @@
 /** @jest-environment node */
 
-// Mock fetch for API tests
-global.fetch = jest.fn();
+// Toggle this suite on only when you have the Next server running (npm run dev)
+// Run with: RUN_API_TESTS=1 npm test
+const run = process.env.RUN_API_TESTS === '1' ? describe : describe.skip;
 
-describe("Tasks API", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
+run("Tasks API", () => {
   const fetchJson = async (url: string, init?: RequestInit) => {
     const res = await fetch(url, init as any);
     return { res, json: await res.json() };
   };
 
   it("manager can create with explicit assignee and status", async () => {
-    // Mock successful response
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      status: 201,
-      json: async () => ({ id: 1, title: "Create Task" })
-    });
-
     const { res } = await fetchJson("http://localhost:3000/api/tasks", {
       method: "POST",
       headers: { "Content-Type":"application/json", "x-user-id":"u-mgr" },
@@ -38,12 +29,6 @@ describe("Tasks API", () => {
   });
 
   it("staff cannot set assignee", async () => {
-    // Mock successful response (staff creates task assigned to themselves)
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      status: 201,
-      json: async () => ({ id: 2, title: "Staff Create", ownedById: "u-stf-1" })
-    });
-
     const { res } = await fetchJson("http://localhost:3000/api/tasks", {
       method: "POST",
       headers: { "Content-Type":"application/json", "x-user-id":"u-stf-1" },
