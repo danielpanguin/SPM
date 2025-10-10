@@ -93,6 +93,13 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     ['4', 'Security audit'],
   ]);
 
+  const priorityByTaskId = new Map([
+    ['1', 8],
+    ['2', 5],
+    ['3', 2],
+    ['4', 8],
+  ]);
+
   const defaultFilters: TaskFilters = {
     search: '',
     status: 'all',
@@ -101,7 +108,9 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     assignee: [],
     tag: [],
     parentTask: [],
-    deadline: 'all',
+    deadline: [],
+    deadlineDueBy: '',
+    deadlineDueAfter: '',
   };
 
   beforeEach(() => {
@@ -119,6 +128,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -137,6 +147,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -153,6 +164,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -169,6 +181,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -187,6 +200,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -205,6 +219,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -223,6 +238,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -240,6 +256,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -257,6 +274,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -278,6 +296,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -296,6 +315,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -313,6 +333,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -342,6 +363,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -361,6 +383,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -441,6 +464,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -457,6 +481,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -475,6 +500,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -495,6 +521,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -514,6 +541,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -533,6 +561,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -584,6 +613,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -611,6 +641,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -755,6 +786,148 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         fireEvent.click(taskRow);
         expect(mockOnTaskClick).toHaveBeenCalledWith(baseTasks[0]);
       }
+    });
+  });
+
+  describe('Acceptance Criteria: Filter Tasks and Update View', () => {
+    it('should filter by status and update task list view', () => {
+      const filters = { ...defaultFilters, status: 'pending' };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only pending task should be visible
+      expect(screen.getByText('Update dashboard UI')).toBeInTheDocument();
+      expect(screen.queryByText('Fix login bug')).not.toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
+    it('should filter by priority and update task list view', () => {
+      const filters = { ...defaultFilters, priority: '2' };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only P2 task should be visible
+      expect(screen.getByText('Write API documentation')).toBeInTheDocument();
+      expect(screen.queryByText('Fix login bug')).not.toBeInTheDocument();
+    });
+
+    it('should filter by project and update task list view', () => {
+      const filters = { ...defaultFilters, project: ['Project Alpha'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only Project Alpha tasks should be visible
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      expect(screen.getByText('Write API documentation')).toBeInTheDocument();
+      expect(screen.queryByText('Update dashboard UI')).not.toBeInTheDocument();
+    });
+
+    it('should filter by deadline preset and update task list view', () => {
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Overdue tasks (past due date and status != completed) should be visible
+      // Security audit (2024-11-15, blocked) is overdue and should show
+      // Write API documentation (2024-12-31, completed) should NOT show (completed excluded from overdue)
+      expect(screen.getByText('Security audit')).toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
+    it('should filter by tags and update task list view', () => {
+      const filters = { ...defaultFilters, tag: ['backend'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only backend tagged task should be visible
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      expect(screen.queryByText('Update dashboard UI')).not.toBeInTheDocument();
+    });
+
+    it('should combine multiple filters and update task list view', () => {
+      const filters = {
+        ...defaultFilters,
+        status: 'in-progress',
+        project: ['Project Alpha'],
+      };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only tasks matching both filters should be visible
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      expect(screen.queryByText('Update dashboard UI')).not.toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
+    it('should show no tasks message when filters match nothing', () => {
+      const filters = { ...defaultFilters, status: 'pending', tag: ['nonexistent'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      expect(screen.getByText('No tasks found matching your filters')).toBeInTheDocument();
     });
   });
 });

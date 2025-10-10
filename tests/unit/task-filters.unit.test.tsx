@@ -3,6 +3,27 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import { TaskFiltersComponent, TaskFilters } from '@/components/task-filters';
 
+// Mock useAuth hook
+jest.mock('@/hooks/useAuth', () => ({
+  useUser: () => ({
+    currentUserRoleId: '1',
+    currentUserId: 'user-1',
+    accessibleUserIds: ['user-1'],
+  }),
+}));
+
+// Mock Supabase
+jest.mock('@/lib/supabaseClient', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        order: jest.fn(() => Promise.resolve({ data: [], error: null })),
+        in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+      })),
+    })),
+  },
+}));
+
 describe('TaskFilters - Unit Tests', () => {
   const defaultFilters: TaskFilters = {
     search: '',
@@ -12,7 +33,9 @@ describe('TaskFilters - Unit Tests', () => {
     assignee: [],
     tag: [],
     parentTask: [],
-    deadline: 'all',
+    deadline: [],
+    deadlineDueBy: '',
+    deadlineDueAfter: '',
   };
 
   const mockOnFiltersChange = jest.fn();
@@ -182,12 +205,14 @@ describe('TaskFilters - Unit Tests', () => {
           filters={{
             search: 'test',
             status: 'in-progress',
-            priority: 'P8',
+            priority: '8',
             project: [],
             assignee: [],
             tag: [],
             parentTask: [],
-            deadline: 'this-week',
+            deadline: ['this-week'],
+            deadlineDueBy: '',
+            deadlineDueAfter: '',
           }}
           onFiltersChange={mockOnFiltersChange}
           onClearFilters={mockOnClearFilters}
@@ -203,12 +228,14 @@ describe('TaskFilters - Unit Tests', () => {
           filters={{
             search: 'important',
             status: 'pending',
-            priority: 'P8',
+            priority: '8',
             project: [],
             assignee: [],
             tag: [],
             parentTask: [],
-            deadline: 'all',
+            deadline: [],
+            deadlineDueBy: '',
+            deadlineDueAfter: '',
           }}
           onFiltersChange={mockOnFiltersChange}
           onClearFilters={mockOnClearFilters}
@@ -218,7 +245,7 @@ describe('TaskFilters - Unit Tests', () => {
       expect(screen.getByText('Active filters:')).toBeInTheDocument();
       expect(screen.getByText(/search: important/i)).toBeInTheDocument();
       expect(screen.getByText(/status: pending/i)).toBeInTheDocument();
-      expect(screen.getByText(/priority: P8/i)).toBeInTheDocument();
+      expect(screen.getByText(/priority: 8/i)).toBeInTheDocument();
     });
   });
 
@@ -405,6 +432,132 @@ describe('TaskFilters - Unit Tests', () => {
       );
 
       expect(screen.queryByText(/active/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Acceptance Criteria: Filter by Status, Priority, Project, Deadline, Tags', () => {
+    it('should filter tasks by status', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, status: 'in-progress' }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/status: in-progress/i)).toBeInTheDocument();
+    });
+
+    it('should filter tasks by priority', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, priority: '2' }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/priority: 2/i)).toBeInTheDocument();
+    });
+
+    it('should filter tasks by project (multi-select)', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, project: ['Project Alpha', 'Project Beta'] }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+          availableProjects={[
+            { id: 1, name: 'Project Alpha' },
+            { id: 2, name: 'Project Beta' },
+          ]}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/project: 2 selected/i)).toBeInTheDocument();
+    });
+
+    it('should filter tasks by deadline preset', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, deadline: ['overdue', 'today'] }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/deadline presets: 2 selected/i)).toBeInTheDocument();
+    });
+
+    it('should filter tasks by tags (multi-select)', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, tag: ['backend', 'urgent'] }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+          availableTags={[
+            { id: 1, name: 'backend' },
+            { id: 2, name: 'urgent' },
+          ]}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/tag: 2 selected/i)).toBeInTheDocument();
+    });
+
+    it('should filter tasks by custom date range (due by)', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, deadlineDueBy: '2025-12-31' }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/due by:/i)).toBeInTheDocument();
+    });
+
+    it('should filter tasks by custom date range (due after)', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{ ...defaultFilters, deadlineDueAfter: '2025-01-01' }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+        />
+      );
+
+      expect(screen.getByText('Active filters:')).toBeInTheDocument();
+      expect(screen.getByText(/due after:/i)).toBeInTheDocument();
+    });
+
+    it('should combine multiple filters', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{
+            search: 'test',
+            status: 'pending',
+            priority: '5',
+            project: ['Project Alpha'],
+            assignee: [],
+            tag: ['backend'],
+            parentTask: [],
+            deadline: ['overdue'],
+            deadlineDueBy: '',
+            deadlineDueAfter: '',
+          }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+          availableProjects={[{ id: 1, name: 'Project Alpha' }]}
+          availableTags={[{ id: 1, name: 'backend' }]}
+        />
+      );
+
+      expect(screen.getByText('6 active')).toBeInTheDocument();
     });
   });
 });
