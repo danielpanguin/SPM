@@ -9,6 +9,27 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import Home from "@/app/page";
 
+// Mock useUser hook
+jest.mock('@/hooks/useAuth', () => ({
+  useUser: jest.fn(() => ({
+    userId: 'manager-001',
+    loading: false,
+    role: 'manager',
+    accessibleUserIds: ['manager-001', 'staff-001', 'staff-002'],
+  })),
+}));
+
+// Mock Supabase
+jest.mock('@/lib/db', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+      })),
+    })),
+  },
+}));
+
 // Keep the test output clean (silence Supabase auth noise etc.)
 const realWarn = console.warn;
 const realError = console.error;

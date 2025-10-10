@@ -4,13 +4,33 @@
  * - Switch to "Tasks" tab
  * - Open "Create Task" dialog (role="dialog")
  * - Assert fields are visible; do not assert disabled state
- * - Close without submitting
  */
 
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import Home from "@/app/page";
 
-// Silence noisy logs to keep output readable
+// Mock useUser hook
+jest.mock('@/hooks/useAuth', () => ({
+  useUser: jest.fn(() => ({
+    userId: 'staff-001',
+    loading: false,
+    role: 'staff',
+    accessibleUserIds: ['staff-001'],
+  })),
+}));
+
+// Mock Supabase
+jest.mock('@/lib/db', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+      })),
+    })),
+  },
+}));
+
+// Keep the test output clean (silence Supabase auth noise etc.) to keep output readable
 const realWarn = console.warn;
 const realError = console.error;
 beforeAll(() => {
