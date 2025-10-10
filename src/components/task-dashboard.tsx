@@ -14,7 +14,7 @@ import TaskForm from "./tasks/TaskForm"
 import { ArchiveView } from "./archive-view"
 import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
-import type { Task } from "@/types/task"// bring in your canonical Task interface
+import type { Task, Priority } from "@/types/task"// bring in your canonical Task interface
 
 export type Status = "pending" | "in-progress" | "completed" | "blocked"
 
@@ -82,7 +82,7 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
     endDate: apiTask.end_date ?? "",
     parentTaskId: apiTask.parent_task_id ? String(apiTask.parent_task_id) : undefined,
     tag: apiTask.tags?.[0],
-    priority: mapPriority(apiTask.priority?.id),
+    priority: (apiTask.priority?.id ? `P${apiTask.priority.id}` : "P5") as Priority,
     status: normalizeStatus(apiTask.status?.status),
     comments: [],
     updatedAt: apiTask.updated_at ?? new Date().toISOString(),
@@ -90,13 +90,6 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
     project_id: apiTask.project_id ?? null,
     project: apiTask.project ?? null,
   }
-}
-
-function mapPriority(priorityId: number | null | undefined): "Low" | "Medium" | "High" {
-  if (!priorityId) return "Medium"
-  if (priorityId <= 3) return "Low"
-  if (priorityId <= 6) return "Medium"
-  return "High"
 }
 
 export function TaskDashboard() {
@@ -113,10 +106,13 @@ export function TaskDashboard() {
     search: "",
     status: "all",
     priority: "all",
-    project: "all",
-    assignee: "all",
-    tag: "all",
-    deadline: "all",
+    project: [],
+    assignee: [],
+    tag: [],
+    parentTask: [],
+    deadline: [],
+    deadlineDueBy: "",
+    deadlineDueAfter: "",
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
@@ -128,6 +124,8 @@ export function TaskDashboard() {
   // project/task title lookups for display-only fields (Project & Parent Task)
   const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
+  const [priorityByTaskId, setPriorityByTaskId] = useState<Map<string, number>>(new Map())
+  const [tagsByTaskId, setTagsByTaskId] = useState<Map<string, string[]>>(new Map())
 
   // Load tasks with nested relationships (filtered by accessibleUserIds)
   useEffect(() => {
@@ -249,7 +247,7 @@ export function TaskDashboard() {
           parentTaskId: row.parent_task_id ? String(row.parent_task_id) : null,
 
           tag: tagName,
-          priority: (row.priority?.priority ?? "medium"),
+          priority: (row.priority_id ? `P${row.priority_id}` : "P5") as Priority,
           status: normalizeStatus(row.status?.status),
 
           comments: [], // map if/when you add a comments relation
@@ -263,10 +261,14 @@ export function TaskDashboard() {
         (data ?? []).map((row: any) => [String(row.id), row.project?.name ?? null])
       )
       const titleMap = new Map<string, string>(mapped.map((t) => [t.id, t.title]))
+      const priorityMap = new Map<string, number>(
+        (data ?? []).map((row: any) => [String(row.id), row.priority_id ?? 5])
+      )
 
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
+      setPriorityByTaskId(priorityMap)
       setLoading(false)
       } catch (err) {
         console.error("[Supabase] Unexpected error loading tasks:", err)
@@ -319,16 +321,62 @@ export function TaskDashboard() {
       search: "",
       status: "all",
       priority: "all",
-      project: "all",
-      assignee: "all",
-      tag: "all",
-      deadline: "all",
+      project: [],
+      assignee: [],
+      tag: [],
+      parentTask: [],
+      deadline: [],
+      deadlineDueBy: "",
+      deadlineDueAfter: "",
     })
     setSearchQuery("")
   }
 
   const handleShowArchive = () => setShowArchive(true)
   const handleCloseArchive = () => setShowArchive(false)
+
+  // Extract unique filter options from current tasks
+  const availableFilterOptions = useMemo(() => {
+    const projects = new Map<number, string>()
+    const tags = new Map<number, string>()
+    const parentTasks = new Map<string, string>()
+
+    tasks.forEach((task, idx) => {
+      // Get project from map
+      const projectName = projectByTaskId.get(task.id)
+      if (projectName) {
+        projects.set(idx, projectName)
+      }
+
+      // Get tags
+      if (task.tag) {
+        tags.set(idx, task.tag)
+      }
+    })
+
+    // Build parent tasks map from tasks that are actually being used as parents
+    // Collect all unique parent task IDs that are in use
+    const usedParentIds = new Set<string>()
+    tasks.forEach((task) => {
+      if (task.parentTaskId) {
+        usedParentIds.add(task.parentTaskId)
+      }
+    })
+
+    // For each used parent ID, get its title from titleById map
+    usedParentIds.forEach((parentId) => {
+      const parentTitle = titleById.get(parentId)
+      if (parentTitle) {
+        parentTasks.set(parentId, parentTitle)
+      }
+    })
+
+    return {
+      projects: Array.from(new Set(projects.values())).map((name, idx) => ({ id: idx, name })),
+      tags: Array.from(new Set(tags.values())).map((name, idx) => ({ id: idx, name })),
+      parentTasks: Array.from(parentTasks.entries()).map(([id, title]) => ({ id, title }))
+    }
+  }, [tasks, projectByTaskId, titleById])
 
   // Stats derived from canonical Task[]
   const stats = useMemo(() => {
@@ -370,7 +418,7 @@ export function TaskDashboard() {
               <div className="relative">
                 <Input
                   data-testid="dashboard-search"
-                  placeholder="Search tasks..."
+                  placeholder="Search by title or ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 w-80"
@@ -474,7 +522,10 @@ export function TaskDashboard() {
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
                 onClearFilters={handleClearFilters}
-            />
+                availableProjects={availableFilterOptions.projects}
+                availableTags={availableFilterOptions.tags}
+                availableParentTasks={availableFilterOptions.parentTasks}
+              />
           </div>
 
             <Card>
@@ -503,6 +554,7 @@ export function TaskDashboard() {
                     onTaskClick={handleTaskClick}
                     projectByTaskId={projectByTaskId}
                     titleById={titleById}
+                    priorityByTaskId={priorityByTaskId}
                   />
                 )}
               </CardContent>

@@ -15,90 +15,137 @@ type Props = {
   /** Display-only lookups (not stored in Task) */
   projectByTaskId?: Map<string, string | null>
   titleById?: Map<string, string>
+  priorityByTaskId?: Map<string, number>
 }
 
-export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
+export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById, priorityByTaskId }: Props) {
   const filteredTasks = useMemo(() => {
     const q = filters.search?.toLowerCase() ?? ""
 
     return (tasks ?? []).filter((t) => {
-      // Search (title)
-      if (q && !t.title.toLowerCase().includes(q)) return false
+      // Search (title or ID)
+      if (q) {
+        const titleMatch = t.title.toLowerCase().includes(q)
+        const idMatch = t.id.toLowerCase().includes(q)
+        const formattedIdMatch = Number.isFinite(Number(t.id)) && `tsk-${t.id}`.toLowerCase().includes(q)
+        if (!titleMatch && !idMatch && !formattedIdMatch) return false
+      }
 
       // Status
-      if (filters.status && filters.status !== "all" && t.status !== filters.status) return false
-
-      // Priority
-      if (filters.priority && filters.priority !== "all" && t.priority !== filters.priority) return false
-
-      // Project (lookup from map)
-      if (filters.project && filters.project !== "all") {
-        const proj = projectByTaskId?.get(t.id) ?? null
-        if (proj !== filters.project) return false
+      if (filters.status && filters.status !== "all") {
+        if (t.status !== filters.status) {
+          return false
+        }
       }
 
-      // Assignee (ownedBy + collaborators)
-      if (filters.assignee && filters.assignee !== "all") {
+      // Priority (compare with priority_id from map)
+      if (filters.priority && filters.priority !== "all") {
+        const taskPriorityId = priorityByTaskId?.get(t.id)
+        if (taskPriorityId !== Number(filters.priority)) return false
+      }
+
+      // Project (multi-select, lookup from map)
+      if (filters.project && filters.project.length > 0) {
+        const proj = projectByTaskId?.get(t.id) ?? null
+        if (!proj || !filters.project.includes(proj)) return false
+      }
+
+      // Assignee (multi-select, ownedBy + collaborators)
+      if (filters.assignee && filters.assignee.length > 0) {
         const ownedName = t.ownedBy?.name ? [t.ownedBy.name] : []
         const collabNames = (t.collaborators ?? []).map((c) => c.name).filter(Boolean)
-        if (![...ownedName, ...collabNames].includes(filters.assignee)) return false
+        const taskAssignees = [...ownedName, ...collabNames]
+        const hasMatch = filters.assignee.some(name => taskAssignees.includes(name))
+        if (!hasMatch) return false
       }
 
-      // Tag (single free-text on Task)
-      if (filters.tag && filters.tag !== "all") {
-        if ((t.tag ?? null) !== filters.tag) return false
+      // Tag (multi-select)
+      if (filters.tag && filters.tag.length > 0) {
+        if (!t.tag || !filters.tag.includes(t.tag)) return false
       }
 
-      // Deadline windows (based on endDate)
-      if (filters.deadline && filters.deadline !== "all" && t.endDate) {
+      // Parent Task (multi-select)
+      if (filters.parentTask && filters.parentTask.length > 0) {
+        if (!t.parentTaskId || !filters.parentTask.includes(t.parentTaskId)) return false
+      }
+
+      // Deadline preset filters (multi-select)
+      if (filters.deadline && filters.deadline.length > 0 && t.endDate) {
         const taskDeadline = new Date(t.endDate)
         const today = new Date()
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
         const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
 
-        switch (filters.deadline) {
-          case "overdue":
-            if (taskDeadline >= startOfToday || t.status === "completed") return false
-            break
-          case "today":
-            if (taskDeadline < startOfToday || taskDeadline > endOfToday) return false
-            break
-          case "this-week": {
-            const endOfWeek = new Date(today)
-            endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
-            if (taskDeadline < startOfToday || taskDeadline > endOfWeek) return false
-            break
+        // Check if task matches ANY of the selected preset filters
+        const matchesAnyPreset = filters.deadline.some((preset) => {
+          switch (preset) {
+            case "overdue":
+              return taskDeadline < startOfToday && t.status !== "completed"
+            case "today":
+              return taskDeadline >= startOfToday && taskDeadline <= endOfToday
+            case "this-week": {
+              const endOfWeek = new Date(today)
+              endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
+              return taskDeadline >= startOfToday && taskDeadline <= endOfWeek
+            }
+            case "next-week": {
+              const startOfNextWeek = new Date(today)
+              startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()) + 1)
+              const endOfNextWeek = new Date(startOfNextWeek)
+              endOfNextWeek.setDate(startOfNextWeek.getDate() + 6)
+              return taskDeadline >= startOfNextWeek && taskDeadline <= endOfNextWeek
+            }
+            case "this-month": {
+              const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+              const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+              return taskDeadline >= startOfMonth && taskDeadline <= endOfMonth
+            }
+            default:
+              return false
           }
-          case "next-week": {
-            const startOfNextWeek = new Date(today)
-            startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()) + 1)
-            const endOfNextWeek = new Date(startOfNextWeek)
-            endOfNextWeek.setDate(startOfNextWeek.getDate() + 6)
-            if (taskDeadline < startOfNextWeek || taskDeadline > endOfNextWeek) return false
-            break
-          }
-          case "this-month": {
-            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-            if (taskDeadline < startOfMonth || taskDeadline > endOfMonth) return false
-            break
-          }
-        }
+        })
+
+        if (!matchesAnyPreset) return false
+      }
+
+      // Custom date filter: Tasks due by (on or before)
+      if (filters.deadlineDueBy && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const dueByDate = new Date(filters.deadlineDueBy)
+        dueByDate.setHours(23, 59, 59, 999) // End of the selected day
+        if (taskDeadline > dueByDate) return false
+      }
+
+      // Custom date filter: Tasks due after
+      if (filters.deadlineDueAfter && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const dueAfterDate = new Date(filters.deadlineDueAfter)
+        dueAfterDate.setHours(0, 0, 0, 0) // Start of the selected day
+        if (taskDeadline <= dueAfterDate) return false
       }
 
       return true
     })
-  }, [tasks, filters, projectByTaskId])
+  }, [tasks, filters, projectByTaskId, priorityByTaskId, titleById])
 
   const getPriorityClass = (p: Task["priority"]) => {
-    const pLower = p.toLowerCase()
-    const map: Record<string, string> = {
-      urgent: "bg-red-100 text-red-800 border-red-200",
-      high: "bg-red-100 text-red-800 border-red-200",
-      medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
-      low: "bg-green-100 text-green-800 border-green-200",
+    // Extract priority number from P1-P10
+    const priorityNum = parseInt(p.replace('P', ''))
+
+    // P1-P3: High priority (red)
+    if (priorityNum >= 1 && priorityNum <= 3) {
+      return "bg-red-100 text-red-800 border-red-200"
     }
-    return map[pLower] ?? "bg-gray-100 text-gray-800 border-gray-200"
+    // P4-P7: Medium priority (yellow)
+    if (priorityNum >= 4 && priorityNum <= 7) {
+      return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    }
+    // P8-P10: Low priority (green)
+    if (priorityNum >= 8 && priorityNum <= 10) {
+      return "bg-green-100 text-green-800 border-green-200"
+    }
+
+    return "bg-gray-100 text-gray-800 border-gray-200"
   }
 
   const getStatusClass = (s: Task["status"]) => {
@@ -145,14 +192,19 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
               const project = projectByTaskId?.get(t.id) ?? null
               const parentTitle = t.parentTaskId ? titleById?.get(t.parentTaskId) : null
 
+              // Check if task is overdue
+              const isOverdue = t.endDate && new Date(t.endDate) < new Date() && t.status !== "completed"
+
               return (
                 <TableRow
                   key={t.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  className={`cursor-pointer hover:bg-muted/50 transition-colors ${
+                    isOverdue ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30' : ''
+                  }`}
                   onClick={() => onTaskClick(t)}
                 >
                   <TableCell className="font-mono text-sm">
-                    {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
+                    {Number.isFinite(Number(t.id)) ? `TSK-${t.id}` : t.id}
                   </TableCell>
 
                   <TableCell>

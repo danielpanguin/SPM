@@ -1,4 +1,4 @@
-export type Priority = "Low" | "Medium" | "High";
+export type Priority = "P1" | "P2" | "P3" | "P4" | "P5" | "P6" | "P7" | "P8" | "P9" | "P10";
 
 export type Status = "pending" | "in-progress" | "completed" | "blocked";
 
@@ -67,5 +67,5 @@ export interface UpdateTaskPayload {
   project_id?: number | null;
 }
 
-export const PRIORITIES: Priority[]  = ["Low","Medium","High"];
+export const PRIORITIES: Priority[]  = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"];
 export const STATUSES: Status[]      = ["pending","in-progress","completed","blocked"];
