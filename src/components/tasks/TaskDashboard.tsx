@@ -58,7 +58,7 @@ function mapDbToUI(t: any): UITask {
     priority: getPriorityLabel(priorityId),      // Convert to "High", "Medium", "Low"
     status: t.status?.status ?? t.status ?? null,      // text from status table
     createdBy: t.created_by
-      ? { id: t.created_by, name: t.created_by_email ?? t.created_by }
+      ? { id: t.created_by, name: t.created_by_email || t.created_by }
       : null,
     ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email ?? t.owned_by } : null,
     collaborators: Array.isArray(t.assignees)
@@ -187,90 +187,7 @@ export default function TaskDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-semibold">Tasks</h2>
-
-          {/* Sort Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSortMenu(!showSortMenu)}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
-            >
-              <span className="font-medium">
-                {sortField === 'title' ? 'Title' :
-                 sortField === 'status' ? 'Status' :
-                 sortField === 'priority' ? 'Priority' :
-                 sortField === 'endDate' ? 'Due Date' :
-                 sortField === 'tags' ? 'Tags' : 'Date Created'}
-              </span>
-            </button>
-
-            {showSortMenu && (
-              <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                {[
-                  { key: 'createdAt', label: 'Date Created' },
-                  { key: 'title', label: 'Title' },
-                  { key: 'status', label: 'Status' },
-                  { key: 'priority', label: 'Priority' },
-                  { key: 'endDate', label: 'Due Date' },
-                  { key: 'tags', label: 'Tags' },
-                ].map(({ key, label }) => (
-                  <div key={key} className="relative group">
-                    <button
-                      onClick={() => toggleSort(key as typeof sortField)}
-                      className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                        sortField === key ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">{label}</span>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSortField(key as typeof sortField);
-                              setSortDirection('asc');
-                              setShowSortMenu(false);
-                            }}
-                            className={`p-1 rounded transition-colors ${
-                              sortField === key && sortDirection === 'asc'
-                                ? 'bg-green-600 text-white'
-                                : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                            }`}
-                            title="Sort ascending"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSortField(key as typeof sortField);
-                              setSortDirection('desc');
-                              setShowSortMenu(false);
-                            }}
-                            className={`p-1 rounded transition-colors ${
-                              sortField === key && sortDirection === 'desc'
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                            }`}
-                            title="Sort descending"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
+        <h2 className="text-2xl font-semibold">Tasks</h2>
         <button
           className="rounded bg-black text-white px-4 py-2"
           onClick={() => setCreating(true)}

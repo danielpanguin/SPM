@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { ReactNode } from "react";
+import type { Task } from "@/types/task";
 
 /* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
@@ -24,36 +24,16 @@ export type UITask = {
   parentTaskId?: string | number | null;
   project_id?: number | null;
   project?: { id: number; name: string } | null;
-  tag?: string | null; // For backward compatibility
-};
-
-type DetailsTask = {
-  id: string | number;
-  title: string;
-  description?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  createdBy?: Person | null;
-  ownedBy?: Person | null;
-  collaborators?: Person[] | null;
-  parentTaskId?: number | null;
-  tag?: string | null;
-  priority?: string | number | null;
-  status?: string | null;
-  comments?: Array<unknown>;
-  createdAt?: string;
-  updatedAt?: string;
 };
 
 interface Props {
-  task: UITask | DetailsTask | null;
+  task: Task | UITask | null;
   onClose(): void;
   onEdit(): void;
 }
 
 type UserMap = Record<string, string>; // id -> label (email or id)
 
-/* ---------- Component ---------- */
 export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   const [labels, setLabels] = useState<UserMap>({});
 
@@ -93,32 +73,16 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
       ? task.tag
       : "—";
 
-  // Helper function to get display value for users
-  const getUserDisplay = (user: Person | undefined) => {
-    if (!user?.id) return "—";
-    return labels[String(user.id)] || user.name || user.email || String(user.id);
-  };
-
-  // Helper function to get collaborators display
-  const getCollaboratorsDisplay = () => {
-    if (!task.collaborators || task.collaborators.length === 0) return "—";
-    return task.collaborators
-      .map(c => labels[String(c.id)] || c.name || (c as any).email || String(c.id))
-      .join(", ");
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between">
           <h3 className="text-xl font-semibold">{task.title}</h3>
-          <button className="text-sm text-gray-500" onClick={onClose}>
-            Close
-          </button>
+          <button className="text-sm text-gray-500" onClick={onClose}>Close</button>
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Project" value={(task as any).project?.name || "—"} />
+          <Field label="Project" value={task.project?.name || "—"} />
           <Field label="Status" value={task.status || "—"} />
           <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
           <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
@@ -134,28 +98,15 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-6 flex items-center gap-2">
-          <button className="rounded bg-black text-white px-4 py-2" onClick={onEdit}>
-            Edit
-          </button>
-          <button className="rounded border px-4 py-2" onClick={onClose}>
-            Close
-          </button>
+          <button className="rounded bg-black text-white px-4 py-2" onClick={onEdit}>Edit</button>
+          <button className="rounded border px-4 py-2" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
   );
 }
 
-/** accept any renderable value so numbers/strings are fine */
-function Field({
-  label,
-  value,
-  className = "",
-}: {
-  label: string;
-  value: ReactNode;
-  className?: string;
-}) {
+function Field({ label, value, className="" }: { label: string; value: string; className?: string }) {
   return (
     <div className={className}>
       <div className="text-gray-500">{label}</div>
