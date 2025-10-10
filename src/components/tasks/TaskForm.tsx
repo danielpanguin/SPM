@@ -27,6 +27,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
   const [prioOpts, setPrioOpts] = useState<Option[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [availableParentTasks, setAvailableParentTasks] = useState<{ id: number; title: string; start_date: string; end_date: string }[]>([]);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -113,6 +114,20 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           })
           .catch((err) => console.error("Failed to fetch projects:", err));
       }
+
+      // Fetch available parent tasks (tasks without a parent task)
+      const tasksRes = await supabase
+        .from("tasks")
+        .select("id, title, parent_task_id, start_date, end_date")
+        .is("parent_task_id", null)
+        .order("title", { ascending: true });
+
+      if (alive && tasksRes.data) {
+        // Filter out the current task if editing (can't be its own parent)
+        const currentTaskId = initial?.id ? Number(initial.id) : null;
+        const filtered = tasksRes.data.filter((t: any) => t.id !== currentTaskId);
+        setAvailableParentTasks(filtered);
+      }
     }
     run();
     return () => {
@@ -130,6 +145,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     if (!ownedById) return "Assignee (Owned By) is required.";
     if (!statusId) return "Status is required.";
     if (!priorityId) return "Priority is required.";
+
+    // Validate subtask dates if this task has a parent
+    if (parentTaskId && parentTaskId !== "") {
+      const parentTask = availableParentTasks.find(t => t.id === Number(parentTaskId));
+      if (parentTask) {
+        const taskStart = new Date(startDate);
+        const taskEnd = new Date(endDate);
+        const parentStart = new Date(parentTask.start_date);
+        const parentEnd = new Date(parentTask.end_date);
+
+        if (taskStart < parentStart) {
+          return "Subtask start date cannot be earlier than parent task start date.";
+        }
+        if (taskEnd > parentEnd) {
+          return "Subtask end date cannot be later than parent task end date.";
+        }
+      }
+    }
+
     return null;
   }
 
@@ -335,16 +369,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           <label htmlFor={id.parent} className="block text-sm font-medium">
             Parent Task
           </label>
-          <input
+          <select
             id={id.parent}
             className="mt-1 w-full rounded border p-2"
-            placeholder="Optional task id"
             value={parentTaskId}
             onChange={(e) => {
               const v = e.target.value;
               setParentTaskId(v === "" ? "" : Number(v));
             }}
-          />
+          >
+            <option value="">None (No Parent Task)</option>
+            {availableParentTasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.title} (ID: {task.id})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            Only tasks without a parent can be selected as parent tasks
+          </p>
         </div>
         <div>
           <label htmlFor={id.tag} className="block text-sm font-medium">

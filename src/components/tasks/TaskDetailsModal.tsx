@@ -28,11 +28,12 @@ interface Props {
   task: Task | UITask | null;
   onClose(): void;
   onEdit(): void;
+  onCreateSubtask?: () => void;
 }
 
 type UserMap = Record<string, string>; // id -> label (email or id)
 
-export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
+export default function TaskDetailsModal({ task, onClose, onEdit, onCreateSubtask }: Props) {
   const [labels, setLabels] = useState<UserMap>({});
 
   useEffect(() => {
@@ -100,6 +101,11 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
 
         <div className="mt-6 flex items-center gap-2">
           <button className="rounded bg-black text-white px-4 py-2" onClick={onEdit}>Edit</button>
+          {onCreateSubtask && !task.parentTaskId && (
+            <button className="rounded bg-blue-600 text-white px-4 py-2" onClick={onCreateSubtask}>
+              Create Subtask
+            </button>
+          )}
           <button className="rounded border px-4 py-2" onClick={onClose}>Close</button>
         </div>
       </div>

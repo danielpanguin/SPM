@@ -101,6 +101,7 @@ export function TaskDashboard() {
   const [showArchive, setShowArchive] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
+  const [creatingSubtask, setCreatingSubtask] = useState<Task | null>(null)
 
   const [filters, setFilters] = useState<TaskFilters>({
     search: "",
@@ -298,6 +299,14 @@ export function TaskDashboard() {
   const handleOpenEdit = () => {
     if (selectedTask) {
       setEditing(selectedTask)
+      setIsModalOpen(false)
+      setSelectedTask(null)
+    }
+  }
+
+  const handleCreateSubtask = () => {
+    if (selectedTask) {
+      setCreatingSubtask(selectedTask)
       setIsModalOpen(false)
       setSelectedTask(null)
     }
@@ -569,6 +578,7 @@ export function TaskDashboard() {
           task={selectedTask}
           onClose={handleCloseModal}
           onEdit={handleOpenEdit}
+          onCreateSubtask={handleCreateSubtask}
         />
       )}
 
@@ -646,6 +656,46 @@ export function TaskDashboard() {
               console.log("Modal closed, creating set to false")
             }}
             onCancel={() => setCreating(false)}
+          />
+        </Modal>
+      )}
+
+      {/* Create Subtask Modal */}
+      {creatingSubtask && (
+        <Modal title={`Create Subtask for: ${creatingSubtask.title}`} onClose={() => setCreatingSubtask(null)}>
+          <TaskForm
+            mode="create"
+            initial={{
+              parentTaskId: creatingSubtask.id,
+              startDate: creatingSubtask.startDate,
+              endDate: creatingSubtask.endDate,
+            }}
+            onSaved={async (apiResponse) => {
+              console.log("CREATE SUBTASK onSaved called with:", apiResponse)
+              // Map API response to Task type and add the new subtask to the list
+              const newTask = await mapApiResponseToTask(apiResponse)
+              console.log("Mapped new subtask:", newTask)
+
+              // Update the tasks list with the new subtask
+              setTasks((prev) => [...prev, newTask])
+
+              // Update project mapping for the new subtask
+              setProjectByTaskId((prev) => {
+                const next = new Map(prev)
+                next.set(newTask.id, newTask.project?.name ?? null)
+                return next
+              })
+
+              setTitleById((prev) => {
+                const next = new Map(prev)
+                next.set(newTask.id, newTask.title)
+                return next
+              })
+
+              // Close modal after state is updated
+              setCreatingSubtask(null)
+            }}
+            onCancel={() => setCreatingSubtask(null)}
           />
         </Modal>
       )}
