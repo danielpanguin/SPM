@@ -140,6 +140,24 @@ export default function GanttChart({ isDarkMode }: { isDarkMode: boolean }) {
               return acc;
             }, {});
 
+      // For any task owners not in the userMap, fetch their info
+      const taskOwnerIds = new Set((tasks ?? []).map((t: any) => t.owned_by).filter(Boolean));
+      const missingOwnerIds = Array.from(taskOwnerIds).filter(id => !userMap[id]);
+      
+      if (missingOwnerIds.length > 0) {
+        console.log("[GanttChart] Fetching missing user info for:", missingOwnerIds);
+        const missingUsers = await supabaseFetch("users", {
+          select: "id, username, email",
+          in: { id: missingOwnerIds },
+        });
+        
+        if (missingUsers && Array.isArray(missingUsers)) {
+          missingUsers.forEach((u: any) => {
+            userMap[u.id] = { id: u.id, name: u.username || u.email || u.id, email: u.email };
+          });
+        }
+      }
+
       const grouped =
         (tasks ?? []).reduce<Record<string, TasksByUser>>(
           (acc: Record<string, TasksByUser>, task: any) => {
