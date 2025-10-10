@@ -10,7 +10,7 @@ const GanttChart = dynamic(() => import("@/components/ui/GanttChart"), {
   loading: () => <div className="min-h-screen grid place-items-center">Loading Gantt…</div>,
 });
 
-const TaskDashboard = dynamic(() => import("@/components/tasks/TaskDashboard"), {
+const TaskDashboard = dynamic(() => import("@/components/task-dashboard").then(mod => ({ default: mod.TaskDashboard })), {
   ssr: false,
   loading: () => <div>Loading tasks…</div>,
 });
