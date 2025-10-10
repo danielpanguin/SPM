@@ -4,11 +4,12 @@ import { useState } from 'react'
 import GanttChart from '@/components/ui/GanttChart'
 import { useUser } from '@/hooks/useAuth'
 import TaskDashboard from "@/components/tasks/TaskDashboard"
+import LoginSimulator from '@/components/forms/LoginSimulator'
 
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
-  const { userId, loading } = useUser()
+  const { userId, loading, role } = useUser()
 
   // Redirect to login if not authenticated
   if (!loading && !userId) {
@@ -64,6 +65,9 @@ export default function Home() {
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* Login Simulator - Shows current user and role */}
+            <LoginSimulator isDarkMode={isDarkMode} isActive={true} />
+
             {/* Dark Mode Toggle */}
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
@@ -88,7 +92,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - Role-based filtering is handled inside each component */}
       {activeTab === 'gantt' && <GanttChart isDarkMode={isDarkMode} />}
       {activeTab === 'tasks' && <TaskDashboard />}
     </div>
