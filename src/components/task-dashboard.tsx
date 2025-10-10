@@ -317,7 +317,7 @@ export function TaskDashboard() {
           parentTaskId: row.parent_task_id ? String(row.parent_task_id) : null,
 
           tag: tagName,
-          priority: (row.priority?.priority ?? "medium"),
+          priority: mapPriority(row.priority_id),
           status: normalizeStatus(row.status?.status),
 
           comments: [], // map if/when you add a comments relation
