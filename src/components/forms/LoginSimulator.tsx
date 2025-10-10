@@ -115,32 +115,12 @@ export default function LoginSimulator({ isDarkMode = false, isActive = true }: 
     } finally {
       setBusy(false);
     }
-<<<<<<< HEAD
   };
-=======
-  }
-
-  // Handle user selection change
-  const handleUserChange = (selectedUserId: string) => {
-    console.log('👤 User login simulation - Selected user ID:', selectedUserId)
-    console.log('👥 Available users for reference:', allUsers.map(u => ({ id: u.id, username: u.username })))
-    setCurrentUserId(selectedUserId)
-    
-    if (selectedUserId) {
-      fetchCurrentUserRole(selectedUserId)
-    } else {
-      setCurrentUserRoleId('')
-      setCurrentUserRoleName('')
-      setAccessibleUserIds([])
-    }
-  }
->>>>>>> dev
 
   const badge =
     role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : role === 'staff' ? 'Staff' : 'unknown';
 
   return (
-<<<<<<< HEAD
     <div className="flex items-center gap-4">
       {/* Signed-in label */}
       <div className={isDarkMode ? 'text-gray-200' : 'text-slate-800'}>
@@ -182,37 +162,6 @@ export default function LoginSimulator({ isDarkMode = false, isActive = true }: 
             ))}
           </select>
         </div>
-=======
-    <div className="flex items-center space-x-2">
-      <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-        Login as:
-      </label>
-      <select
-        value={currentUserId}
-        onChange={(e) => handleUserChange(e.target.value)}
-        className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
-          isDarkMode 
-            ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700' 
-            : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
-        }`}
-      >
-        <option value="">Select User</option>
-        {allUsers.map(user => (
-          <option key={user.id} value={user.id}>
-            {user.username || user.email || `User ${user.id}`}
-          </option>
-        ))}
-      </select>
-      {/* Display current user role */}
-      {currentUserRoleName && (
-        <span className={`text-sm px-2 py-1 rounded ${
-          isDarkMode 
-            ? 'bg-gray-700 text-gray-300' 
-            : 'bg-gray-100 text-gray-600'
-        }`}>
-          Role: {currentUserRoleName}
-        </span>
->>>>>>> dev
       )}
 
       {/* Log out */}

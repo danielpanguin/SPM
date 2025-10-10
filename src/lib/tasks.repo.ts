@@ -1,167 +1,102 @@
-<<<<<<< HEAD
-// src/lib/tasks.repo.ts
-import { supabase } from "@/lib/db";
-
-export type UUID = string;
-
-/* ---------- Core Row Types ---------- */
-=======
 // lib/tasks.repo.ts
 import { supabase } from "./supabaseClient";
 
 export type UUID = string;
 
->>>>>>> dev
 export type TaskRow = {
   id: number;
   title: string;
   description: string | null;
   project_id: number | null;
-<<<<<<< HEAD
-  status_id: number | null;      // FK → status.id
-  priority_id: number | null;    // FK → priority.id (1–10)
-  start_date: string | null;     // YYYY-MM-DD
-  end_date: string | null;       // YYYY-MM-DD
-=======
-  status_id: number | null;       // FK -> status.id
-  priority_id: number | null;     // FK -> priority.id (1..10)
-  start_date: string | null;      // YYYY-MM-DD
-  end_date: string | null;        // YYYY-MM-DD
->>>>>>> dev
+  status_id: number | null;
+  priority_id: number | null;
+  start_date: string | null;
+  end_date: string | null;
   created_by: UUID | null;
   owned_by: UUID | null;
   parent_task_id: number | null;
   is_overdue: boolean | null;
 };
 
-<<<<<<< HEAD
-/* ---------- Input / Output Types ---------- */
-=======
->>>>>>> dev
 export type TaskCreateInput = {
   title: string;
   description?: string | null;
   project_id?: number | null;
   status_id?: number | null;
   priority_id?: number | null;
-<<<<<<< HEAD
   start_date?: string | null;
   end_date?: string | null;
   created_by?: UUID | null;
   owned_by?: UUID | null;
   parent_task_id?: number | null;
-  assignee_ids?: UUID[];     // → task_collaborator
-  tags?: string[];           // → task_tag + task_tasktag
-=======
-  start_date?: string | null;   // YYYY-MM-DD
-  end_date?: string | null;     // YYYY-MM-DD
-  created_by?: UUID | null;
-  owned_by?: UUID | null;
-  parent_task_id?: number | null;
-  assignee_ids?: UUID[];        // -> task_collaborator
-  tags?: string[];              // tag names -> task_tag + task_tasktag
->>>>>>> dev
+  assignee_ids?: UUID[];
+  tags?: string[];
 };
 
 export type TaskUpdateInput = Partial<TaskCreateInput>;
 
 export type TaskHydrated = TaskRow & {
   assignees: UUID[];
-<<<<<<< HEAD
   assignee_emails?: string[];
-=======
->>>>>>> dev
   tags: string[];
   project?: { id: number; name: string } | null;
   status?: { id: number; status: string } | null;
   priority?: { id: number } | null;
-<<<<<<< HEAD
   created_by_email?: string | null;
   owned_by_email?: string | null;
 };
 
 /* ---------- READ ---------- */
+
 export async function listTasks(params?: {
   project_id?: number;
   assignee_id?: UUID;
 }): Promise<TaskHydrated[]> {
-  let query = supabase.from("tasks").select("id,title,description,project_id,status_id,priority_id,start_date,end_date,created_by,owned_by,parent_task_id,is_overdue").order("id", { ascending: false });
+  let query = supabase
+    .from("tasks")
+    .select("*")
+    .order("id", { ascending: false });
 
-  if (params?.project_id) query = query.eq("project_id", params.project_id);
+  if (params?.project_id) {
+    query = query.eq("project_id", params.project_id);
+  }
 
   const { data: rows, error } = await query;
   if (error) throw new Error(`Error fetching tasks: ${error.message}`);
 
   let filtered = (rows ?? []) as TaskRow[];
-=======
-};
-
-/* ---------- READ ---------- */
-
-export async function listTasks(params?: {
-  project_id?: number;
-  assignee_id?: UUID;
-}) {
-  const base = supabase
-    .from("tasks")
-    .select("*")
-    .order("id", { ascending: false });
-
-  if (params?.project_id) base.eq("project_id", params.project_id);
-  const { data: rows, error } = await base;
-  if (error) throw error;
-
-  let filtered = rows as TaskRow[];
->>>>>>> dev
 
   if (params?.assignee_id) {
     const { data: collab, error: cErr } = await supabase
       .from("task_collaborator")
       .select("task_id")
       .eq("user_id", params.assignee_id);
-<<<<<<< HEAD
     if (cErr) throw new Error(`Error fetching collaborators: ${cErr.message}`);
 
     const taskIds = new Set((collab ?? []).map((c) => c.task_id));
     filtered = filtered.filter((t) => taskIds.has(t.id));
-=======
-    if (cErr) throw cErr;
-    const ids = new Set((collab ?? []).map((c) => c.task_id));
-    filtered = filtered.filter((t) => ids.has(t.id));
->>>>>>> dev
   }
 
   return hydrateTasks(filtered);
 }
 
 export async function getTask(id: number): Promise<TaskHydrated | null> {
-<<<<<<< HEAD
-  const { data, error } = await supabase.from("tasks").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(`Error getting task: ${error.message}`);
-  if (!data) return null;
-
-=======
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
     .eq("id", id)
     .maybeSingle();
-  if (error) throw error;
+  if (error) throw new Error(`Error getting task: ${error.message}`);
   if (!data) return null;
->>>>>>> dev
+
   const [hydrated] = await hydrateTasks([data as TaskRow]);
   return hydrated;
 }
 
 /* ---------- CREATE ---------- */
-<<<<<<< HEAD
-export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> {
-  const { data, error } = await supabase
-=======
 
 export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> {
-  const { data: ins, error: insErr } = await supabase
->>>>>>> dev
+  const { data, error } = await supabase
     .from("tasks")
     .insert({
       title: input.title,
@@ -176,52 +111,32 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
       parent_task_id: input.parent_task_id ?? null,
     })
     .select("*")
-<<<<<<< HEAD
     .single();
 
   if (error || !data) throw new Error(`Error creating task: ${error?.message}`);
   const task = data as TaskRow;
 
   try {
-    // Insert collaborators
     if (input.assignee_ids?.length) {
       const collabRows = input.assignee_ids.map((uid) => ({
         task_id: task.id,
         user_id: uid,
       }));
-      const { error: collabErr } = await supabase.from("task_collaborator").insert(collabRows);
+      const { error: collabErr } = await supabase
+        .from("task_collaborator")
+        .insert(collabRows);
       if (collabErr) throw new Error(`Error linking collaborators: ${collabErr.message}`);
     }
 
-    // Insert tags
-=======
-    .limit(1);
-  if (insErr) throw insErr;
-
-  const task = ins![0] as TaskRow;
-
-  try {
-    if (input.assignee_ids?.length) {
-      const rows = input.assignee_ids.map((uid) => ({
-        task_id: task.id,
-        user_id: uid,
-      }));
-      const { error } = await supabase.from("task_collaborator").insert(rows);
-      if (error) throw error;
-    }
-
->>>>>>> dev
     if (input.tags?.length) {
       const tagIds = await ensureTags(input.tags);
       if (tagIds.length) {
         const join = tagIds.map((tag_id) => ({ task_id: task.id, tag_id }));
-<<<<<<< HEAD
         const { error: tagErr } = await supabase.from("task_tasktag").insert(join);
         if (tagErr) throw new Error(`Error linking tags: ${tagErr.message}`);
       }
     }
   } catch (err) {
-    // Cleanup on failure
     await supabase.from("task_collaborator").delete().eq("task_id", task.id);
     await supabase.from("task_tasktag").delete().eq("task_id", task.id);
     await supabase.from("tasks").delete().eq("id", task.id);
@@ -232,35 +147,15 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
 }
 
 /* ---------- UPDATE ---------- */
-=======
-        const { error } = await supabase.from("task_tasktag").insert(join);
-        if (error) throw error;
-      }
-    }
-  } catch (e) {
-    // clean up if any step fails
-    await supabase.from("task_collaborator").delete().eq("task_id", task.id);
-    await supabase.from("task_tasktag").delete().eq("task_id", task.id);
-    await supabase.from("tasks").delete().eq("id", task.id);
-    throw e;
-  }
 
-  const hydrated = await getTask(task.id);
-  return hydrated!;
-}
-
-/* ---------- UPDATE ---------- */
-
->>>>>>> dev
 export async function updateTask(
   id: number,
   patch: TaskUpdateInput
 ): Promise<TaskHydrated> {
-<<<<<<< HEAD
   const scalar = Object.fromEntries(
     Object.entries({
       title: patch.title,
-      description: patch.description ?? null,
+      description: patch.description,
       project_id: patch.project_id,
       status_id: patch.status_id,
       priority_id: patch.priority_id,
@@ -277,9 +172,11 @@ export async function updateTask(
     if (error) throw new Error(`Error updating task: ${error.message}`);
   }
 
-  // Update collaborators
-  if (patch.assignee_ids) {
-    const { error: delErr } = await supabase.from("task_collaborator").delete().eq("task_id", id);
+  if (patch.assignee_ids !== undefined) {
+    const { error: delErr } = await supabase
+      .from("task_collaborator")
+      .delete()
+      .eq("task_id", id);
     if (delErr) throw new Error(`Error clearing collaborators: ${delErr.message}`);
 
     if (patch.assignee_ids.length) {
@@ -289,9 +186,11 @@ export async function updateTask(
     }
   }
 
-  // Update tags
-  if (patch.tags) {
-    const { error: delErr } = await supabase.from("task_tasktag").delete().eq("task_id", id);
+  if (patch.tags !== undefined) {
+    const { error: delErr } = await supabase
+      .from("task_tasktag")
+      .delete()
+      .eq("task_id", id);
     if (delErr) throw new Error(`Error clearing tags: ${delErr.message}`);
 
     if (patch.tags.length) {
@@ -306,281 +205,98 @@ export async function updateTask(
 }
 
 /* ---------- DELETE ---------- */
-export async function deleteTask(id: number): Promise<{ ok: true }> {
+
+export async function deleteTask(id: number): Promise<void> {
   await supabase.from("task_collaborator").delete().eq("task_id", id);
   await supabase.from("task_tasktag").delete().eq("task_id", id);
-
   const { error } = await supabase.from("tasks").delete().eq("id", id);
   if (error) throw new Error(`Error deleting task: ${error.message}`);
-
-  return { ok: true };
 }
 
 /* ---------- HELPERS ---------- */
-async function ensureTags(names: string[]): Promise<number[]> {
-  const uniqueNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
-  if (!uniqueNames.length) return [];
-=======
-  const scalar: any = {
-    title: patch.title,
-    description: patch.description ?? undefined,
-    project_id: patch.project_id,
-    status_id: patch.status_id,
-    priority_id: patch.priority_id,
-    start_date: patch.start_date,
-    end_date: patch.end_date,
-    created_by: patch.created_by,
-    owned_by: patch.owned_by,
-    parent_task_id: patch.parent_task_id,
-  };
-  Object.keys(scalar).forEach((k) => scalar[k] === undefined && delete scalar[k]);
 
-  if (Object.keys(scalar).length) {
-    const { error } = await supabase.from("tasks").update(scalar).eq("id", id);
-    if (error) throw error;
-  }
-
-  if (patch.assignee_ids) {
-    const { error: delErr } = await supabase
-      .from("task_collaborator")
-      .delete()
-      .eq("task_id", id);
-    if (delErr) throw delErr;
-
-    if (patch.assignee_ids.length) {
-      const rows = patch.assignee_ids.map((uid) => ({
-        task_id: id,
-        user_id: uid,
-      }));
-      const { error } = await supabase.from("task_collaborator").insert(rows);
-      if (error) throw error;
-    }
-  }
-
-  if (patch.tags) {
-    const { error: delErr } = await supabase
-      .from("task_tasktag")
-      .delete()
-      .eq("task_id", id);
-    if (delErr) throw delErr;
-
-    if (patch.tags.length) {
-      const tagIds = await ensureTags(patch.tags);
-      if (tagIds.length) {
-        const rows = tagIds.map((tag_id) => ({ task_id: id, tag_id }));
-        const { error } = await supabase.from("task_tasktag").insert(rows);
-        if (error) throw error;
-      }
-    }
-  }
-
-  const hydrated = await getTask(id);
-  return hydrated!;
-}
-
-/* ---------- DELETE ---------- */
-
-export async function deleteTask(id: number) {
-  await supabase.from("task_collaborator").delete().eq("task_id", id);
-  await supabase.from("task_tasktag").delete().eq("task_id", id);
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
-  if (error) throw error;
-  return { ok: true };
-}
-
-/* ---------- helpers ---------- */
-
-async function ensureTags(names: string[]): Promise<number[]> {
-  const uniq = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
-  if (!uniq.length) return [];
->>>>>>> dev
-
-  const { data: existing, error: readErr } = await supabase
-    .from("task_tag")
-    .select("id,name")
-<<<<<<< HEAD
-    .in("name", uniqueNames);
-  if (readErr) throw new Error(`Error reading tags: ${readErr.message}`);
-
-  const map = new Map<string, number>((existing ?? []).map((r) => [r.name, r.id]));
-  const missing = uniqueNames.filter((n) => !map.has(n));
-=======
-    .in("name", uniq);
-  if (readErr) throw readErr;
-
-  const map = new Map<string, number>((existing ?? []).map((r) => [r.name, r.id]));
-  const missing = uniq.filter((n) => !map.has(n));
->>>>>>> dev
-
-  if (missing.length) {
-    const { data: inserted, error: insErr } = await supabase
-      .from("task_tag")
-      .insert(missing.map((name) => ({ name })))
-      .select("id,name");
-<<<<<<< HEAD
-    if (insErr) throw new Error(`Error inserting tags: ${insErr.message}`);
-    (inserted ?? []).forEach((r) => map.set(r.name, r.id));
-  }
-
-  return uniqueNames.map((n) => map.get(n)!);
-}
-
-/* ---------- Hydration (relations) ---------- */
-=======
-    if (insErr) throw insErr;
-    (inserted ?? []).forEach((r) => map.set(r.name, r.id));
-  }
-
-  return uniq.map((n) => map.get(n)!);
-}
-
->>>>>>> dev
 async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   if (!rows.length) return [];
 
-  const ids = rows.map((r) => r.id);
+  const taskIds = rows.map((r) => r.id);
 
-  const [{ data: collab }, { data: ttags }] = await Promise.all([
-<<<<<<< HEAD
-    supabase.from("task_collaborator").select("task_id,user_id").in("task_id", ids),
+  const [collabData, tagData, projectData, statusData, prioData, userData] = await Promise.all([
+    supabase.from("task_collaborator").select("task_id,user_id").in("task_id", taskIds),
     supabase
       .from("task_tasktag")
-      .select("task_id, task_tag!inner(name)")
-      .in("task_id", ids),
+      .select("task_id,tag_id,task_tag(name)")
+      .in("task_id", taskIds),
+    supabase.from("projects").select("id,name"),
+    supabase.from("status").select("id,status"),
+    supabase.from("priority").select("id"),
+    supabase.from("users").select("id,email"),
   ]);
 
-  // Build fast lookups
-  const collabByTask = new Map<number, UUID[]>();
-  (collab ?? []).forEach((c: { task_id: number; user_id: string }) => {
-    const list = collabByTask.get(c.task_id) ?? [];
-    list.push(c.user_id as UUID);
-    collabByTask.set(c.task_id, list);
+  const collabMap = new Map<number, UUID[]>();
+  (collabData.data ?? []).forEach((c: any) => {
+    const list = collabMap.get(c.task_id) ?? [];
+    list.push(c.user_id);
+    collabMap.set(c.task_id, list);
   });
 
-  const tagsByTask = new Map<number, string[]>();
-  (ttags ?? []).forEach((t: { task_id: number; task_tag?: { name?: string } }) => {
-    const name = t.task_tag?.name;
-    if (!name) return;
-    const list = tagsByTask.get(t.task_id) ?? [];
-    list.push(name);
-    tagsByTask.set(t.task_id, list);
+  const tagMap = new Map<number, string[]>();
+  (tagData.data ?? []).forEach((t: any) => {
+    const list = tagMap.get(t.task_id) ?? [];
+    const tagName = t.task_tag?.name;
+    if (tagName) list.push(tagName);
+    tagMap.set(t.task_id, list);
   });
 
-  // Fetch reference tables including users for created_by, owned_by, and collaborators
-  const projIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean) as number[])];
-  const statusIds = [...new Set(rows.map((r) => r.status_id).filter(Boolean) as number[])];
-  const prioIds = [...new Set(rows.map((r) => r.priority_id).filter(Boolean) as number[])];
-  
-  // Collect all collaborator user IDs
-  const allCollaboratorIds = [...new Set((collab ?? []).map((c: any) => c.user_id))];
-  
-  // Combine all user IDs (created_by, owned_by, and collaborators)
-  const userIds = [...new Set([
-    ...rows.map((r) => r.created_by).filter(Boolean) as UUID[],
-    ...rows.map((r) => r.owned_by).filter(Boolean) as UUID[],
-    ...allCollaboratorIds,
-  ])];
+  const projectMap = new Map<number, { id: number; name: string }>();
+  (projectData.data ?? []).forEach((p: any) => projectMap.set(p.id, p));
 
-  const [projects, statuses, prios, users] = await Promise.all([
-    projIds.length
-      ? supabase.from("projects").select("id,name").in("id", projIds)
-      : Promise.resolve({ data: [] as any[] }),
-    statusIds.length
-      ? supabase.from("status").select("id,status").in("id", statusIds)
-      : Promise.resolve({ data: [] as any[] }),
-    prioIds.length
-      ? supabase.from("priority").select("id").in("id", prioIds)
-      : Promise.resolve({ data: [] as any[] }),
-    userIds.length
-      ? supabase.from("users").select("id,email").in("id", userIds)
-      : Promise.resolve({ data: [] as any[] }),
-  ]).then((res: any[]) => res.map((r) => r.data));
+  const statusMap = new Map<number, { id: number; status: string }>();
+  (statusData.data ?? []).forEach((s: any) => statusMap.set(s.id, s));
 
-  const projMap = new Map(projects.map((p: any) => [p.id, p]));
-  const statusMap = new Map(statuses.map((s: any) => [s.id, s]));
-  const prioMap = new Map(prios.map((p: any) => [p.id, p]));
-  const userMap = new Map(users.map((u: any) => [u.id, u.email]));
+  const prioMap = new Map<number, { id: number }>();
+  (prioData.data ?? []).forEach((p: any) => prioMap.set(p.id, { id: p.id }));
 
-  // Debug logging
-  console.log("[tasks.repo] userMap:", userMap);
-  console.log("[tasks.repo] collabByTask:", collabByTask);
+  const userEmailMap = new Map<UUID, string>();
+  (userData.data ?? []).forEach((u: any) => {
+    if (u.email) userEmailMap.set(u.id, u.email);
+  });
 
-  // Return normalized hydrated rows
-  return rows.map(
-    (r): TaskHydrated => {
-      const assigneeIds = collabByTask.get(r.id) ?? [];
-      const assigneeEmails = assigneeIds.map(id => userMap.get(id) as string | undefined).filter(Boolean) as string[];
-      
-      console.log(`[tasks.repo] Task ${r.id}: assigneeIds=${assigneeIds}, assigneeEmails=${assigneeEmails}`);
-      
-      return {
-        ...r,
-        assignees: assigneeIds,
-        assignee_emails: assigneeEmails,
-        tags: tagsByTask.get(r.id) ?? [],
-        project: r.project_id ? (projMap.get(r.project_id) as { id: number; name: string } | undefined) ?? null : null,
-        status: r.status_id ? (statusMap.get(r.status_id) as { id: number; status: string } | undefined) ?? null : null,
-        priority: r.priority_id ? (prioMap.get(r.priority_id) as { id: number } | undefined) ?? null : null,
-        created_by_email: r.created_by ? (userMap.get(r.created_by) as string | undefined) ?? null : null,
-        owned_by_email: r.owned_by ? (userMap.get(r.owned_by) as string | undefined) ?? null : null,
-      };
-    }
-  );
-}
-=======
-    supabase
-      .from("task_collaborator")
-      .select("task_id,user_id")
-      .in("task_id", ids),
-    supabase
-      .from("task_tasktag")
-      .select("task_id, tag_id, task_tag!inner(name)")
-      .in("task_id", ids),
-  ]);
-
-  const projIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean) as number[])];
-  const statusIds = [...new Set(rows.map((r) => r.status_id).filter(Boolean) as number[])];
-  const prioIds = [...new Set(rows.map((r) => r.priority_id).filter(Boolean) as number[])];
-
-  const [projects, statuses, prios] = await Promise.all([
-    projIds.length
-      ? supabase.from("projects").select("id,name").in("id", projIds)
-      : Promise.resolve({ data: [] }),
-    statusIds.length
-      ? supabase.from("status").select("id,status").in("id", statusIds)
-      : Promise.resolve({ data: [] }),
-    prioIds.length
-      ? supabase.from("priority").select("id").in("id", prioIds)
-      : Promise.resolve({ data: [] }),
-  ]).then((res) => res.map((r) => r.data || []));
-
-  const projMap = new Map<number, { id: number; name: string }>(
-    projects.map((p: any) => [p.id, { id: p.id, name: p.name }])
-  );
-  const statusMap = new Map<number, { id: number; status: string }>(
-    statuses.map((s: any) => [s.id, { id: s.id, status: s.status }])
-  );
-  const prioMap = new Map<number, { id: number }>(
-    prios.map((p: any) => [p.id, { id: p.id }])
-  );
-
-  return rows.map((r): TaskHydrated => {
-    const assignees =
-      (collab ?? []).filter((c) => c.task_id === r.id).map((c) => c.user_id);
-    const tags =
-      (ttags ?? [])
-        .filter((t: any) => t.task_id === r.id)
-        .map((t: any) => t.task_tag?.name)
-        .filter(Boolean) ?? [];
-
+  return rows.map((r) => {
+    const assignees = collabMap.get(r.id) ?? [];
     return {
       ...r,
       assignees,
-      tags,
-      project: r.project_id ? (projMap.get(r.project_id) || null) : null,
-      status: r.status_id ? (statusMap.get(r.status_id) || null) : null,
-      priority: r.priority_id ? (prioMap.get(r.priority_id) || null) : null,
+      assignee_emails: assignees.map((uid) => userEmailMap.get(uid) || uid),
+      tags: tagMap.get(r.id) ?? [],
+      project: r.project_id ? projectMap.get(r.project_id) ?? null : null,
+      status: r.status_id ? statusMap.get(r.status_id) ?? null : null,
+      priority: r.priority_id ? prioMap.get(r.priority_id) ?? null : null,
+      created_by_email: r.created_by ? userEmailMap.get(r.created_by) ?? null : null,
+      owned_by_email: r.owned_by ? userEmailMap.get(r.owned_by) ?? null : null,
     };
   });
 }
->>>>>>> dev
+
+async function ensureTags(tagNames: string[]): Promise<number[]> {
+  const unique = Array.from(new Set(tagNames.map((n) => n.trim()))).filter(Boolean);
+  if (!unique.length) return [];
+
+  const { data: existing } = await supabase
+    .from("task_tag")
+    .select("id,name")
+    .in("name", unique);
+
+  const existingMap = new Map<string, number>();
+  (existing ?? []).forEach((t: any) => existingMap.set(t.name, t.id));
+
+  const missing = unique.filter((n) => !existingMap.has(n));
+  if (missing.length) {
+    const { data: newTags } = await supabase
+      .from("task_tag")
+      .insert(missing.map((name) => ({ name })))
+      .select("id,name");
+    (newTags ?? []).forEach((t: any) => existingMap.set(t.name, t.id));
+  }
+
+  return unique.map((n) => existingMap.get(n)!).filter((id) => id !== undefined);
+}
