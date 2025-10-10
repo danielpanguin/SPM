@@ -1,61 +1,109 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import type { ReactNode } from "react";
 
-/** Minimal flexible shape that works for both Task and UITask callers */
+/* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
+
+type UITask = {
+  id: string | number;
+  title: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  priority?: string | number | null;
+  status?: string | null;
+  createdBy?: { id?: string | null; name?: string } | null;
+  ownedBy?: { id?: string | null; name?: string } | null;
+  collaborators?: Array<{ id: string; name?: string }> | null;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  parentTaskId?: string | number | null;
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
+  tag?: string | null; // For backward compatibility
+};
 
 type DetailsTask = {
   id: string | number;
   title: string;
   description?: string | null;
-
   startDate?: string | null;
   endDate?: string | null;
-
   createdBy?: Person | null;
   ownedBy?: Person | null;
   collaborators?: Person[] | null;
-
   parentTaskId?: number | null;
   tag?: string | null;
-
   priority?: string | number | null;
   status?: string | null;
-
   comments?: Array<unknown>;
   createdAt?: string;
   updatedAt?: string;
 };
 
 interface Props {
-  task: DetailsTask | null;
+  task: UITask | DetailsTask | null;
   onClose(): void;
   onEdit(): void;
 }
 
+type UserMap = Record<string, string>; // id -> label (email or id)
+
+/* ---------- Component ---------- */
 export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
+  const [labels, setLabels] = useState<UserMap>({});
+
+  useEffect(() => {
+    let alive = true;
+    async function hydrateUsers() {
+      if (!task) return;
+      const ids = new Set<string>();
+      if (task.createdBy?.id) ids.add(String(task.createdBy.id));
+      if (task.ownedBy?.id) ids.add(String(task.ownedBy.id));
+      (task.collaborators ?? []).forEach((c) => ids.add(String(c.id)));
+      if (!ids.size) return;
+
+      const { data } = await supabase
+        .from("users")
+        .select("id,email")
+        .in("id", Array.from(ids));
+      if (!alive) return;
+      const map: UserMap = {};
+      (data ?? []).forEach((u: any) => (map[u.id] = u.email || u.id));
+      setLabels(map);
+    }
+    hydrateUsers();
+    return () => {
+      alive = false;
+    };
+  }, [task?.id]);
+
   if (!task) return null;
 
-  const createdBy = task.createdBy?.name ?? task.createdBy?.email ?? "—";
-  const ownedBy = task.ownedBy?.name ?? task.ownedBy?.email ?? "—";
-  const collaborators =
-    task.collaborators && task.collaborators.length
-      ? task.collaborators.map(c => c?.name ?? c?.email ?? c?.id ?? "—").join(", ")
+  // Handle both Task (with 'tag') and UITask (with 'tags')
+  const tagsValue = 'tags' in task && task.tags
+    ? task.tags.join(", ")
+    : ('tag' in task && task.tag)
+      ? task.tag
       : "—";
 
-  const start = task.startDate ?? "—";
-  const end = task.endDate ?? "—";
-  const parent = task.parentTaskId ?? "—";
-  const tag = task.tag ?? "—";
-  const priority =
-    task.priority !== undefined && task.priority !== null ? String(task.priority) : "—";
-  const status = task.status ?? "—";
-  const description = task.description ?? "—";
-  const commentsSummary =
-    task.comments && task.comments.length ? `${task.comments.length} comment(s)` : "—";
-  const updatedAt = task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—";
-  const createdAt = task.createdAt ? new Date(task.createdAt).toLocaleString() : "—";
+  // Helper function to get display value for users
+  const getUserDisplay = (user: Person | undefined) => {
+    if (!user?.id) return "—";
+    return labels[String(user.id)] || user.name || user.email || String(user.id);
+  };
+
+  // Helper function to get collaborators display
+  const getCollaboratorsDisplay = () => {
+    if (!task.collaborators || task.collaborators.length === 0) return "—";
+    return task.collaborators
+      .map(c => labels[String(c.id)] || c.name || c.email || String(c.id))
+      .join(", ");
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
@@ -68,20 +116,19 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Created by" value={createdBy} />
-          <Field label="Owned by" value={ownedBy} />
-          <Field label="Collaborators" value={collaborators} />
-          <Field label="Start Date" value={start} />
-          <Field label="End Date" value={end} />
-          <Field label="Title" value={task.title} />
-          <Field label="Parent Task" value={parent} />
-          <Field label="Tag" value={tag} />
-          <Field label="Priority" value={priority} />
-          <Field label="Status" value={status} />
-          <Field label="Description" value={description} className="sm:col-span-2" />
-          <Field label="Comments" value={commentsSummary} className="sm:col-span-2" />
-          <Field label="Last Updated" value={updatedAt} />
-          <Field label="Created" value={createdAt} />
+          <Field label="Project" value={task.project?.name || "—"} />
+          <Field label="Status" value={task.status || "—"} />
+          <Field label="Created by" value={getUserDisplay(task.createdBy)} />
+          <Field label="Owned by" value={getUserDisplay(task.ownedBy)} />
+          <Field label="Collaborators" value={getCollaboratorsDisplay()} />
+          <Field label="Priority" value={task.priority != null ? String(task.priority) : "—"} />
+          <Field label="Start Date" value={task.startDate || "—"} />
+          <Field label="End Date" value={task.endDate || "—"} />
+          <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
+          <Field label="Tags" value={tagsValue} />
+          <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
+          <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
+          <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
         </div>
 
         <div className="mt-6 flex items-center gap-2">
@@ -109,8 +156,8 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <div className="text-gray-700 font-medium">{label}</div>
-      <div className="text-gray-900 font-semibold">{value}</div>
+      <div className="text-gray-500">{label}</div>
+      <div className="font-medium break-words">{value}</div>
     </div>
   );
 }

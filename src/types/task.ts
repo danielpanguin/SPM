@@ -1,6 +1,8 @@
 export type Priority = "Low" | "Medium" | "High";
-export type Status = "To Do" | "In Progress" | "Completed" | "Blocked" | "Archived";
-export type Role = "manager" | "staff";
+
+export type Status = "pending" | "in-progress" | "completed" | "blocked";
+
+export type Role = "manager" | "staff" | "admin";
 
 export interface UserRef {
   id: string;
@@ -32,6 +34,8 @@ export interface Task {
   comments: Comment[];
   updatedAt: string;           // ISO; edit story requires timestamp
   createdAt: string;           // ISO
+  project_id?: number | null;
+  project?: { id: number; name: string } | null;
 }
 
 export interface CreateTaskPayload {
@@ -46,6 +50,7 @@ export interface CreateTaskPayload {
   tag?: string;
   priority: Priority;
   status?: Status;            // only used if role === "manager", else ignored
+  project_id?: number | null;
 }
 
 export interface UpdateTaskPayload {
@@ -59,7 +64,8 @@ export interface UpdateTaskPayload {
   tag?: string;               // free text
   priority?: Priority;
   status?: Status;
+  project_id?: number | null;
 }
 
 export const PRIORITIES: Priority[]  = ["Low","Medium","High"];
-export const STATUSES: Status[]      = ["To Do","In Progress","Completed","Blocked","Archived"];
+export const STATUSES: Status[]      = ["pending","in-progress","completed","blocked"];

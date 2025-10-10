@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@/hooks/useAuth";
-import TaskForm from "./TaskForm";
 import TaskDetailsModal from "./TaskDetailsModal";
+import TaskForm from "./TaskForm";
 
 /* ---------- Unified Task Type ---------- */
 export type UITask = {
@@ -166,7 +166,7 @@ export default function TaskDashboard() {
           break;
         case 'endDate':
           aVal = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER;
-          bVal = b.endDate ? new Date(b.endDate).getTime() : Number.MAX_SAFE_INTEGER;
+          bVal = b.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER;
           break;
         case 'tags':
           aVal = a.tags?.join(', ') || '';
@@ -209,8 +209,6 @@ export default function TaskDashboard() {
   const toggleSortDirection = () => {
     setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
   };
-
-  /* ---------- UI ---------- */
 
   /* ---------- UI ---------- */
   return (
@@ -339,40 +337,38 @@ export default function TaskDashboard() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sortedTasks.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setDetailsTask(t)}
-              aria-label={`Open details for ${t.title}`}
-              className="text-left rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900">{t.title}</h3>
-                {t.priority && (
-                  <span className="text-xs rounded-full border px-2 py-0.5 text-gray-800">
-                    {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-sm text-gray-800 line-clamp-2">
-                {t.description || "No description"}
-              </p>
-              <div className="mt-3 flex items-center justify-between text-xs text-gray-800">
-                <div>{t.status ?? "To Do"}</div>
-                <div>
-                  {t.endDate
-                    ? new Date(t.endDate).toLocaleDateString()
-                    : "No deadline"}
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setDetailsTask(t)}
+                aria-label={`Open details for ${t.title}`}
+                className="text-left rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">{t.title}</h3>
+                  {t.priority && (
+                    <span className="text-xs rounded-full border px-2 py-0.5 text-gray-800">
+                      {typeof t.priority === "number" ? `P${t.priority}` : t.priority}
+                    </span>
+                  )}
                 </div>
-              </div>
-            </button>
-          ))}
-        </div>
+                <p className="mt-2 text-sm text-gray-800 line-clamp-2">
+                  {t.description || "No description"}
+                </p>
+                <div className="mt-3 flex items-center justify-between text-xs text-gray-800">
+                  <div>{t.status ?? "To Do"}</div>
+                  <div>
+                    {t.endDate
+                      ? new Date(t.endDate).toLocaleDateString()
+                      : "No deadline"}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
-        !busy && (
-          <p className="text-gray-900">No tasks yet. Create your first task.</p>
-        )
+        <p className="text-gray-900">No tasks yet. Create your first task.</p>
       )}
 
       {/* ---------- Create Task Modal ---------- */}

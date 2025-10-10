@@ -1,14 +1,16 @@
 // src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { listTasks, createTask } from "@/lib/tasks.repo";
-import { TaskCreateSchema } from "@/lib/tasks.scheme";
+import { TaskCreateSchema } from "@/lib/tasks.schema";
 
 function json(data: any, init?: number | ResponseInit) {
   return NextResponse.json(data, typeof init === "number" ? { status: init } : init);
 }
+
 function badRequest(msg: string | string[]) {
   return json({ error: Array.isArray(msg) ? msg.join("; ") : msg }, 400);
 }
+
 function serverError(e: unknown) {
   const message = e instanceof Error ? e.message : String(e);
   return json({ error: message }, 500);
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
       return badRequest(messages);
     }
 
-    // If the client didn’t set created_by, fall back to header
+    // If the client didn't set created_by, fall back to header
     const userIdHeader = req.headers.get("x-user-id") || null;
     const payload = {
       ...parsed.data,
