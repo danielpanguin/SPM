@@ -38,21 +38,27 @@ export async function PATCH(req: NextRequest, { params }: P) {
       return badRequest("status_id is required and must be a number");
     }
 
-    // Get current task to log the old status AND preserve updated_at
+    // Get current task to log the old status
     const { data: currentTask, error: fetchError } = await supabase
       .from("tasks")
-      .select("status_id, updated_at")
+      .select("status_id")
       .eq("id", taskId)
       .single();
 
-    if (fetchError || !currentTask) {
+    if (fetchError) {
+      console.error("Fetch error:", fetchError);
+      return json({ error: `Task not found: ${fetchError.message}` }, 404);
+    }
+    
+    if (!currentTask) {
       return json({ error: "Task not found" }, 404);
     }
 
     const oldStatusId = currentTask.status_id;
-    const originalUpdatedAt = currentTask.updated_at;
 
-    // Update status - this will automatically update updated_at
+    // Update ONLY the status_id field
+    // Note: If your database has an updated_at column with auto-update trigger,
+    // you may need to handle that separately. For now, we just update status_id.
     const { error: updateError } = await supabase
       .from("tasks")
       .update({ status_id })
@@ -60,16 +66,6 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
     if (updateError) {
       throw new Error(`Error updating task status: ${updateError.message}`);
-    }
-
-    // Restore the original updated_at timestamp to preserve it
-    const { error: restoreError } = await supabase
-      .from("tasks")
-      .update({ updated_at: originalUpdatedAt })
-      .eq("id", taskId);
-
-    if (restoreError) {
-      console.error("Error restoring updated_at:", restoreError);
     }
 
     // Log the status change in audit log
