@@ -38,9 +38,16 @@ function getPriorityLabel(priorityId: number | null): string {
 
 function mapDbToUI(t: any): UITask {
   console.log("mapDbToUI input:", t);
-  console.log("project_id:", t.project_id, "project:", t.project);
+  console.log("Raw priority data:", {
+    priority_obj: t.priority,
+    priority_id_field: t.priority_id,
+    extracted_id: t.priority?.id ?? t.priority_id ?? null
+  });
   
   const priorityId = t.priority?.id ?? t.priority_id ?? null;
+  const priorityLabel = getPriorityLabel(priorityId);
+  
+  console.log(`Task ${t.id} "${t.title}": priority_id=${priorityId} → label="${priorityLabel}"`);
   
   return {
     id: t.id,
