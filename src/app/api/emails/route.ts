@@ -2,7 +2,14 @@ import { supabase } from '@/lib/db';
 import { NextRequest } from "next/server";
 import nodemailer from "nodemailer";
 
-export { sendTaskEmails };
+export { sendTaskEmails,
+  generateReminderEmail,
+  generateOverdueTasksEmail,
+  generateDailySummaryEmail,
+  formatDateDDMMYYYY,
+  sortTasksByDate,
+  fetchAllTasksByUserIds,
+};
 
 
 const EMAIL_USER = process.env.GMAIL_ADDRESS!;
@@ -218,7 +225,17 @@ async function sendTaskEmails(
         );
         await sendEmail(user.email, subject, html);
         console.log(`Daily summary sent to ${user.email}`);
-      }
+      } else {
+      // No tasks—send a special congratulatory email
+      const subject = 'Your Daily Task Summary';
+      const html = `
+        <p>Hi ${user.username ?? 'User'},</p>
+        <p>You have completed all your tasks. <b>Keep up the good work!</b></p>
+        <p>Have a great day!</p>
+      `;
+      await sendEmail(user.email, subject, html);
+      console.log(`Congratulatory summary sent to ${user.email}`);
+    }
     }
   }
 
