@@ -36,6 +36,7 @@ function normalizeStatus(dbStatus: string | null | undefined): Status {
 
 // Map API response (TaskHydrated) to Task type
 async function mapApiResponseToTask(apiTask: any): Promise<Task> {
+  console.log("mapApiResponseToTask called for task:", apiTask.id, apiTask.title);
   // Fetch user details for created_by, owned_by, and assignees
   const userIds = [
     apiTask.created_by,
