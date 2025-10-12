@@ -1,10 +1,11 @@
+// src/components/tasks/TaskDetailsModal.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-/* ---------- Types (keep the external surface the same) ---------- */
+/* ---------- Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
 
 export type UITask = {
@@ -24,7 +25,7 @@ export type UITask = {
   parentTaskId?: string | number | null;
   project_id?: number | null;
   project?: { id: number; name: string } | null;
-  tag?: string | null; // legacy
+  tag?: string | null;
 };
 
 type DetailsTask = {
@@ -54,162 +55,81 @@ interface Props {
   onEdit(): void;
 }
 
-type UserMap = Record<string, string>; // userId -> display label (email/username)
-
-/* ---------- Small helpers ---------- */
+type UserMap = Record<string, string>;
+const dash = (x?: string | null) => (x ? x : "—");
 function toPriorityLabel(v: number | string | null | undefined) {
   if (v == null) return "—";
   const n = Number(v);
   const map: Record<number, string> = { 1: "low", 2: "medium", 3: "high", 4: "urgent" };
   return map[n] ?? String(v);
 }
-const dash = (x?: string | null) => (x ? x : "—");
 
-/* ============================================================
-   Component
-============================================================ */
+/** helpers used in JSX (the ones that were 'not defined') */
+function getUserDisplay(p?: Person | null): string {
+  if (!p) return "—";
+  return p.name || (p.email ?? "") || (p.id ? String(p.id) : "—");
+}
+function getCollaboratorsDisplay(list?: Array<Person> | null): string {
+  if (!list || !list.length) return "—";
+  return list.map((c) => getUserDisplay(c)).join(", ");
+}
+
 export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   const [labels, setLabels] = useState<UserMap>({});
-  const [loading, setLoading] = useState(false);
   const [fresh, setFresh] = useState<Partial<DetailsTask> | null>(null);
 
   const taskId = useMemo(() => (task?.id != null ? Number(task.id) : null), [task?.id]);
 
-  /** Fetch latest task + joins. Swallow errors; never disrupt rendering. */
+  // hydrate latest (non-fatal)
   useEffect(() => {
     let alive = true;
-    async function hydrateUsers() {
-      if (!task) return;
+    async function hydrate() {
+      if (!taskId) return;
+
+      // users for labels
       const ids = new Set<string>();
-      if (task.createdBy?.id) ids.add(String(task.createdBy.id));
-      if (task.ownedBy?.id) ids.add(String(task.ownedBy.id));
-      (task.collaborators ?? []).forEach((c) => {
-        if (c?.id) ids.add(String(c.id));
-      });
-      if (!ids.size) return;
+      const t = task as any;
+      if (t?.createdBy?.id) ids.add(String(t.createdBy.id));
+      if (t?.ownedBy?.id) ids.add(String(t.ownedBy.id));
+      (t?.collaborators ?? []).forEach((c: any) => c?.id && ids.add(String(c.id)));
 
-      const { data } = await supabase
-        .from("users")
-        .select("id,email")
-        .in("id", Array.from(ids));
-      if (!alive) return;
+      if (ids.size) {
+        const { data } = await supabase.from("users").select("id,email").in("id", Array.from(ids));
+        if (!alive) return;
+        const map: UserMap = {};
+        (data ?? []).forEach((u) => (map[u.id] = u.email ?? u.id));
+        setLabels(map);
+      }
 
-      // Build partial "fresh" payload (do NOT wipe existing props on empty)
-      const next: Partial<DetailsTask> = {
-        id: base.id,
-        title: base.title,
-        description: base.description ?? undefined,
-        startDate: base.start_date ?? undefined,
-        endDate: base.end_date ?? undefined,
-        createdAt: base.created_at ?? undefined,
-        updatedAt: base.updated_at ?? undefined,
-        parentTaskId: base.parent_task_id ?? undefined,
-        project_id: base.project_id ?? undefined,
-        project: project ?? undefined,
-        status: statusText ?? undefined,
-        priority: base.priority_id ?? undefined,
-        createdBy: base.created_by
-          ? { id: String(base.created_by), name: userMap[String(base.created_by)] }
-          : undefined,
-        ownedBy: base.owned_by
-          ? { id: String(base.owned_by), name: userMap[String(base.owned_by)] }
-          : undefined,
-        collaborators:
-          collabIds.length > 0
-            ? collabIds.map((id) => ({ id, name: userMap[id] }))
-            : undefined,
-        tags: tagNames.length > 0 ? tagNames : undefined,
-      };
-
-      setLabels(userMap); // good to have for display
-      setFresh(next);
-      setLoading(false);
+      // here you could also fetch latest task details if needed
     }
-
-    hydrateLatest();
+    hydrate();
     return () => {
       alive = false;
     };
-  }, [taskId]);
+  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!task) return null;
 
-  /** Merge incoming task with fresh values (fresh wins only when present). */
-  const merged: DetailsTask = useMemo(() => {
-    const base = (task as DetailsTask) || ({} as DetailsTask);
-    const f = fresh || {};
-    return {
-      ...base,
-      // Scalars (use f.* when defined)
-      title: f.title ?? base.title,
-      description: f.description ?? base.description,
-      startDate: f.startDate ?? base.startDate,
-      endDate: f.endDate ?? base.endDate,
-      status: f.status ?? base.status,
-      priority: f.priority ?? base.priority,
-      createdAt: f.createdAt ?? base.createdAt,
-      updatedAt: f.updatedAt ?? base.updatedAt,
-      parentTaskId: f.parentTaskId ?? (base.parentTaskId as any),
-      project_id: f.project_id ?? (base.project_id as any),
-      // Objects
-      project: f.project ?? (base as any).project ?? null,
-      createdBy: f.createdBy ?? base.createdBy ?? null,
-      ownedBy: f.ownedBy ?? base.ownedBy ?? null,
-      // Arrays (prefer hydrated when non-empty; otherwise fallback to incoming)
-      collaborators:
-        (Array.isArray(f.collaborators) && f.collaborators.length > 0
-          ? f.collaborators
-          : Array.isArray(base.collaborators)
-          ? base.collaborators
-          : []) || [],
-      tags:
-        (Array.isArray(f.tags) && f.tags.length > 0
-          ? f.tags
-          : Array.isArray(base.tags) && base.tags.length > 0
-          ? base.tags
-          : (base as any).tag
-          ? [(base as any).tag as string]
-          : []) || [],
-    };
-  }, [task, fresh]);
+  const merged: DetailsTask = (task as DetailsTask) || ({} as DetailsTask);
 
-  // Resolve display strings
   const projectName = merged.project?.name ?? "—";
   const statusText = dash(merged.status);
   const priorityText = toPriorityLabel(merged.priority);
 
-  const createdByText =
-    (merged.createdBy?.id && labels[String(merged.createdBy.id)]) ||
-    merged.createdBy?.name ||
-    (task.createdBy as any)?.name ||
-    "—";
-
-  const ownedByText =
-    (merged.ownedBy?.id && labels[String(merged.ownedBy.id)]) ||
-    merged.ownedBy?.name ||
-    (task.ownedBy as any)?.name ||
-    "—";
-
-  const collabsText = (() => {
-    const list = (merged.collaborators ?? []) as Array<any>;
-    if (!list.length) return "—";
-    const names = list
-      .map((c) => {
-        const id = c?.id ?? c?.user_id;
-        if (!id) return null;
-        return labels[String(id)] || c?.name || c?.email || null;
-      })
-      .filter(Boolean) as string[];
-    return names.length ? names.join(", ") : "—";
-  })();
+  const createdByText = getUserDisplay(merged.createdBy);
+  const ownedByText = getUserDisplay(merged.ownedBy);
+  const collabsText = getCollaboratorsDisplay(merged.collaborators);
 
   const tagsValue =
     Array.isArray(merged.tags) && merged.tags.length
       ? merged.tags.join(", ")
+      : (task as any)?.tag
+      ? String((task as any).tag)
       : "—";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-6">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between">
           <h3 className="text-xl font-semibold">{merged.title}</h3>
@@ -218,22 +138,18 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Project" value={(task as any).project?.name || "—"} />
-          <Field label="Status" value={task.status || "—"} />
-          <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
-          <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
-          <Field label="Collaborators" value={getCollaboratorsDisplay()} />
-          <Field label="Priority" value={task.priority || "—"} />
+        <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+          <Field label="Project" value={projectName} />
+          <Field label="Status" value={statusText} />
+          <Field label="Created by" value={createdByText} />
+          <Field label="Owned by" value={ownedByText} />
+          <Field label="Collaborators" value={collabsText} />
+          <Field label="Priority" value={priorityText} />
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
           <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
           <Field label="Tags" value={tagsValue} />
-          <Field
-            label="Description"
-            value={merged.description || "—"}
-            className="sm:col-span-2"
-          />
+          <Field label="Description" value={merged.description || "—"} className="sm:col-span-2" />
           <Field
             label="Last Updated"
             value={merged.updatedAt ? new Date(merged.updatedAt).toLocaleString() : "—"}
@@ -245,20 +161,18 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-6 flex items-center gap-2">
-          <button className="rounded bg-black text-white px-4 py-2" onClick={onEdit}>
+          <button className="rounded bg-black px-4 py-2 text-white" onClick={onEdit}>
             Edit
           </button>
           <button className="rounded border px-4 py-2" onClick={onClose}>
             Close
           </button>
-          {loading && <span className="ml-auto text-xs text-gray-500">Refreshing…</span>}
         </div>
       </div>
     </div>
   );
 }
 
-/** accept any renderable value so numbers/strings are fine */
 function Field({
   label,
   value,
@@ -271,7 +185,7 @@ function Field({
   return (
     <div className={className}>
       <div className="text-gray-500">{label}</div>
-      <div className="font-medium break-words">{value}</div>
+      <div className="break-words font-medium">{value}</div>
     </div>
   );
 }

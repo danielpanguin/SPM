@@ -1,195 +1,170 @@
+// src/components/notifications/NotificationBell.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useUser } from "@/hooks/useAuth";
-import NotificationList, {
-  UINotification,
-} from "@/components/notifications/NotificationList";
+import { onNotificationsHint } from "@/lib/notificationsBus";
 
-/**
- * Bell with dropdown. Shows unread count badge,
- * uses NotificationList (compact) so unread items are red.
- * Adds a Refresh button to reload without a full page refresh.
- */
+type UINotification = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  kind: "overdue" | "due_today";
+  title: string;
+  message: string;
+  is_read: boolean;
+  due_date: string;   // yyyy-mm-dd
+  created_at: string; // iso
+};
+
 export default function NotificationBell() {
   const { userId } = useUser();
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<UINotification[]>([]);
-  const btnRef = useRef<HTMLButtonElement | null>(null);
-  const popRef = useRef<HTMLDivElement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const loadingRef = useRef(false);
+  const debounceRef = useRef<number | null>(null);
 
   const unreadCount = useMemo(
-    () => items.filter((n) => !n.is_read).length,
+    () => items.reduce((n, it) => n + (it.is_read ? 0 : 1), 0),
     [items]
   );
-  const isAllRead = unreadCount === 0 && items.length > 0;
 
-  // click-outside to close
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (btnRef.current?.contains(t)) return;
-      if (popRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
-
+  /** fetch from API */
   const load = async () => {
     if (!userId) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setLoading(false);
-    if (error) {
+    try {
+      const res = await fetch(`/api/notifications?userId=${userId}`, { cache: "no-store" });
+      const json = await res.json();
+      if (json.ok) setItems(json.data ?? []);
+    } catch (e) {
       // eslint-disable-next-line no-console
-      console.error("[NotificationBell] load error:", error);
-      return;
+      console.error("[NotificationBell] load error:", e);
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
     }
-    setItems((data ?? []) as UINotification[]);
   };
 
-  // ✅ NEW: fetch once when userId is available so the badge shows on first load
+  /** small debounce helper so bursts of events only reload once */
+  const scheduleLoad = () => {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(load, 150);
+  };
+
   useEffect(() => {
-    if (userId) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!userId) return;
+
+    // initial load
+    load();
+
+    // 1) listen to local “hint” bus (emitted after task save)
+    const offHint = onNotificationsHint(() => {
+      scheduleLoad();
+    });
+
+    // 2) Realtime: any INSERT/UPDATE/DELETE on notifications for this user
+    const channel = supabase
+      .channel(`notif-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        () => scheduleLoad()
+      )
+      .subscribe();
+
+    // 3) Refresh when window gains focus or tab becomes visible
+    const onFocus = () => scheduleLoad();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleLoad();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      offHint();
+      supabase.removeChannel(channel);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    };
   }, [userId]);
 
-  // open -> fetch
-  useEffect(() => {
-    if (open) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, userId]);
-
-  // Small periodic refresh while open (kept as-is)
-  useEffect(() => {
-    if (!open) return;
-    const id = setInterval(load, 30_000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, userId]);
-
-  const handleRefresh = async () => {
-    await load();
-  };
-
-  const toggleOne = async (id: string, nextRead: boolean) => {
-    // optimistic UI
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: nextRead } : n)));
-    const { error } = await supabase
-      .from("notifications")
-      .update({ is_read: nextRead })
-      .eq("id", id);
-    if (error) {
-      // rollback on error
-      setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: !nextRead } : n)));
-      console.error("[NotificationBell] toggleOne error:", error);
-    }
-  };
-
-  const toggleAll = async () => {
+  const markAllRead = async () => {
     if (!userId) return;
-    const markTo = isAllRead ? false : true; // flip all
-    // optimistic
-    setItems((prev) => prev.map((n) => ({ ...n, is_read: markTo })));
-    const { error } = await supabase
-      .from("notifications")
-      .update({ is_read: markTo })
-      .eq("user_id", userId);
-    if (error) {
-      // rollback on error
-      setItems((prev) => prev.map((n) => ({ ...n, is_read: !markTo })));
-      console.error("[NotificationBell] toggleAll error:", error);
-    }
+    await fetch(`/api/notifications?userId=${userId}&all=true`, { method: "PATCH" });
+    scheduleLoad();
   };
 
-  if (!userId) return null;
+  const toggleOne = async (n: UINotification, is_read: boolean) => {
+    await fetch(`/api/notifications`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: n.id, is_read }),
+    });
+    scheduleLoad();
+  };
 
   return (
     <div className="relative">
       <button
-        ref={btnRef}
-        type="button"
+        className="rounded border px-3 py-2 relative"
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded-lg border border-gray-300 bg-white p-2 hover:bg-gray-50"
         aria-label="Notifications"
       >
-        {/* bell icon */}
-        <svg width="20" height="20" viewBox="0 0 24 24" className="text-gray-700">
-          <path
-            fill="currentColor"
-            d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2m6-6V11a6 6 0 0 0-5-5.91V4a1 1 0 0 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1z"
-          />
-        </svg>
-
-        {/* unread badge */}
+        🔔
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
+          <span className="absolute -top-1 -right-1 text-xs bg-red-600 text-white w-5 h-5 rounded-full grid place-content-center">
             {unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div
-          ref={popRef}
-          className="absolute right-0 z-50 mt-2 w-[min(92vw,36rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
-        >
-          {/* Header with Refresh + Mark-all toggle */}
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-            <div className="text-base font-semibold">Notifications</div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="text-sm text-gray-600 hover:underline disabled:opacity-60"
-                title="Reload notifications"
-              >
-                {loading ? "Refreshing…" : "Refresh"}
-              </button>
-              <button
-                onClick={toggleAll}
-                className="text-sm text-gray-900 hover:underline"
-              >
-                {isAllRead ? "Mark all unread" : "Mark all read"}
-              </button>
+        <div className="absolute right-0 mt-2 w-[420px] rounded-lg border bg-white shadow-lg">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="font-semibold">Notifications</div>
+            <div className="flex items-center gap-4 text-sm">
+              <button onClick={load}>{loading ? "Loading…" : "Refresh"}</button>
+              <button onClick={markAllRead}>Mark all read</button>
             </div>
           </div>
 
-          <div className="max-h-[70vh] overflow-auto p-3 sm:p-4">
-            {loading && items.length === 0 ? (
-              <div className="grid min-h-[8rem] place-items-center text-sm text-gray-500">
-                Loading notifications…
-              </div>
-            ) : (
-              <NotificationList
-                items={items}
-                compact
-                showHeader={false}  // we render header above to host the Refresh button
-                isAllRead={isAllRead}
-                onMarkAll={toggleAll}
-                onToggleRead={toggleOne}
-                emptyLabel="No notifications"
-              />
+          <div className="max-h-[360px] overflow-auto">
+            {items.length === 0 && (
+              <div className="px-4 py-6 text-sm text-gray-500">No notifications</div>
             )}
-
-            <div className="mt-3 flex justify-end">
-              <a
-                href="/notifications"
-                className="text-sm underline underline-offset-2 hover:opacity-80"
-                onClick={() => setOpen(false)}
+            {items.map((n) => (
+              <div
+                key={n.id}
+                className={`px-4 py-3 border-b ${n.is_read ? "" : "bg-red-50"}`}
               >
-                View all
-              </a>
-            </div>
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">{n.title || "Task"}</div>
+                  <button
+                    className="text-sm underline"
+                    onClick={() => toggleOne(n, !n.is_read)}
+                  >
+                    {n.is_read ? "Mark unread" : "Mark read"}
+                  </button>
+                </div>
+                <div className="text-sm">{n.message}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {new Date(n.created_at).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="px-4 py-2 text-right text-sm border-t">
+            <a href="/notifications" className="underline">
+              View all
+            </a>
           </div>
         </div>
       )}

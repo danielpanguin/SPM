@@ -1,14 +1,28 @@
-// fire-and-forget helper used after creating/updating a task
-export async function notifyTaskSync(taskId: number) {
+// src/lib/notifyTaskSync.ts
+import { emitNotificationsHint } from "./notificationsBus";
+
+async function postSync(body: Record<string, unknown>) {
   try {
-    await fetch("/api/cron/sync-task-notifications", {
+    await fetch("/api/notifications/sync-task", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ taskId }),
-      // don't await the response in the UI
-      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
   } catch {
-    // best-effort; never block the UX
+    // ignore network errors – UI will still update via other triggers
+  } finally {
+    // local immediate nudge so the bell refetches quickly
+    emitNotificationsHint();
   }
+}
+
+/** Sync by a specific task (called after Create/Edit/Save) */
+export async function notifyTaskSync(taskId: number) {
+  await postSync({ taskId });
+}
+
+/** Sync by a user (owner/collaborator scope) – helpful after save as well */
+export async function notifyTaskSyncByUser(userId?: string | null) {
+  if (!userId) return;
+  await postSync({ userId });
 }

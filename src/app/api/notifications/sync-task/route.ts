@@ -2,171 +2,171 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 
-// ---- time helpers (SGT) ----
-const SGT = "Asia/Singapore";
-const formatYMD = (d: Date) =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: SGT,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d); // YYYY-MM-DD
-const startOfTodaySGT = () =>
-  new Date(formatYMD(new Date()) + "T00:00:00+08:00");
-const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
+const TZ = "Asia/Singapore";
 
-const TABLES = {
-  tasks: "tasks",
-  status: "status",
-  collab: "task_collaborator",
-  notifs: "notifications",
-};
-const TCOL = {
-  id: "id",
-  title: "title",
-  due: "end_date",      // DATE
-  statusId: "status_id",
-  createdBy: "created_by",
-  ownedBy: "owned_by",
-  archived: "is_archived",
-};
-const NCOL = {
-  id: "id",
-  taskId: "task_id",
-  userId: "user_id",
-  kind: "kind",
-  title: "title",
-  message: "message",
-  isRead: "is_read",
-  dueDate: "due_date",
-  createdAt: "created_at",
-};
+function todayISO(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+}
+
+function notifId(taskId: number, userId: string, kind: "overdue" | "due_today", due: string) {
+  return `${taskId}:${userId}:${kind}:${due}`;
+}
 
 export async function POST(req: Request) {
-  try {
-    const { task_id } = await req.json().catch(() => ({}));
-    if (!task_id || typeof task_id !== "number") {
-      return NextResponse.json(
-        { ok: false, error: "task_id (number) required" },
-        { status: 400 }
-      );
-    }
+  const supabase = await supabaseServer();
+  const payload = (await req.json().catch(() => ({}))) as {
+    taskId?: number;
+    userId?: string;
+  };
 
-    const sb = supabaseServer();
+  const today = todayISO();
 
-    // Completed status id (dynamic)
-    const { data: statuses, error: sErr } = await sb
-      .from(TABLES.status)
-      .select("id,status");
-    if (sErr) throw sErr;
-    const completedRow = (statuses ?? []).find(
-      (r: any) => (r.status || "").toLowerCase() === "completed"
-    );
-    if (!completedRow?.id) throw new Error("Couldn't find 'Completed' status");
-    const COMPLETED_ID: number = completedRow.id;
+  // Completed statuses so we don't mark those overdue
+  const { data: statusRows, error: statusErr } = await supabase
+    .from("status")
+    .select("id,status");
+  if (statusErr) return NextResponse.json({ ok: false, error: statusErr.message }, { status: 500 });
 
-    // Load task
-    const { data: tData, error: tErr } = await sb
-      .from(TABLES.tasks)
-      .select(
-        `${TCOL.id},${TCOL.title},${TCOL.due},${TCOL.statusId},${TCOL.createdBy},${TCOL.ownedBy},${TCOL.archived}`
-      )
-      .eq(TCOL.id, task_id)
-      .single();
+  const completedIds = new Set<number>(
+    (statusRows ?? [])
+      .filter((s: any) => {
+        const txt = String(s.status || "").toLowerCase();
+        return txt.includes("complete") || txt.includes("done");
+      })
+      .map((s: any) => Number(s.id))
+  );
 
-    if (tErr) throw tErr;
-    if (!tData) return NextResponse.json({ ok: true, inserted: 0 });
+  // Get tasks
+  let { data: tasks, error: tasksErr } = await supabase
+    .from("tasks")
+    .select("id,title,end_date,is_archived,owned_by,status_id");
+  if (tasksErr) return NextResponse.json({ ok: false, error: tasksErr.message }, { status: 500 });
 
-    // Ignore if archived or completed
-    if (tData[TCOL.archived] || tData[TCOL.statusId] === COMPLETED_ID) {
-      return NextResponse.json({ ok: true, inserted: 0 });
-    }
-
-    // Decide kind (overdue / today / tomorrow)
-    const today = startOfTodaySGT();
-    const todayStr = formatYMD(today);
-    const tomorrowStr = formatYMD(addDays(today, 1));
-    const dueStr = tData[TCOL.due] as string | null;
-
-    if (!dueStr) return NextResponse.json({ ok: true, inserted: 0 });
-
-    let kind: "overdue" | "due_today" | "due_tomorrow" | null = null;
-    if (dueStr < todayStr) kind = "overdue";
-    else if (dueStr === todayStr) kind = "due_today";
-    else if (dueStr === tomorrowStr) kind = "due_tomorrow";
-    else kind = null;
-
-    if (!kind) return NextResponse.json({ ok: true, inserted: 0 });
-
-    const dueISO = new Date(dueStr + "T00:00:00+08:00").toISOString();
-
-    // Gather recipients: owner + creator + collaborators
-    const recipients = new Set<string>();
-    if (tData[TCOL.ownedBy]) recipients.add(tData[TCOL.ownedBy] as string);
-    if (tData[TCOL.createdBy]) recipients.add(tData[TCOL.createdBy] as string);
-
-    const { data: collabs, error: cErr } = await sb
-      .from(TABLES.collab)
-      .select("user_id")
-      .eq("task_id", task_id);
-    if (cErr) throw cErr;
-    (collabs ?? []).forEach((r: any) => recipients.add(r.user_id as string));
-
-    // Dedup helper
-    const exists = async (userId: string) => {
-      const { data, error } = await sb
-        .from(TABLES.notifs)
-        .select(NCOL.id)
-        .eq(NCOL.userId, userId)
-        .eq(NCOL.taskId, task_id)
-        .eq(NCOL.kind, kind!)
-        .eq(NCOL.dueDate, dueISO)
-        .limit(1);
-      if (error) throw error;
-      return (data?.length ?? 0) > 0;
-    };
-
-    const titleText =
-      kind === "due_tomorrow"
-        ? "Upcoming deadline"
-        : kind === "due_today"
-        ? "Task due today"
-        : "Task overdue";
-
-    const message =
-      kind === "due_tomorrow"
-        ? `“${tData[TCOL.title] ?? ""}” is due tomorrow.`
-        : kind === "due_today"
-        ? `“${tData[TCOL.title] ?? ""}” is due today.`
-        : `“${tData[TCOL.title] ?? ""}” is overdue.`;
-
-    let inserted = 0;
-    for (const userId of recipients) {
-      if (await exists(userId)) continue;
-      const idText = `${task_id}-${userId}-${kind}-${dueISO}`;
-
-      const { error: insErr } = await sb.from(TABLES.notifs).insert([
-        {
-          [NCOL.id]: idText,
-          [NCOL.taskId]: task_id,
-          [NCOL.userId]: userId,
-          [NCOL.kind]: kind,
-          [NCOL.title]: titleText,
-          [NCOL.message]: message,
-          [NCOL.isRead]: false,
-          [NCOL.dueDate]: dueISO,
-        },
-      ]);
-      if (insErr) throw insErr;
-      inserted++;
-    }
-
-    return NextResponse.json({ ok: true, inserted, kind });
-  } catch (e: any) {
-    console.error("api/notifications/sync-task", e);
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? String(e) },
-      { status: 500 }
-    );
+  if (payload.taskId != null) {
+    tasks = (tasks ?? []).filter((t: any) => Number(t.id) === Number(payload.taskId));
   }
+
+  // Scope to a user (owner or collaborator)
+  let userCollabTaskIds = new Set<number>();
+  if (payload.userId) {
+    const { data: collabRows, error: collabErr } = await supabase
+      .from("task_collaborator")
+      .select("task_id")
+      .eq("user_id", payload.userId);
+    if (collabErr) return NextResponse.json({ ok: false, error: collabErr.message }, { status: 500 });
+    userCollabTaskIds = new Set((collabRows ?? []).map((r: any) => Number(r.task_id)));
+  }
+
+  const relevant = (tasks ?? []).filter((t: any) => {
+    if (!t || !t.end_date) return false;
+    if (t.is_archived) return false;
+    if (completedIds.has(Number(t.status_id))) return false;
+    if (payload.userId) {
+      return t.owned_by === payload.userId || userCollabTaskIds.has(Number(t.id));
+    }
+    return true;
+  });
+
+  if (!relevant.length) return NextResponse.json({ ok: true, upserted: 0 });
+
+  // collaborators for these tasks
+  const taskIds = relevant.map((t: any) => Number(t.id));
+  const { data: collabRows } = await supabase
+    .from("task_collaborator")
+    .select("task_id,user_id")
+    .in("task_id", taskIds);
+
+  const collabByTask = new Map<number, string[]>();
+  (collabRows ?? []).forEach((r: any) => {
+    const k = Number(r.task_id);
+    const list = collabByTask.get(k) ?? [];
+    if (r.user_id) list.push(String(r.user_id));
+    collabByTask.set(k, list);
+  });
+
+  type UpsertRow = {
+    id: string;
+    task_id: string;
+    user_id: string;
+    kind: "overdue" | "due_today";
+    title: string;
+    message: string;
+    is_read: boolean;
+    due_date: string;
+    created_at: string;
+  };
+
+  const nowIso = new Date().toISOString();
+  const toUpsert: UpsertRow[] = [];
+  const overdueIds: number[] = [];
+  const notOverdueIds: number[] = [];
+
+  for (const t of relevant) {
+    const end = String(t.end_date); // yyyy-mm-dd
+    const isOverdue = end < today;
+    const isDueToday = end === today;
+
+    if (!isOverdue && !isDueToday) {
+      notOverdueIds.push(Number(t.id));
+      continue;
+    }
+    if (isOverdue) overdueIds.push(Number(t.id));
+
+    const recipients = new Set<string>();
+    if (t.owned_by) recipients.add(String(t.owned_by));
+    (collabByTask.get(Number(t.id)) ?? []).forEach((u) => recipients.add(u));
+
+    // We only show overdue in the UI; keep due_today in case you expand later.
+    const kind: "overdue" | "due_today" = isOverdue ? "overdue" : "due_today";
+    const human = isOverdue ? "overdue" : "due today";
+    const msg = `"${t.title}" is ${human}.`;
+
+    recipients.forEach((uid) => {
+      const id = notifId(Number(t.id), uid, kind, end);
+      toUpsert.push({
+        id,
+        task_id: String(t.id),
+        user_id: uid,
+        kind,
+        title: t.title || "",
+        message: msg,
+        is_read: false,
+        due_date: end,
+        created_at: nowIso,
+      });
+    });
+  }
+
+  // Upsert the current “true” state
+  if (toUpsert.length) {
+    const { error: upErr } = await supabase
+      .from("notifications")
+      .upsert(toUpsert, { onConflict: "id" });
+    if (upErr) return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
+  }
+
+  // Update tasks.is_overdue for consistency
+  if (overdueIds.length) {
+    await supabase.from("tasks").update({ is_overdue: true }).in("id", overdueIds);
+  }
+  if (notOverdueIds.length) {
+    await supabase.from("tasks").update({ is_overdue: false }).in("id", notOverdueIds);
+
+    // CRITICAL: remove any old overdue notifications for tasks that are no longer overdue
+    await supabase
+      .from("notifications")
+      .delete()
+      .in("task_id", notOverdueIds.map(String))
+      .eq("kind", "overdue");
+  }
+
+  return NextResponse.json({
+    ok: true,
+    upserted: toUpsert.length,
+    stats: {
+      tasks: relevant.length,
+      overdueSet: overdueIds.length,
+      overdueCleared: notOverdueIds.length,
+    },
+  });
 }

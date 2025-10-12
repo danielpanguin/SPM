@@ -1,159 +1,89 @@
-'use client';
+// src/app/notifications/page.tsx
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import NotificationList from '@/components/notifications/NotificationList';
-import { supabase } from '@/lib/supabaseClient';
-import { useUser } from '@/hooks/useAuth';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import { UserProvider, useUser } from "@/hooks/useAuth";
 
-type DBNotif = {
-  id: string;
+type UINotification = {
+  id: number;
   user_id: string;
   task_id: number | null;
-  kind: 'overdue' | 'due_today' | 'due_tomorrow' | string;
   title: string;
-  message: string;
+  message: string | null;
   is_read: boolean;
-  due_date: string | null;
   created_at: string;
+  type: string | null;
 };
 
-export default function NotificationsPage() {
+function NotificationsInner() {
+  const { userId } = useUser();
   const router = useRouter();
-  const { userId, loading } = useUser();
+  const [items, setItems] = useState<UINotification[]>([]);
 
-  const [items, setItems] = useState<DBNotif[]>([]);
-  const [busy, setBusy] = useState(false);
-
-  const isAllRead = useMemo(() => items.length > 0 && items.every(n => n.is_read), [items]);
-
-  // fetch notifications for this user
   useEffect(() => {
-    if (loading || !userId) return;
-
-    let alive = true;
-    async function load() {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (!alive) return;
-      if (error) {
-        console.error('Load notifications error:', error.message);
-        return;
-      }
-      setItems((data ?? []) as DBNotif[]);
-    }
-
-    load();
-
-    // Live updates (optional but nice)
-    const channel = supabase
-      .channel('notif_changes_page')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-        payload => {
-          // naive merge for demo purposes
-          if (payload.eventType === 'INSERT') {
-            setItems(prev => [payload.new as DBNotif, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setItems(prev =>
-              prev.map(n => (n.id === (payload.new as any).id ? (payload.new as DBNotif) : n)),
-            );
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      alive = false;
-      supabase.removeChannel(channel);
-    };
-  }, [loading, userId]);
-
-  // toggle one item read/unread
-  async function toggleOne(id: string, makeRead: boolean) {
-    const before = items;
-    setItems(prev => prev.map(n => (n.id === id ? { ...n, is_read: makeRead } : n)));
-
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: makeRead })
-      .eq('id', id)
-      .eq('user_id', userId!);
-
-    if (error) {
-      console.error('Toggle notification error:', error.message);
-      // revert on failure
-      setItems(before);
-    }
-  }
-
-  // mark all read OR all unread (toggle)
-  async function markAllToggle() {
-    if (!userId || items.length === 0) return;
-    const makeRead = !isAllRead;
-
-    setBusy(true);
-    const before = items;
-    setItems(prev => prev.map(n => ({ ...n, is_read: makeRead })));
-
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: makeRead })
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Mark-all toggle error:', error.message);
-      // revert if it fails
-      setItems(before);
-    }
-    setBusy(false);
-  }
-
-  if (loading) return <div className="p-6">Loading…</div>;
-  if (!userId) return <div className="p-6">You need to sign in to see notifications.</div>;
+    if (!userId) return;
+    supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setItems(data ?? []));
+  }, [userId]);
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      {/* Header with Back + Mark-all toggle */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => router.push('/dashboard')}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
-            title="Back to Dashboard"
-          >
-            <span aria-hidden>←</span>
-            <span>Back to Dashboard</span>
-          </button>
-        </div>
-
+    <div className="mx-auto max-w-3xl p-6">
+      <div className="mb-4 flex items-center gap-3">
         <button
-          onClick={markAllToggle}
-          disabled={busy || items.length === 0}
-          className="text-sm underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded border px-3 py-1 text-sm"
+          onClick={() => router.push("/dashboard")}
         >
-          {isAllRead ? 'Mark all unread' : 'Mark all read'}
+          ← Back
         </button>
+        <h1 className="text-xl font-semibold">All notifications</h1>
       </div>
 
-      <h1 className="mb-4 text-2xl font-semibold">All Notifications</h1>
+      {items.length === 0 && <div className="text-sm text-gray-500">No notifications</div>}
 
-      <NotificationList
-        items={items}
-        onToggleRead={(id, next) => toggleOne(id, next)}
-        // mark-all button is handled by our header; keep false here
-        onMarkAll={undefined}
-        isAllRead={isAllRead}
-        compact={false}
-        emptyLabel="No notifications yet."
-        showHeader={false}
-      />
+      <div className="rounded-xl border bg-white">
+        {items.map((n) => (
+          <div key={n.id} className={`border-b p-4 ${n.is_read ? "" : "bg-red-50"}`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="font-medium">{n.title}</div>
+                {n.message && <div className="text-sm text-gray-600">{n.message}</div>}
+                <div className="mt-1 text-xs text-gray-400">
+                  {new Date(n.created_at).toLocaleString()}
+                </div>
+              </div>
+              <form
+                action={async () => {
+                  await supabase.from("notifications").update({ is_read: !n.is_read }).eq("id", n.id);
+                  const { data } = await supabase
+                    .from("notifications")
+                    .select("*")
+                    .eq("user_id", userId!)
+                    .order("created_at", { ascending: false });
+                  setItems(data ?? []);
+                }}
+              >
+                <button className="text-sm underline" type="submit">
+                  {n.is_read ? "Mark unread" : "Mark read"}
+                </button>
+              </form>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
+  );
+}
+
+export default function NotificationsPage() {
+  return (
+    <UserProvider>
+      <NotificationsInner />
+    </UserProvider>
   );
 }
