@@ -1,18 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import GanttChart from '@/components/ui/GanttChart'
 import LoginSimulator from '@/components/forms/LoginSimulator'
-import { UserProvider } from '@/hooks/useAuth'
+import { UserProvider, useUser } from '@/hooks/useAuth'
 import { TaskDashboard } from "@/components/task-dashboard"
 
-
-export default function Home() {
+function HomeContent() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
+  const { loading, userId } = useUser()
+  const router = useRouter()
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !userId) {
+      router.push('/login')
+    }
+  }, [loading, userId, router])
+
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!userId) {
+    return null
+  }
 
   return (
-    <UserProvider>
       <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         {/* Login Banner */}
         <div className={`sticky top-0 z-50 border-b transition-colors ${
@@ -84,6 +109,13 @@ export default function Home() {
         {activeTab === 'gantt' && <GanttChart isDarkMode={isDarkMode} />}
         {activeTab === 'tasks' && <TaskDashboard />}
       </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <UserProvider>
+      <HomeContent />
     </UserProvider>
-  );
+  )
 }
