@@ -7,8 +7,11 @@
  * - Close without submitting
  */
 
-import { render, screen, within, fireEvent } from "@testing-library/react";
-import Home from "@/app/page";
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { TaskDashboard } from '@/components/task-dashboard';
+import { supabase } from '@/lib/supabaseClient';
+import { useUser } from '@/hooks/useAuth';
+import { useRouter } from 'next/navigation';
 
 // Silence noisy logs to keep output readable
 const realWarn = console.warn;
@@ -68,6 +71,20 @@ async function openCreateDialog() {
 }
 
 describe("Staff: Tasks UI", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    (useUser as jest.Mock).mockReturnValue({
+      accessibleUserIds: ['staff-001'],
+    });
+
+    (useRouter as jest.Mock).mockReturnValue({
+      push: jest.fn(),
+      replace: jest.fn(),
+      prefetch: jest.fn(),
+    });
+  });
+
   test("open Tasks → open Create Task dialog → fields visible", async () => {
     render(<Home />);
 
