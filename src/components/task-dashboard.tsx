@@ -18,6 +18,10 @@ import type { Task } from "@/types/task"// bring in your canonical Task interfac
 
 export type Status = "pending" | "in-progress" | "completed" | "blocked"
 
+interface TaskDashboardProps {
+  isDarkMode?: boolean
+}
+
 function normalizeStatus(dbStatus: string | null | undefined): Status {
   const s = (dbStatus ?? "").trim().toLowerCase()
   switch (s) {
@@ -104,7 +108,7 @@ function mapPriority(priorityId: number | null | undefined): string {
   return `P${priorityId}`
 }
 
-export function TaskDashboard() {
+export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const { accessibleUserIds } = useUser()
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -460,14 +464,14 @@ export function TaskDashboard() {
     );
   }
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-card">
+      <header className="border-b border-gray-200 bg-white">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
-              <p className="text-muted-foreground">Manage and track your team's tasks</p>
+              <h1 className="text-2xl font-bold text-black">Tasks</h1>
+              <p className="text-gray-700">Manage and track your team's tasks</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="relative">

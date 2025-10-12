@@ -128,7 +128,7 @@ function DashboardContent() {
 
       {/* Main Content */}
       {activeTab === 'gantt' && <GanttChart isDarkMode={isDarkMode} />}
-      {activeTab === 'tasks' && <TaskDashboard />}
+      {activeTab === 'tasks' && <TaskDashboard isDarkMode={isDarkMode} />}
     </div>
   )
 }

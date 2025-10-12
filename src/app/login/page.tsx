@@ -130,55 +130,63 @@ export default function LoginPage() {
     }
   }
 
-  if (!mounted) return <div className="min-h-screen bg-[#f5f3ef]" />;
+  if (!mounted) return <div className="min-h-screen bg-white" />;
 
   return (
-    <div className="min-h-screen grid place-items-center bg-[#f5f3ef] p-6">
-      <form onSubmit={onSubmit} noValidate className="w-full max-w-md rounded-2xl bg-white p-6 shadow">
-        <h1 className="text-xl font-semibold mb-4">Sign in</h1>
+    <div className="min-h-screen grid place-items-center bg-white p-6">
+      <form onSubmit={onSubmit} noValidate className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+        <h1 className="text-2xl font-bold mb-6 text-black">Sign in</h1>
 
         {uiErr && (
-          <div className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {uiErr}
           </div>
         )}
 
         {/* Diagnostic block (shows raw error/session info while we debug) */}
         {debug && (
-          <pre className="mb-3 max-h-48 overflow-auto rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          <pre className="mb-4 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">
             {JSON.stringify(debug, null, 2)}
           </pre>
         )}
 
-        <label className="block text-sm mb-1" htmlFor="email">Email</label>
-        <input
-          id="email"
-          className="w-full mb-3 rounded-lg border border-gray-300 p-2.5 outline-none focus:ring-2 focus:ring-[#b08968]"
-          type="email"
-          autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-900" htmlFor="email">Email</label>
+            <input
+              id="email"
+              className="w-full rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-black focus:border-black text-black"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+            />
+          </div>
 
-        <label className="block text-sm mb-1" htmlFor="password">Password</label>
-        <input
-          id="password"
-          className="w-full rounded-lg border border-gray-300 p-2.5 outline-none focus:ring-2 focus:ring-[#b08968]"
-          type="password"
-          autoComplete="current-password"
-          value={pw}
-          onChange={(e) => setPw(e.target.value)}
-          required
-        />
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-900" htmlFor="password">Password</label>
+            <input
+              id="password"
+              className="w-full rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-black focus:border-black text-black"
+              type="password"
+              autoComplete="current-password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              placeholder="Enter your password"
+              required
+            />
+          </div>
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="mt-4 w-full rounded bg-[#b08968] text-white font-medium py-2.5 shadow hover:bg-[#a1745c] transition disabled:opacity-60"
-        >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-black text-white font-medium py-3 shadow-sm hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {busy ? "Signing in..." : "Sign in"}
+          </button>
+        </div>
       </form>
     </div>
   );
