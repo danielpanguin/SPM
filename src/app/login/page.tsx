@@ -1,10 +1,9 @@
 // app/login/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, refreshSupabaseAuth } from "@/lib/db";
-import { useUser } from "@/hooks/useAuth";
+import { supabase } from "@/lib/db";
 
 function meetsPolicy(pw: string) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pw);
@@ -12,12 +11,6 @@ function meetsPolicy(pw: string) {
 
 export default function LoginPage() {
   const r = useRouter();
-  const { loading: authLoading, userId } = useUser();
-
-  // If already signed in, go to dashboard
-  useEffect(() => {
-    if (!authLoading && userId) r.replace("/dashboard");
-  }, [authLoading, userId, r]);
 
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -85,9 +78,8 @@ export default function LoginPage() {
         user: fetchData.user,
       };
       localStorage.setItem(storageKey, JSON.stringify(session));
-
       await new Promise(r => setTimeout(r, 500));
-      window.location.href = "/dashboard";
+      window.location.href = "/";
 
     } catch (err: any) {
       setUiErr(`Unexpected error: ${err.message || String(err)}`);
