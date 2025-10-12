@@ -498,31 +498,31 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
+              <CardTitle className="text-sm font-medium !text-black">Active Tasks</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.activeTasks}</div>
-              <p className="text-xs text-muted-foreground">In progress</p>
+              <div className="text-2xl font-bold !text-black">{stats.activeTasks}</div>
+              <p className="text-xs !text-gray-900">In progress</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <CardTitle className="text-sm font-medium !text-black">Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.completedTasks}</div>
-              <p className="text-xs text-muted-foreground">This month</p>
+              <div className="text-2xl font-bold !text-black">{stats.completedTasks}</div>
+              <p className="text-xs !text-gray-900">This month</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+              <CardTitle className="text-sm font-medium !text-black">Overdue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
-              <p className="text-xs text-muted-foreground">Need attention</p>
+              <div className="text-2xl font-bold !text-red-600">{stats.overdueTasks}</div>
+              <p className="text-xs !text-gray-900">Need attention</p>
             </CardContent>
           </Card>
         </div>
@@ -533,7 +533,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           <div className="lg:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
+                <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button variant="outline" className="w-full justify-start bg-transparent">
@@ -593,21 +593,21 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">Task Overview</CardTitle>
-                    <p className="text-sm text-muted-foreground">All tasks across your projects</p>
+                    <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
+                    <p className="text-sm !text-gray-900">All tasks across your projects</p>
                   </div>
                   <Button onClick={() => setCreating(true)}>Create Task</Button>
                 </div>
               </CardHeader>
               <CardContent>
                 {error && (
-                  <div className="text-sm text-destructive mb-3">
+                  <div className="text-sm text-red-600 mb-3">
                     {/* was: Failed to load tasks: {error} */}
                     Couldn't load your tasks
                   </div>
                 )}
                 {loading ? (
-                  <div className="text-sm text-muted-foreground p-4">Loading tasks…</div>
+                  <div className="text-sm text-gray-700 p-4">Loading tasks…</div>
                 ) : (
                   <TaskTable
                     tasks={tasks}
