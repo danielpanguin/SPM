@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import GanttChart from '@/components/ui/GanttChart'
 import LoginSimulator from '@/components/forms/LoginSimulator'
-import { useUser } from '@/hooks/useAuth'
+import { UserProvider, useUser } from '@/hooks/useAuth'
 import { TaskDashboard } from "@/components/task-dashboard"
 
-export default function DashboardPage() {
+function DashboardContent() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
   const { loading, userId } = useUser()
@@ -97,5 +97,13 @@ export default function DashboardPage() {
       {activeTab === 'gantt' && <GanttChart isDarkMode={isDarkMode} />}
       {activeTab === 'tasks' && <TaskDashboard />}
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <UserProvider>
+      <DashboardContent />
+    </UserProvider>
   )
 }
