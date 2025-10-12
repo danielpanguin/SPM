@@ -22,13 +22,13 @@ type Props = {
 };
 
 export default function Comments({ taskId, onCountChange, onPosted }: Props) {
-  const { currentUserId } = useUser();
+  const { userId } = useUser();
 
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [comments, setComments] = useState<CommentUI[]>([]);
   const [canComment, setCanComment] = useState<boolean>(false); 
-  const disabled = submitting || text.trim().length === 0 || !currentUserId;
+  const disabled = submitting || text.trim().length === 0 || !userId;
 
   // ✏️ edit state
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -56,7 +56,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
     let alive = true;
 
     (async () => {
-      if (!currentUserId || !Number.isFinite(taskIdNum)) {
+      if (!userId || !Number.isFinite(taskIdNum)) {
         setCanComment(false);
         return;
       }
@@ -65,7 +65,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       const { data: me, error: meErr } = await supabase
         .from("users")
         .select("id, role_id")
-        .eq("id", currentUserId)
+        .eq("id", userId)
         .single();
 
       if (!alive) return;
@@ -95,14 +95,14 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       }
 
       const collaboratorIds = new Set((collabs ?? []).map((r: any) => r.user_id as string));
-      const isOwner = t.owned_by === currentUserId;
-      const isCollaborator = collaboratorIds.has(currentUserId);
+      const isOwner = t.owned_by === userId;
+      const isCollaborator = collaboratorIds.has(userId);
 
       setCanComment(isOwner || isCollaborator); // true only if owner/collab
     })();
 
     return () => { alive = false; };
-  }, [currentUserId, taskIdNum]);
+  }, [userId, taskIdNum]);
 
 
   // auto-scroll to bottom when list changes
@@ -149,18 +149,18 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
     return () => { alive = false; };
   }, [taskIdNum, onCountChange]);
 
-  const composerDisabled = submitting || text.trim().length === 0 || !currentUserId || !canComment;
+  const composerDisabled = submitting || text.trim().length === 0 || !userId || !canComment;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const message = text.trim();
-    if (!message || !currentUserId || !Number.isFinite(taskIdNum)) return;
+    if (!message || !userId || !Number.isFinite(taskIdNum)) return;
 
     setSubmitting(true);
     try {
       const { data, error } = await supabase
         .from("comments")
-        .insert({ task_id: taskIdNum, user_id: currentUserId, content: message })
+        .insert({ task_id: taskIdNum, user_id: userId, content: message })
         .select(`
           id,
           task_id,
@@ -187,7 +187,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
 
   // permissions
   function canEditComment(c: CommentUI) {
-    return !!currentUserId && c.author?.id === currentUserId;
+    return !!userId && c.author?.id === userId;
   }
 
   // enter edit mode
@@ -332,11 +332,11 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
         <textarea
           className="w-full rounded-sm border border-gray-400 p-3 text-sm focus:outline-none focus:ring"
           rows={2}
-          placeholder={currentUserId ? "Write your comment…" : "Sign in to comment…"}
+          placeholder={userId ? "Write your comment…" : "Sign in to comment…"}
           value={text}
           onChange={(e) => setText(e.target.value)}
           hidden={!canComment}
-          disabled={!currentUserId || !canComment}
+          disabled={!userId || !canComment}
         />
         <div className="flex justify-end">
           <button
