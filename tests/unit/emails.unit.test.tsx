@@ -1,12 +1,22 @@
 import {
   sendTaskEmails,
+  /** @jest-environment node */
+} from '@/app/api/emails/route';
+
+// Mock nodemailer before any imports
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn(() => ({
+    sendMail: jest.fn(),
+  })),
+}));
+
+import {
   generateReminderEmail,
   generateOverdueTasksEmail,
   generateDailySummaryEmail,
   formatDateDDMMYYYY,
   sortTasksByDate,
 } from '@/app/api/emails/route';
-
 
 // ==== Date helpers ====
 function getYesterdayISO() {
