@@ -216,8 +216,8 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
     
     if (!isActive) {
       return type === 'string' 
-        ? <span className="ml-2 text-xs text-muted-foreground inline">A-Z</span>
-        : <ArrowUpDown className="ml-2 h-4 w-4 inline text-muted-foreground" />
+        ? <span className="ml-2 text-xs text-gray-600 inline">A-Z</span>
+        : <ArrowUpDown className="ml-2 h-4 w-4 inline text-gray-600" />
     }
     
     if (type === 'string') {
@@ -315,7 +315,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
         <TableBody>
           {sortedTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-8 text-gray-700">
                 No tasks found matching your filters
               </TableCell>
             </TableRow>
@@ -338,8 +338,8 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                     <div className="flex flex-col">
                       <span className="font-medium">{t.title}</span>
                       <div className="flex items-center gap-1 mt-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{t.ownedBy?.name ?? "Unassigned"}</span>
+                        <User className="h-3 w-3 text-gray-600" />
+                        <span className="text-xs text-gray-700">{t.ownedBy?.name ?? "Unassigned"}</span>
                       </div>
                     </div>
                   </TableCell>
