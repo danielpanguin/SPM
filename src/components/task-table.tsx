@@ -330,7 +330,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => onTaskClick(t)}
                 >
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-sm text-black">
                     {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
                   </TableCell>
 
@@ -351,7 +351,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   </TableCell>
 
                   <TableCell>
-                    <span className="text-sm font-medium">{project ?? "—"}</span>
+                    <span className="text-sm font-medium text-black">{project ?? "—"}</span>
                   </TableCell>
 
                   <TableCell>
