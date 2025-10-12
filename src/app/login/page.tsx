@@ -114,12 +114,12 @@ export default function LoginPage() {
       // Wait a moment for cookies to be set
       await new Promise(r => setTimeout(r, 500));
 
-      // Step 4️⃣: Redirect to / immediately
-      console.log("[step 4] ✅ Redirecting to /");
+      // Step 4️⃣: Redirect to /dashboard immediately
+      console.log("[step 4] ✅ Redirecting to /dashboard");
       console.log("[step 4] Current cookies:", document.cookie);
 
       // Use hard redirect to ensure middleware sees the auth cookies
-      window.location.href = "/";
+      window.location.href = "/dashboard";
 
     } catch (err: any) {
       console.error("[step ❌ CATCH] unexpected error", err);
