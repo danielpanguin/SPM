@@ -13,14 +13,14 @@ function HomeContent() {
   const { loading, userId } = useUser()
   const router = useRouter()
 
-  // Redirect to login immediately if not authenticated
+  // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !userId) {
       router.replace('/login')
     }
   }, [loading, userId, router])
 
-  // Don't render anything if not authenticated - redirect happens immediately
+  // Don't render if not authenticated
   if (!userId) {
     return null
   }

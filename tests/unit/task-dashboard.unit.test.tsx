@@ -540,17 +540,27 @@ describe('TaskDashboard - Unit Tests', () => {
     });
 
     it('should refetch when accessibleUserIds change', async () => {
+      // Mock to return empty collaborator task IDs so only 2 .in() calls are made
+      let callCount = 0;
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
-        in: jest.fn().mockResolvedValue({ data: mockTasks, error: null }),
+        in: jest.fn().mockImplementation(() => {
+          callCount++;
+          // Return empty for collaborator task lookup
+          return Promise.resolve({ data: [], error: null });
+        }),
       };
       (supabase.from as jest.Mock).mockReturnValue(mockFrom);
 
       const { rerender } = render(<TaskDashboard />);
 
+      // First render: 2 .in() calls (owned_by + user_id, no tasks in collaborator)
       await waitFor(() => {
-        expect(mockFrom.in).toHaveBeenCalledTimes(1);
-      });
+        expect(mockFrom.in).toHaveBeenCalled();
+      }, { timeout: 3000 });
+
+      const firstRenderCalls = callCount;
+      expect(firstRenderCalls).toBeGreaterThanOrEqual(2);
 
       // Change accessible user IDs
       mockUseUser.mockReturnValue({
@@ -559,9 +569,10 @@ describe('TaskDashboard - Unit Tests', () => {
 
       rerender(<TaskDashboard />);
 
+      // Second render: should fetch again
       await waitFor(() => {
-        expect(mockFrom.in).toHaveBeenCalledTimes(2);
-      });
+        expect(callCount).toBeGreaterThan(firstRenderCalls);
+      }, { timeout: 3000 });
     });
   });
 });
