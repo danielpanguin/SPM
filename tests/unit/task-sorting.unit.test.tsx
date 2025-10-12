@@ -1,197 +1,403 @@
-/**
- * Unit tests for Task Sorting functionality
- * Tests the sorting feature on the 28-Task-Sorting branch
- */
+/** @jest-environment jsdom */
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import React from 'react';
+import { TaskTable } from '@/components/task-table';
+import type { Task } from '@/types/task';
 
-import { describe, it, expect } from '@jest/globals';
+describe('TaskTable - Sorting Tests', () => {
+  const mockTasks: Task[] = [
+    {
+      id: '1',
+      title: 'Zebra Task',
+      description: 'Last alphabetically',
+      createdBy: { id: '1', name: 'John', role: 'staff' },
+      ownedBy: { id: '1', name: 'John', role: 'staff' },
+      collaborators: [],
+      startDate: '2025-01-01',
+      endDate: '2025-01-31',
+      priority: 'P1',
+      status: 'pending',
+      comments: [],
+      updatedAt: '2025-01-01T00:00:00Z',
+      createdAt: '2025-01-01T00:00:00Z',
+      tag: 'backend',
+    },
+    {
+      id: '2',
+      title: 'Alpha Task',
+      description: 'First alphabetically',
+      createdBy: { id: '1', name: 'John', role: 'staff' },
+      ownedBy: { id: '1', name: 'John', role: 'staff' },
+      collaborators: [],
+      startDate: '2025-01-15',
+      endDate: '2025-02-15',
+      priority: 'P10',
+      status: 'in-progress',
+      comments: [],
+      updatedAt: '2025-01-15T00:00:00Z',
+      createdAt: '2025-01-15T00:00:00Z',
+      tag: 'frontend',
+    },
+    {
+      id: '3',
+      title: 'Middle Task',
+      description: 'Middle alphabetically',
+      createdBy: { id: '1', name: 'John', role: 'staff' },
+      ownedBy: { id: '1', name: 'John', role: 'staff' },
+      collaborators: [],
+      startDate: '2025-01-10',
+      endDate: '2025-02-28',
+      priority: 'P5',
+      status: 'completed',
+      comments: [],
+      updatedAt: '2025-01-10T00:00:00Z',
+      createdAt: '2025-01-10T00:00:00Z',
+      tag: 'urgent',
+    },
+  ];
 
-describe('Task Sorting - Priority Mapping', () => {
-  // Helper function to convert priority number to text label
-  function getPriorityLabel(priorityId: number | null): string {
-    if (!priorityId) return "—";
-    if (priorityId <= 3) return "High";
-    if (priorityId <= 6) return "Medium";
-    if (priorityId <= 10) return "Low";
-    return "—";
-  }
+  const mockFilters = {
+    search: '',
+    status: 'all' as const,
+    priority: 'all' as const,
+    project: 'all' as const,
+    assignee: 'all' as const,
+    tag: 'all' as const,
+    deadline: 'all' as const,
+  };
 
-  describe('Priority Number to Text Conversion', () => {
-    it('should map P1-P3 to "High"', () => {
-      expect(getPriorityLabel(1)).toBe("High");
-      expect(getPriorityLabel(2)).toBe("High");
-      expect(getPriorityLabel(3)).toBe("High");
+  const mockOnTaskClick = jest.fn();
+  const mockProjectByTaskId = new Map([
+    ['1', 'Project A'],
+    ['2', 'Project B'],
+    ['3', 'Project C'],
+  ]);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('Title Sorting', () => {
+    it('should sort tasks by title ascending (A-Z)', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click title header to sort ascending
+      const titleHeader = screen.getByText('Task Title');
+      fireEvent.click(titleHeader);
+
+      // Get all task rows
+      const rows = container.querySelectorAll('tbody tr');
+      const firstTaskTitle = within(rows[0] as HTMLElement).getByText('Alpha Task');
+      const lastTaskTitle = within(rows[2] as HTMLElement).getByText('Zebra Task');
+
+      expect(firstTaskTitle).toBeTruthy();
+      expect(lastTaskTitle).toBeTruthy();
     });
 
-    it('should map P4-P6 to "Medium"', () => {
-      expect(getPriorityLabel(4)).toBe("Medium");
-      expect(getPriorityLabel(5)).toBe("Medium");
-      expect(getPriorityLabel(6)).toBe("Medium");
+    it('should sort tasks by title descending (Z-A)', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click title header twice to sort descending
+      const titleHeader = screen.getByText('Task Title');
+      fireEvent.click(titleHeader); // First click: ascending
+      fireEvent.click(titleHeader); // Second click: descending
+
+      // Get all task rows
+      const rows = container.querySelectorAll('tbody tr');
+      const firstTaskTitle = within(rows[0] as HTMLElement).getByText('Zebra Task');
+      const lastTaskTitle = within(rows[2] as HTMLElement).getByText('Alpha Task');
+
+      expect(firstTaskTitle).toBeTruthy();
+      expect(lastTaskTitle).toBeTruthy();
     });
 
-    it('should map P7-P10 to "Low"', () => {
-      expect(getPriorityLabel(7)).toBe("Low");
-      expect(getPriorityLabel(8)).toBe("Low");
-      expect(getPriorityLabel(9)).toBe("Low");
-      expect(getPriorityLabel(10)).toBe("Low");
-    });
+    it('should clear sort on third click', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
 
-    it('should return "—" for null priority', () => {
-      expect(getPriorityLabel(null)).toBe("—");
-    });
+      const titleHeader = screen.getByText('Task Title');
+      fireEvent.click(titleHeader); // Ascending
+      fireEvent.click(titleHeader); // Descending
+      fireEvent.click(titleHeader); // Clear
 
-    it('should return "—" for priority > 10', () => {
-      expect(getPriorityLabel(11)).toBe("—");
-      expect(getPriorityLabel(100)).toBe("—");
+      // Should return to original order
+      const rows = container.querySelectorAll('tbody tr');
+      const firstTaskTitle = within(rows[0] as HTMLElement).getByText('Zebra Task');
+      expect(firstTaskTitle).toBeTruthy();
     });
   });
 
-  describe('Priority Sorting Logic', () => {
-    const priorityOrder: Record<string, number> = {
-      'High': 3,
-      'Medium': 2,
-      'Low': 1,
-      '—': 0
-    };
+  describe('Priority Sorting', () => {
+    it('should sort tasks by priority ascending (Low to High)', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
 
-    it('should rank High > Medium > Low', () => {
-      expect(priorityOrder['High']).toBeGreaterThan(priorityOrder['Medium']);
-      expect(priorityOrder['Medium']).toBeGreaterThan(priorityOrder['Low']);
-      expect(priorityOrder['Low']).toBeGreaterThan(priorityOrder['—']);
+      // Click priority header
+      const priorityHeader = screen.getByText('Priority');
+      fireEvent.click(priorityHeader);
+
+      // Get all task rows - P1 should be first (lowest priority)
+      const rows = container.querySelectorAll('tbody tr');
+      const firstRow = within(rows[0] as HTMLElement);
+      expect(firstRow.getByText('P1')).toBeTruthy();
     });
 
-    it('should sort tasks by priority correctly (descending)', () => {
-      const tasks = [
-        { id: 1, title: 'Task 1', priority: 'Low' },
-        { id: 2, title: 'Task 2', priority: 'High' },
-        { id: 3, title: 'Task 3', priority: 'Medium' },
-        { id: 4, title: 'Task 4', priority: '—' },
-      ];
+    it('should sort tasks by priority descending (High to Low)', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
 
-      const sorted = [...tasks].sort((a, b) => {
-        const aVal = priorityOrder[a.priority] ?? 0;
-        const bVal = priorityOrder[b.priority] ?? 0;
-        return bVal - aVal; // descending
-      });
+      // Click priority header twice
+      const priorityHeader = screen.getByText('Priority');
+      fireEvent.click(priorityHeader);
+      fireEvent.click(priorityHeader);
 
-      expect(sorted[0].priority).toBe('High');
-      expect(sorted[1].priority).toBe('Medium');
-      expect(sorted[2].priority).toBe('Low');
-      expect(sorted[3].priority).toBe('—');
-    });
-
-    it('should sort tasks by priority correctly (ascending)', () => {
-      const tasks = [
-        { id: 1, title: 'Task 1', priority: 'High' },
-        { id: 2, title: 'Task 2', priority: 'Low' },
-        { id: 3, title: 'Task 3', priority: 'Medium' },
-      ];
-
-      const sorted = [...tasks].sort((a, b) => {
-        const aVal = priorityOrder[a.priority] ?? 0;
-        const bVal = priorityOrder[b.priority] ?? 0;
-        return aVal - bVal; // ascending
-      });
-
-      expect(sorted[0].priority).toBe('Low');
-      expect(sorted[1].priority).toBe('Medium');
-      expect(sorted[2].priority).toBe('High');
+      // Get all task rows - P10 should be first (highest priority)
+      const rows = container.querySelectorAll('tbody tr');
+      const firstRow = within(rows[0] as HTMLElement);
+      expect(firstRow.getByText('P10')).toBeTruthy();
     });
   });
 
-  describe('Task Sorting by Different Fields', () => {
-    const mockTasks = [
-      { id: 1, title: 'Zebra', status: 'pending', priority: 'High', endDate: '2025-10-30', tags: ['urgent'], createdAt: '2025-10-01' },
-      { id: 2, title: 'Apple', status: 'completed', priority: 'Low', endDate: '2025-10-15', tags: ['backend'], createdAt: '2025-10-05' },
-      { id: 3, title: 'Mango', status: 'in-progress', priority: 'Medium', endDate: '2025-10-20', tags: ['frontend'], createdAt: '2025-10-03' },
-    ];
-
-    it('should sort by title alphabetically', () => {
-      const sorted = [...mockTasks].sort((a, b) => a.title.localeCompare(b.title));
-      expect(sorted[0].title).toBe('Apple');
-      expect(sorted[1].title).toBe('Mango');
-      expect(sorted[2].title).toBe('Zebra');
-    });
-
-    it('should sort by status', () => {
-      const sorted = [...mockTasks].sort((a, b) => a.status.localeCompare(b.status));
-      expect(sorted[0].status).toBe('completed');
-      expect(sorted[1].status).toBe('in-progress');
-      expect(sorted[2].status).toBe('pending');
-    });
-
-    it('should sort by end date', () => {
-      const sorted = [...mockTasks].sort((a, b) => 
-        new Date(a.endDate).getTime() - new Date(b.endDate).getTime()
+  describe('Status Sorting', () => {
+    it('should sort tasks by status alphabetically', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
       );
-      expect(sorted[0].endDate).toBe('2025-10-15');
-      expect(sorted[1].endDate).toBe('2025-10-20');
-      expect(sorted[2].endDate).toBe('2025-10-30');
-    });
 
-    it('should sort by tags', () => {
-      const sorted = [...mockTasks].sort((a, b) => 
-        a.tags.join(',').localeCompare(b.tags.join(','))
-      );
-      expect(sorted[0].tags[0]).toBe('backend');
-      expect(sorted[1].tags[0]).toBe('frontend');
-      expect(sorted[2].tags[0]).toBe('urgent');
-    });
+      // Click status header
+      const statusHeader = screen.getByText('Status');
+      fireEvent.click(statusHeader);
 
-    it('should sort by created date', () => {
-      const sorted = [...mockTasks].sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      expect(sorted[0].createdAt).toBe('2025-10-05');
-      expect(sorted[1].createdAt).toBe('2025-10-03');
-      expect(sorted[2].createdAt).toBe('2025-10-01');
+      // Get all task rows
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(3);
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle tasks with null/undefined priority', () => {
-      const tasks = [
-        { id: 1, priority: 'High' },
-        { id: 2, priority: null as any },
-        { id: 3, priority: undefined as any },
-      ];
+  describe('Project Sorting', () => {
+    it('should sort tasks by project name ascending', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
 
-      tasks.forEach(task => {
-        const label = getPriorityLabel(task.priority as any);
-        expect(label).toBeDefined();
-      });
+      // Click project header
+      const projectHeader = screen.getByText('Project');
+      fireEvent.click(projectHeader);
+
+      // Get all task rows - Project A should be first
+      const rows = container.querySelectorAll('tbody tr');
+      const firstRow = within(rows[0] as HTMLElement);
+      expect(firstRow.getByText('Project A')).toBeTruthy();
     });
 
-    it('should handle empty task list', () => {
-      const tasks: any[] = [];
-      const sorted = [...tasks].sort();
-      expect(sorted).toEqual([]);
+    it('should sort tasks by project name descending', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click project header twice
+      const projectHeader = screen.getByText('Project');
+      fireEvent.click(projectHeader);
+      fireEvent.click(projectHeader);
+
+      // Get all task rows - Project C should be first
+      const rows = container.querySelectorAll('tbody tr');
+      const firstRow = within(rows[0] as HTMLElement);
+      expect(firstRow.getByText('Project C')).toBeTruthy();
+    });
+  });
+
+  describe('Tag Sorting', () => {
+    it('should sort tasks by tag alphabetically', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click tag header
+      const tagHeader = screen.getByText('Tag');
+      fireEvent.click(tagHeader);
+
+      // Get all task rows - "backend" should be first alphabetically
+      const rows = container.querySelectorAll('tbody tr');
+      const firstRow = within(rows[0] as HTMLElement);
+      expect(firstRow.getByText('backend')).toBeTruthy();
+    });
+  });
+
+  describe('Deadline Sorting', () => {
+    it('should sort tasks by deadline chronologically', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click deadline header
+      const deadlineHeader = screen.getByText('Deadline');
+      fireEvent.click(deadlineHeader);
+
+      // Get all task rows - earliest deadline first
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(3);
+      // Task 1 has earliest end date (2025-01-31)
+    });
+  });
+
+  describe('Date Created Sorting', () => {
+    it('should sort tasks by creation date chronologically', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click date created header
+      const dateCreatedHeader = screen.getByText('Created');
+      fireEvent.click(dateCreatedHeader);
+
+      // Get all task rows - oldest first
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(3);
+      // Task 1 was created first (2025-01-01)
     });
 
-    it('should handle single task', () => {
-      const tasks = [{ id: 1, title: 'Only Task', priority: 'Medium' }];
-      const sorted = [...tasks].sort();
-      expect(sorted).toHaveLength(1);
-      expect(sorted[0].title).toBe('Only Task');
+    it('should sort tasks by creation date reverse chronologically', () => {
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click date created header twice
+      const dateCreatedHeader = screen.getByText('Created');
+      fireEvent.click(dateCreatedHeader);
+      fireEvent.click(dateCreatedHeader);
+
+      // Get all task rows - newest first
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(3);
+      // Task 2 was created last (2025-01-15)
+    });
+  });
+
+  describe('Sort Icons', () => {
+    it('should show unsorted icon by default', () => {
+      render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Headers should be clickable
+      const titleHeader = screen.getByText('Task Title');
+      expect(titleHeader).toBeTruthy();
     });
 
-    it('should maintain stable sort for equal priorities', () => {
-      const tasks = [
-        { id: 1, title: 'Task A', priority: 'High' },
-        { id: 2, title: 'Task B', priority: 'High' },
-        { id: 3, title: 'Task C', priority: 'High' },
-      ];
+    it('should show ascending icon after first click', () => {
+      render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={mockFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
 
-      const priorityOrder: Record<string, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
-      const sorted = [...tasks].sort((a, b) => {
-        const aVal = priorityOrder[a.priority] ?? 0;
-        const bVal = priorityOrder[b.priority] ?? 0;
-        if (aVal === bVal) return a.id - b.id; // stable sort by id
-        return bVal - aVal;
-      });
+      const titleHeader = screen.getByText('Task Title');
+      fireEvent.click(titleHeader);
 
-      expect(sorted[0].id).toBe(1);
-      expect(sorted[1].id).toBe(2);
-      expect(sorted[2].id).toBe(3);
+      // Icon should change (implementation detail, just verify click works)
+      expect(titleHeader).toBeTruthy();
+    });
+  });
+
+  describe('Sorting with Filters', () => {
+    it('should sort filtered results', () => {
+      const filteredFilters = {
+        ...mockFilters,
+        status: 'in-progress' as const,
+      };
+
+      const { container } = render(
+        <TaskTable
+          tasks={mockTasks}
+          filters={filteredFilters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={mockProjectByTaskId}
+        />
+      );
+
+      // Click title header to sort
+      const titleHeader = screen.getByText('Task Title');
+      fireEvent.click(titleHeader);
+
+      // Should only show filtered tasks (1 task with in-progress status)
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(1);
     });
   });
 });

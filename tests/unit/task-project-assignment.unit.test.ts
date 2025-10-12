@@ -88,6 +88,11 @@ describe('Task-Project Assignment - Unit Tests', () => {
             }),
           };
         }
+        if (table === 'users') {
+          return {
+            select: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'projects') {
           return {
             select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
@@ -99,11 +104,6 @@ describe('Task-Project Assignment - Unit Tests', () => {
           };
         }
         if (table === 'priority') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'users') {
           return {
             select: jest.fn().mockResolvedValue({ data: [], error: null }),
           };
@@ -382,10 +382,21 @@ describe('Task-Project Assignment - Unit Tests', () => {
               eq: jest.fn().mockReturnValue({
                 maybeSingle: jest.fn().mockResolvedValue({
                   data: mockTaskDataAfter,
-                  error: null,
-                }),
+                  error: null }),
               }),
             }),
+          };
+        }
+        if (table === 'task_collaborator' || table === 'task_tasktag') {
+          return {
+            select: jest.fn().mockReturnValue({
+              in: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === 'users') {
+          return {
+            select: jest.fn().mockResolvedValue({ data: [], error: null }),
           };
         }
         if (table === 'projects') {
@@ -393,17 +404,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
             select: jest.fn().mockResolvedValue({ data: [mockNewProject], error: null }),
           };
         }
-        if (table === 'status') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'priority') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'users') {
+        if (table === 'status' || table === 'priority') {
           return {
             select: jest.fn().mockResolvedValue({ data: [], error: null }),
           };
@@ -471,6 +472,11 @@ describe('Task-Project Assignment - Unit Tests', () => {
             }),
           };
         }
+        if (table === 'users') {
+          return {
+            select: jest.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
         if (table === 'projects') {
           return {
             select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
@@ -484,11 +490,6 @@ describe('Task-Project Assignment - Unit Tests', () => {
         if (table === 'priority') {
           return {
             select: jest.fn().mockResolvedValue({ data: [mockPriority], error: null }),
-          };
-        }
-        if (table === 'users') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
           };
         }
         return {
@@ -713,21 +714,6 @@ describe('Task-Project Assignment - Unit Tests', () => {
             select: jest.fn().mockResolvedValue({ data: mockProjects, error: null }),
           };
         }
-        if (table === 'status') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'priority') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'users') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
         return {
           select: jest.fn().mockReturnValue({
             in: jest.fn().mockResolvedValue({ data: [], error: null }),
@@ -825,21 +811,6 @@ describe('Task-Project Assignment - Unit Tests', () => {
         if (table === 'projects') {
           return {
             select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
-          };
-        }
-        if (table === 'status') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'priority') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
-          };
-        }
-        if (table === 'users') {
-          return {
-            select: jest.fn().mockResolvedValue({ data: [], error: null }),
           };
         }
         return {

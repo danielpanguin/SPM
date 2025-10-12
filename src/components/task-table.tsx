@@ -10,7 +10,7 @@ import type { TaskFilters } from "./task-filters"
 import { fetchStatuses, updateTaskStatusAPI } from "@/components/useTasks"
 import { useUser } from "@/hooks/useAuth"
 
-type SortField = 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
+type SortField = 'taskId' | 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
 
 type Props = {
@@ -102,11 +102,19 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
       // Search (title)
       if (q && !t.title.toLowerCase().includes(q)) return false
 
-      // Status
-      if (filters.status && filters.status !== "all" && t.status !== filters.status) return false
+      // Status (case-insensitive)
+      if (filters.status && filters.status !== "all") {
+        const filterStatus = filters.status.toLowerCase()
+        const taskStatus = (t.status ?? "").toLowerCase()
+        if (taskStatus !== filterStatus) return false
+      }
 
-      // Priority
-      if (filters.priority && filters.priority !== "all" && t.priority !== filters.priority) return false
+      // Priority (case-insensitive)
+      if (filters.priority && filters.priority !== "all") {
+        const filterPriority = filters.priority.toLowerCase()
+        const taskPriority = (t.priority ?? "").toLowerCase()
+        if (taskPriority !== filterPriority) return false
+      }
 
       // Project (lookup from map)
       if (filters.project && filters.project !== "all") {
@@ -121,9 +129,11 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
         if (![...ownedName, ...collabNames].includes(filters.assignee)) return false
       }
 
-      // Tag (single free-text on Task)
+      // Tag (case-insensitive)
       if (filters.tag && filters.tag !== "all") {
-        if ((t.tag ?? null) !== filters.tag) return false
+        const filterTag = filters.tag.toLowerCase()
+        const taskTag = (t.tag ?? "").toLowerCase()
+        if (taskTag !== filterTag) return false
       }
 
       // Deadline windows (based on endDate)
@@ -175,20 +185,24 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
       let bValue: any
 
       switch (sortField) {
+        case 'taskId':
+          aValue = Number(a.id) || 0
+          bValue = Number(b.id) || 0
+          break
         case 'status':
           aValue = a.status?.toLowerCase() || ''
           bValue = b.status?.toLowerCase() || ''
           break
         case 'priority':
-          // Priority order: urgent > high > medium > low
-          const priorityOrder: Record<string, number> = {
-            urgent: 4,
-            high: 3,
-            medium: 2,
-            low: 1
+          // Priority order: P10 > P9 > ... > P1
+          // Extract number from P format (e.g., "P10" -> 10)
+          const extractPriority = (p?: string) => {
+            if (!p) return 0
+            const match = p.match(/P(\d+)/i)
+            return match ? parseInt(match[1], 10) : 0
           }
-          aValue = priorityOrder[a.priority?.toLowerCase()] || 0
-          bValue = priorityOrder[b.priority?.toLowerCase()] || 0
+          aValue = extractPriority(a.priority)
+          bValue = extractPriority(b.priority)
           break
         case 'project':
           aValue = (projectByTaskId?.get(a.id) || '').toLowerCase()
@@ -223,14 +237,18 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
   }, [filteredTasks, sortField, sortDirection, projectByTaskId])
 
   const getPriorityClass = (p: Task["priority"]) => {
-    const pLower = p.toLowerCase()
-    const map: Record<string, string> = {
-      urgent: "bg-red-100 text-red-800 border-red-200",
-      high: "bg-red-100 text-red-800 border-red-200",
-      medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
-      low: "bg-green-100 text-green-800 border-green-200",
-    }
-    return map[pLower] ?? "bg-gray-100 text-gray-800 border-gray-200"
+    // Extract priority number from P format (e.g., "P10" -> 10)
+    const match = p?.match(/P(\d+)/i)
+    const priorityNum = match ? parseInt(match[1], 10) : 0
+    
+    // P8-P10 = High (red)
+    if (priorityNum >= 8) return "bg-red-100 text-red-800 border-red-200"
+    // P4-P7 = Medium (yellow)
+    if (priorityNum >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    // P1-P3 = Low (green)
+    if (priorityNum >= 1) return "bg-green-100 text-green-800 border-green-200"
+    
+    return "bg-gray-100 text-gray-800 border-gray-200"
   }
 
   const getStatusClass = (s: Task["status"]) => {
@@ -249,10 +267,21 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
   const niceDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—"
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="ml-2 h-4 w-4 inline" />
+  const SortIcon = ({ field, type = 'string' }: { field: SortField; type?: 'string' | 'number' | 'date' }) => {
+    const isActive = sortField === field
+    
+    if (!isActive) {
+      return type === 'string' 
+        ? <span className="ml-2 text-xs text-gray-600 inline">A-Z</span>
+        : <ArrowUpDown className="ml-2 h-4 w-4 inline text-gray-600" />
     }
+    
+    if (type === 'string') {
+      return sortDirection === 'asc'
+        ? <span className="ml-2 text-xs font-semibold inline">A→Z</span>
+        : <span className="ml-2 text-xs font-semibold inline">Z→A</span>
+    }
+    
     return sortDirection === 'asc' 
       ? <ArrowUp className="ml-2 h-4 w-4 inline" />
       : <ArrowDown className="ml-2 h-4 w-4 inline" />
@@ -263,64 +292,86 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[120px]">Task ID</TableHead>
+            <TableHead 
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('taskId')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                ID
+                <SortIcon field="taskId" type="number" />
+              </div>
+            </TableHead>
             <TableHead 
               className="cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('title')}
             >
-              Task Title
-              <SortIcon field="title" />
+              <div className="flex items-center whitespace-nowrap">
+                Task Title
+                <SortIcon field="title" type="string" />
+              </div>
             </TableHead>
             <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              className="w-[110px] cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('priority')}
             >
-              Task Priority
-              <SortIcon field="priority" />
+              <div className="flex items-center whitespace-nowrap">
+                Priority
+                <SortIcon field="priority" type="number" />
+              </div>
             </TableHead>
             <TableHead 
-              className="w-[160px] cursor-pointer hover:bg-muted/50 select-none"
+              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('project')}
             >
-              Project
-              <SortIcon field="project" />
+              <div className="flex items-center whitespace-nowrap">
+                Project
+                <SortIcon field="project" type="string" />
+              </div>
             </TableHead>
             <TableHead 
-              className="w-[180px] cursor-pointer hover:bg-muted/50 select-none"
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('tag')}
             >
-              Task Tag
-              <SortIcon field="tag" />
+              <div className="flex items-center whitespace-nowrap">
+                Tag
+                <SortIcon field="tag" type="string" />
+              </div>
             </TableHead>
             <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('status')}
             >
-              Task Status
-              <SortIcon field="status" />
+              <div className="flex items-center whitespace-nowrap">
+                Status
+                <SortIcon field="status" type="string" />
+              </div>
             </TableHead>
             <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('deadline')}
             >
-              Task Deadline
-              <SortIcon field="deadline" />
+              <div className="flex items-center whitespace-nowrap">
+                Deadline
+                <SortIcon field="deadline" type="date" />
+              </div>
             </TableHead>
             <TableHead 
-              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('createdAt')}
             >
-              Date Created
-              <SortIcon field="createdAt" />
+              <div className="flex items-center whitespace-nowrap">
+                Created
+                <SortIcon field="createdAt" type="date" />
+              </div>
             </TableHead>
-            <TableHead className="w-[240px]">Parent Task</TableHead>
+            <TableHead className="w-[180px]">Parent Task</TableHead>
           </TableRow>
         </TableHeader>
 
         <TableBody>
           {sortedTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-8 text-gray-700">
                 No tasks found matching your filters
               </TableCell>
             </TableRow>
@@ -335,32 +386,32 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => onTaskClick(t)}
                 >
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-sm text-black">
                     {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
                   </TableCell>
 
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{t.title}</span>
+                      <span className="font-medium text-black">{t.title}</span>
                       <div className="flex items-center gap-1 mt-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{t.ownedBy?.name ?? "Unassigned"}</span>
+                        <User className="h-3 w-3 text-gray-600" />
+                        <span className="text-xs text-gray-700">{t.ownedBy?.name ?? "Unassigned"}</span>
                       </div>
                     </div>
                   </TableCell>
 
-                  <TableCell>
-                    <Badge variant="outline" className={`${getPriorityClass(t.priority)} capitalize`}>
+                  <TableCell className="whitespace-nowrap overflow-hidden">
+                    <Badge variant="outline" className={`${getPriorityClass(t.priority)} text-xs`}>
                       {t.priority}
                     </Badge>
                   </TableCell>
 
                   <TableCell>
-                    <span className="text-sm font-medium">{project ?? "—"}</span>
+                    <span className="text-sm font-medium text-black">{project ?? "—"}</span>
                   </TableCell>
 
                   <TableCell>
-                    {t.tag ? <Badge variant="secondary" className="text-xs">{t.tag}</Badge> : "—"}
+                    {t.tag ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{t.tag}</Badge> : "—"}
                   </TableCell>
 
                   <TableCell onClick={(e) => e.stopPropagation()}>
