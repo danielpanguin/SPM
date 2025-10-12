@@ -3,15 +3,20 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import GanttChart from '@/components/ui/GanttChart'
-import LoginSimulator from '@/components/forms/LoginSimulator'
 import { UserProvider, useUser } from '@/hooks/useAuth'
 import { TaskDashboard } from "@/components/task-dashboard"
+import { User, LogOut } from 'lucide-react'
 
 function DashboardContent() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
-  const { loading, userId } = useUser()
+  const { loading, userId, email, profile, signOut } = useUser()
   const router = useRouter()
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push('/login')
+  }
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -67,7 +72,35 @@ function DashboardContent() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <LoginSimulator isDarkMode={isDarkMode} />
+            {/* Current User Display */}
+            <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border ${
+              isDarkMode
+                ? 'bg-gray-800 border-gray-600 text-gray-200'
+                : 'bg-white border-gray-300 text-gray-700'
+            }`}>
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">
+                    {profile?.username || email?.split('@')[0] || 'User'}
+                  </span>
+                  {profile?.role && (
+                    <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                  isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                }`}
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
 
             {/* Dark Mode Toggle */}
             <button
