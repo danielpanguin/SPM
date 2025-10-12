@@ -336,7 +336,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
 
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{t.title}</span>
+                      <span className="font-medium text-black">{t.title}</span>
                       <div className="flex items-center gap-1 mt-1">
                         <User className="h-3 w-3 text-gray-600" />
                         <span className="text-xs text-gray-700">{t.ownedBy?.name ?? "Unassigned"}</span>
