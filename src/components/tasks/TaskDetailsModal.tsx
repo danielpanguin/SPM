@@ -134,7 +134,7 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
 
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center ">
       <div className="w-full max-w-5xl h-5/6 bg-white rounded-2xl shadow-xl flex overflow-hidden">
         {/* LEFT SECTION */}
         <div className="flex-1 p-6 overflow-y-auto">
@@ -162,27 +162,19 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
                 </span>
               )}
             </div>
-            <button className="text-sm text-gray-500" onClick={onClose}>
-            Close
-          </button>
         </div>
 
           {/* 🧾 Details Grid */}
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <Field label="Project" value={(task as any).project?.name || "—"} />
+          <Field label="Project" value={(task as any).project?.name || "—"} />
           <Field label="Status" value={task.status || "—"} />
-          <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
-          <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
-          <Field label="Collaborators" value={getCollaboratorsDisplay()} />
-          <Field label="Priority" value={task.priority || "—"} />
           <Field label="Start Date" value={task.startDate || "—"} />
-            <Field label="End Date" value={task.endDate || "—"} />
-            <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
-            <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
-          <Field label="Tags" value={tagsValue} />
+          <Field label="End Date" value={task.endDate || "—"} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
+          {/* <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} /> */}
+          {/* <Field label="Tags" value={tagsValue} />
           <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
-          <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
+          <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} /> */}
         </div>
 
           {/* 💬 Comments */}
@@ -219,20 +211,11 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
           <div className="text-sm grid grid-cols-1 gap-4">
             <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
             <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
-            <Field
-              label="Collaborators"
-              value={(task.collaborators ?? []).map((c) => labels[c.id] || c.id).join(", ") || "—"}
-            />
+            <Field label="Collaborators" value={getCollaboratorsDisplay()} />
             <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
-            <Field label="Tags" value={(task.tags ?? []).join(", ") || "—"} />
-            <Field
-              label="Last Updated On"
-              value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"}
-            />
-            <Field
-              label="Created On"
-              value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"}
-            />
+            <Field label="Tags" value={tagsValue} />
+            <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
+            <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
           </div>
         </div>
       </div>
