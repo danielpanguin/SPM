@@ -159,7 +159,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         // For managers/admins: fetch all tasks for accessible user IDs
         const allTasks: any[] = []
         
-        // Fetch tasks owned by accessible users
+        // Fetch tasks owned by accessible users (exclude archived)
         const { data: ownedTasks, error: ownedError } = await supabase
           .from("tasks")
           .select(`
@@ -175,6 +175,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           priority_id,
           status_id,
           project_id,
+          is_archived,
           created_by_user:created_by (
             id,
             username,
@@ -195,6 +196,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           )
         `)
         .in("owned_by", accessibleUserIds)
+        .eq("is_archived", false)
         
         if (ownedError) throw ownedError
         if (ownedTasks) allTasks.push(...ownedTasks)
@@ -222,6 +224,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             priority_id,
             status_id,
             project_id,
+            is_archived,
             created_by_user:created_by (
               id,
               username,
@@ -242,6 +245,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             )
           `)
           .in("id", taskIds)
+          .eq("is_archived", false)
           
           if (collabError) throw collabError
           if (collabTasks) {

@@ -28,7 +28,10 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [statuses, setStatuses] = useState<Array<{ id: number; status: string }>>([])
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
-  const { userId } = useUser()
+  const { userId, role } = useUser()
+  
+  // Check if user can archive tasks (managers and admins only)
+  const canArchive = role === 'manager' || role === 'admin'
 
   // Load available statuses on mount
   useEffect(() => {
@@ -50,8 +53,21 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
     const newStatus = statuses.find(s => s.id === newStatusId)
     if (!newStatus) return
     
+    // Check if trying to archive without permission
+    const isArchiving = newStatus.status.toLowerCase() === 'archived'
+    if (isArchiving && !canArchive) {
+      alert("Only managers and admins can archive tasks.")
+      return
+    }
+    
     // Normalize status to match Task type format
     const normalizedStatus = newStatus.status.toLowerCase().replace(/\s+/g, '-') as Task['status']
+    
+    // If archiving, confirm with user
+    if (isArchiving) {
+      const confirmed = confirm("Are you sure you want to archive this task? It will be removed from the main task list.")
+      if (!confirmed) return
+    }
     
     // OPTIMISTIC UPDATE: Update UI immediately before API call
     if (onTaskUpdate) {
@@ -62,7 +78,13 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
       setUpdatingStatus(taskId)
       // API call happens in background
       await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
-      // Success - UI already updated!
+      
+      // If archived, remove from list after a brief delay
+      if (isArchiving) {
+        setTimeout(() => {
+          window.location.reload() // Refresh to update the list
+        }, 500)
+      }
     } catch (error) {
       console.error("Error updating task status:", error)
       // ROLLBACK: Revert to old status on error
@@ -443,14 +465,20 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
                       }`}
                       aria-label={`Change status for ${t.title}`}
                     >
-                      {statuses.map((status) => (
-                        <option 
-                          key={status.id} 
-                          value={status.id}
-                        >
-                          {status.status}
-                        </option>
-                      ))}
+                      {statuses
+                        .filter(status => {
+                          // Filter out "Archived" for non-managers/admins
+                          const isArchived = status.status.toLowerCase() === 'archived'
+                          return !isArchived || canArchive
+                        })
+                        .map((status) => (
+                          <option 
+                            key={status.id} 
+                            value={status.id}
+                          >
+                            {status.status}
+                          </option>
+                        ))}
                     </select>
                   </TableCell>
 

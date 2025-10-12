@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
       return badRequest("status_id is required and must be a number");
     }
 
-    // First, get the current status_id (old value)
+    // First, get the current status_id (old value) and check if new status is "Archived"
     const { data: currentTask, error: fetchError } = await supabase
       .from("tasks")
       .select("status_id")
@@ -52,12 +52,26 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
     const oldStatusId = currentTask.status_id;
 
-    // Now update the status
+    // Check if the new status is "Archived" (get status name)
+    const { data: statusData } = await supabase
+      .from("status")
+      .select("status")
+      .eq("id", status_id)
+      .single();
+    
+    const isArchiving = statusData?.status?.toLowerCase() === 'archived';
+
+    // Now update the status and is_archived flag
+    const updateData: any = { status_id };
+    if (isArchiving) {
+      updateData.is_archived = true;
+    }
+
     const { data: updatedTask, error: updateError } = await supabase
       .from("tasks")
-      .update({ status_id })
+      .update(updateData)
       .eq("id", taskId)
-      .select("status_id")
+      .select("status_id, is_archived")
       .single();
 
     if (updateError) {
