@@ -58,8 +58,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
-                  data: [mockTaskData],
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskData,
                   error: null,
                 }),
               }),
@@ -145,8 +145,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
-                  data: [mockTaskData],
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskData,
                   error: null,
                 }),
               }),
@@ -200,8 +200,8 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
-                  data: [mockTaskData],
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskData,
                   error: null,
                 }),
               }),
@@ -755,7 +755,7 @@ describe('Task-Project Assignment - Unit Tests', () => {
           return {
             insert: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnValue({
-                limit: jest.fn().mockResolvedValue({
+                single: jest.fn().mockResolvedValue({
                   data: null,
                   error: dbError,
                 }),
