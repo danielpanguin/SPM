@@ -44,7 +44,7 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
   }, [])
 
   // Handle status change
-  async function handleStatusChange(taskId: string, newStatusId: number, e: React.MouseEvent) {
+  async function handleStatusChange(taskId: string, newStatusId: number, e: React.MouseEvent, oldStatus: Task['status']) {
     e.stopPropagation() // Prevent row click
     
     const newStatus = statuses.find(s => s.id === newStatusId)
@@ -65,8 +65,11 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
       // Success - UI already updated!
     } catch (error) {
       console.error("Error updating task status:", error)
-      alert("Failed to update task status. Please refresh the page.")
-      // TODO: Revert optimistic update on error
+      // ROLLBACK: Revert to old status on error
+      if (onTaskUpdate) {
+        onTaskUpdate(taskId, { status: oldStatus })
+      }
+      alert("Failed to update task status. Changes have been reverted.")
     } finally {
       setUpdatingStatus(null)
     }
@@ -264,6 +267,22 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
     return map[s] ?? "bg-gray-100 text-gray-800 border-gray-200"
   }
 
+  // Get status background color for dropdown field
+  const getStatusFieldColor = (statusName: string): string => {
+    const normalized = statusName.toLowerCase().replace(/\s+/g, '-')
+    const colorMap: Record<string, string> = {
+      'completed': 'bg-green-50 text-green-800 border-green-300',
+      'in-progress': 'bg-blue-50 text-blue-800 border-blue-300',
+      'blocked': 'bg-red-50 text-red-800 border-red-300',
+      'archived': 'bg-gray-100 text-gray-700 border-gray-300',
+      'review': 'bg-purple-50 text-purple-800 border-purple-300',
+      'to-do': 'bg-gray-50 text-gray-700 border-gray-300',
+      'todo': 'bg-gray-50 text-gray-700 border-gray-300',
+      'pending': 'bg-gray-50 text-gray-700 border-gray-300',
+    }
+    return colorMap[normalized] ?? 'bg-gray-50 text-gray-700 border-gray-300'
+  }
+
   const niceDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—"
 
@@ -417,13 +436,18 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <select
                       value={getStatusId(t.status)}
-                      onChange={(e) => handleStatusChange(t.id, Number(e.target.value), e as any)}
+                      onChange={(e) => handleStatusChange(t.id, Number(e.target.value), e as any, t.status)}
                       disabled={updatingStatus === t.id}
-                      className="text-xs border border-gray-300 rounded px-2 py-1 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                      className={`text-xs font-medium border rounded px-2 py-1 hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] transition-colors cursor-pointer ${
+                        getStatusFieldColor(statuses.find(s => s.id === getStatusId(t.status))?.status || '')
+                      }`}
                       aria-label={`Change status for ${t.title}`}
                     >
                       {statuses.map((status) => (
-                        <option key={status.id} value={status.id}>
+                        <option 
+                          key={status.id} 
+                          value={status.id}
+                        >
                           {status.status}
                         </option>
                       ))}

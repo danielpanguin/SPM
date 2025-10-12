@@ -38,7 +38,21 @@ export async function PATCH(req: NextRequest, { params }: P) {
       return badRequest("status_id is required and must be a number");
     }
 
-    // Update status and get old value in one query using RETURNING
+    // First, get the current status_id (old value)
+    const { data: currentTask, error: fetchError } = await supabase
+      .from("tasks")
+      .select("status_id")
+      .eq("id", taskId)
+      .single();
+
+    if (fetchError || !currentTask) {
+      console.error("Fetch error:", fetchError);
+      return json({ error: "Task not found" }, 404);
+    }
+
+    const oldStatusId = currentTask.status_id;
+
+    // Now update the status
     const { data: updatedTask, error: updateError } = await supabase
       .from("tasks")
       .update({ status_id })
@@ -58,14 +72,15 @@ export async function PATCH(req: NextRequest, { params }: P) {
     // Log the status change in audit log (async, don't wait)
     // Fire and forget - don't slow down the response
     supabase
-      .from("task_audit_log")
+      .from("audit_log")
       .insert({
-        task_id: taskId,
-        user_id: user_id || null,
-        action: "status_change",
-        old_value: null, // We don't have old value anymore, but that's ok
+        table_name: "tasks",
+        record_id: taskId,
+        field_name: "status_id",
+        old_value: oldStatusId?.toString() || null,
         new_value: status_id.toString(),
-        changed_at: new Date().toISOString(),
+        action: "update",
+        changed_by: user_id || null,
       })
       .then(({ error }) => {
         if (error) console.error("Audit log error:", error);
