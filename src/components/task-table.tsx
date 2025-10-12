@@ -355,7 +355,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   </TableCell>
 
                   <TableCell>
-                    {t.tag ? <Badge variant="secondary" className="text-xs">{t.tag}</Badge> : "—"}
+                    {t.tag ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{t.tag}</Badge> : "—"}
                   </TableCell>
 
                   <TableCell className="whitespace-nowrap overflow-hidden">

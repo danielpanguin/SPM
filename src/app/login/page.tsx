@@ -182,7 +182,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-black text-white font-medium py-3 shadow-sm hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-lg bg-black !text-white font-medium py-3 shadow-sm hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {busy ? "Signing in..." : "Sign in"}
           </button>
