@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import TaskDetailsModal from "./TaskDetailsModal";
 import TaskForm from "./TaskForm";
 import { fetchTasks } from "@/components/useTasks";
+import { useUser } from "@/hooks/useAuth";
 
 /** Minimal UI Task shape that matches what this screen renders */
 export type UITask = {
@@ -26,24 +27,46 @@ export type UITask = {
   project?: { id: number; name: string } | null;
 };
 
+// Helper function to convert priority number to text label
+// P10 is highest priority, P1 is lowest
+function getPriorityLabel(priorityId: number | null): string {
+  if (!priorityId) return "—";
+  if (priorityId >= 8) return "High";   // P8-P10 = High
+  if (priorityId >= 4) return "Medium"; // P4-P7 = Medium
+  if (priorityId >= 1) return "Low";    // P1-P3 = Low
+  return "—";
+}
+
 function mapDbToUI(t: any): UITask {
   console.log("mapDbToUI input:", t);
-  console.log("project_id:", t.project_id, "project:", t.project);
+  console.log("Raw priority data:", {
+    priority_obj: t.priority,
+    priority_id_field: t.priority_id,
+    extracted_id: t.priority?.id ?? t.priority_id ?? null
+  });
+  
+  const priorityId = t.priority?.id ?? t.priority_id ?? null;
+  const priorityLabel = getPriorityLabel(priorityId);
+  
+  console.log(`Task ${t.id} "${t.title}": priority_id=${priorityId} → label="${priorityLabel}"`);
   
   return {
     id: t.id,
     title: t.title,
     description: t.description ?? null,
-    startDate: t.start_date ?? null,
-    endDate: t.end_date ?? null,
-    priority: t?.priority?.id ?? null,      // number (1..10)
-    status: t?.status?.status ?? null,      // text from status table
+    startDate: t.startDate ?? t.start_date ?? null,
+    endDate: t.endDate ?? t.end_date ?? null,
+    priority: getPriorityLabel(priorityId),      // Convert to "High", "Medium", "Low"
+    status: t.status?.status ?? t.status ?? null,      // text from status table
     createdBy: t.created_by
-      ? { id: t.created_by, name: t.created_by_email || t.created_by }
+      ? { id: t.created_by, name: t.created_by_email ?? t.created_by }
       : null,
-    ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email || t.owned_by } : null,
+    ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email ?? t.owned_by } : null,
     collaborators: Array.isArray(t.assignees)
-      ? t.assignees.map((id: string) => ({ id }))
+      ? t.assignees.map((id: string, idx: number) => ({ 
+          id, 
+          name: t.assignee_emails?.[idx] ?? id 
+        }))
       : [],
     tags: t.tags ?? [],
     createdAt: t.created_at ?? undefined,
@@ -55,6 +78,7 @@ function mapDbToUI(t: any): UITask {
 }
 
 export default function TaskDashboard() {
+  const { userId, role } = useUser();
   const [tasks, setTasks] = useState<UITask[]>([]);
   const [detailsTask, setDetailsTask] = useState<UITask | null>(null);
   const [creating, setCreating] = useState(false);
@@ -67,10 +91,17 @@ export default function TaskDashboard() {
   async function load() {
     try {
       console.log("Loading tasks from API...");
-      const dbTasks = await fetchTasks(); // calls /api/tasks
+      console.log("User context:", { userId, role });
+      // Pass user context to API for role-based filtering
+      const dbTasks = await fetchTasks({ 
+        userId: userId || undefined, 
+        role: role || undefined 
+      });
+      console.log("Fetched tasks count:", dbTasks.length);
       console.log("Fetched tasks:", dbTasks);
       const mappedTasks = dbTasks.map(mapDbToUI);
-      console.log("Mapped tasks:", mappedTasks);
+      console.log("Mapped tasks count:", mappedTasks.length);
+      console.log("Mapped tasks with priorities:", mappedTasks.map(t => ({ id: t.id, title: t.title, priority: t.priority })));
       setTasks(mappedTasks);
     } catch (e) {
       console.error("Error loading tasks:", e);
@@ -79,9 +110,11 @@ export default function TaskDashboard() {
   }
 
   useEffect(() => {
-    load();
+    if (userId) {
+      load();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userId, role]);
 
   // Sorting function
   const sortTasks = (tasks: UITask[], field: typeof sortField, direction: typeof sortDirection) => {
@@ -99,8 +132,15 @@ export default function TaskDashboard() {
           bVal = b.status || '';
           break;
         case 'priority':
-          aVal = a.priority ? (typeof a.priority === 'number' ? a.priority : parseInt(String(a.priority))) : 999;
-          bVal = b.priority ? (typeof b.priority === 'number' ? b.priority : parseInt(String(b.priority))) : 999;
+          // Priority order: High > Medium > Low
+          const priorityOrder: Record<string, number> = {
+            'High': 3,
+            'Medium': 2,
+            'Low': 1,
+            '—': 0
+          };
+          aVal = priorityOrder[a.priority as string] ?? 0;
+          bVal = priorityOrder[b.priority as string] ?? 0;
           break;
         case 'endDate':
           aVal = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER;
@@ -267,14 +307,20 @@ export default function TaskDashboard() {
           <div
             key={t.id}
             className="rounded-2xl border p-4 hover:shadow cursor-pointer"
-            onClick={() => setDetailsTask(t)}
+            onClick={() => {
+              console.log("Clicked task:", t);
+              console.log("Task priority:", t.priority, "Type:", typeof t.priority);
+              setDetailsTask(t);
+            }}
             aria-label={`Open details for ${t.title}`}
           >
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{t.title}</h3>
-              <span className="text-xs rounded-full border px-2 py-0.5">
-                {t.priority ? `P${t.priority}` : "—"}
-              </span>
+              {t.priority && t.priority !== "—" && (
+                <span className="text-xs rounded-full border px-2 py-0.5">
+                  {t.priority}
+                </span>
+              )}
             </div>
             <div className="mt-1 text-xs text-gray-500">
               Project: {t.project?.name || "(none)"}

@@ -78,110 +78,20 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   /** Fetch latest task + joins. Swallow errors; never disrupt rendering. */
   useEffect(() => {
     let alive = true;
-    if (!taskId) return;
+    async function hydrateUsers() {
+      if (!task) return;
+      const ids = new Set<string>();
+      if (task.createdBy?.id) ids.add(String(task.createdBy.id));
+      if (task.ownedBy?.id) ids.add(String(task.ownedBy.id));
+      (task.collaborators ?? []).forEach((c) => {
+        if (c?.id) ids.add(String(c.id));
+      });
+      if (!ids.size) return;
 
-    async function hydrateLatest() {
-      setLoading(true);
-
-      let base: any = null;
-      let collabIds: string[] = [];
-      let tagNames: string[] = [];
-      let project: { id: number; name: string } | null = null;
-      let statusText: string | null = null;
-      const userMap: UserMap = {};
-
-      // Base task
-      try {
-        const { data } = await supabase
-          .from("tasks")
-          .select(
-            "id,title,description,start_date,end_date,priority_id,status_id,created_by,owned_by,parent_task_id,project_id,created_at,updated_at"
-          )
-          .eq("id", taskId)
-          .maybeSingle();
-        base = data ?? null;
-      } catch {}
-
-      if (!base) {
-        if (alive) setLoading(false);
-        return;
-      }
-
-      // Collaborators
-      try {
-        const { data } = await supabase
-          .from("task_collaborator")
-          .select("user_id")
-          .eq("task_id", taskId);
-        collabIds = (data ?? []).map((r: any) => String(r.user_id));
-      } catch {}
-
-      // Tags (relational first; fallback two-step)
-      try {
-        const rel = await supabase
-          .from("task_tasktag")
-          .select("task_tag(name)")
-          .eq("task_id", taskId);
-        const rows = rel.data ?? [];
-        const names = rows.map((r: any) => r?.task_tag?.name).filter(Boolean);
-        if (names.length) {
-          tagNames = names;
-        } else {
-          const { data: ids } = await supabase
-            .from("task_tasktag")
-            .select("tag_id")
-            .eq("task_id", taskId);
-          const tagIds = (ids ?? []).map((r: any) => r.tag_id);
-          if (tagIds.length) {
-            const { data: tags } = await supabase
-              .from("task_tag")
-              .select("id,name")
-              .in("id", tagIds);
-            tagNames = (tags ?? []).map((t: any) => t.name).filter(Boolean);
-          }
-        }
-      } catch {}
-
-      // Project + Status
-      try {
-        if (base.project_id) {
-          const { data } = await supabase
-            .from("projects")
-            .select("id,name")
-            .eq("id", base.project_id)
-            .maybeSingle();
-          if (data) project = { id: data.id, name: data.name };
-        }
-      } catch {}
-      try {
-        if (base.status_id) {
-          const { data } = await supabase
-            .from("status")
-            .select("status")
-            .eq("id", base.status_id)
-            .maybeSingle();
-          statusText = data?.status ?? null;
-        }
-      } catch {}
-
-      // Users batch
-      try {
-        const idSet = new Set<string>();
-        if (base.created_by) idSet.add(String(base.created_by));
-        if (base.owned_by) idSet.add(String(base.owned_by));
-        collabIds.forEach((id) => idSet.add(String(id)));
-        const ids = Array.from(idSet);
-        if (ids.length) {
-          const { data } = await supabase
-            .from("users")
-            .select("id,email,username")
-            .in("id", ids);
-          (data ?? []).forEach((u: any) => {
-            userMap[String(u.id)] = u.email || u.username || String(u.id);
-          });
-        }
-      } catch {}
-
+      const { data } = await supabase
+        .from("users")
+        .select("id,email")
+        .in("id", Array.from(ids));
       if (!alive) return;
 
       // Build partial "fresh" payload (do NOT wipe existing props on empty)
@@ -309,22 +219,15 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Project" value={projectName} />
-          <Field label="Status" value={statusText} />
-          <Field label="Created by" value={createdByText} />
-          <Field label="Owned by" value={ownedByText} />
-          <Field label="Collaborators" value={collabsText} />
-          <Field label="Priority" value={priorityText} />
-          <Field label="Start Date" value={dash(merged.startDate)} />
-          <Field label="End Date" value={dash(merged.endDate)} />
-          <Field
-            label="Parent Task"
-            value={
-              merged.parentTaskId != null && merged.parentTaskId !== ""
-                ? String(merged.parentTaskId)
-                : "—"
-            }
-          />
+          <Field label="Project" value={(task as any).project?.name || "—"} />
+          <Field label="Status" value={task.status || "—"} />
+          <Field label="Created by" value={getUserDisplay(task.createdBy || undefined)} />
+          <Field label="Owned by" value={getUserDisplay(task.ownedBy || undefined)} />
+          <Field label="Collaborators" value={getCollaboratorsDisplay()} />
+          <Field label="Priority" value={task.priority || "—"} />
+          <Field label="Start Date" value={task.startDate || "—"} />
+          <Field label="End Date" value={task.endDate || "—"} />
+          <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
           <Field label="Tags" value={tagsValue} />
           <Field
             label="Description"

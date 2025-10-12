@@ -90,14 +90,21 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       // Fetch user's assigned projects
       if (currentUserId) {
+        console.log("[TaskForm] Fetching projects for currentUserId:", currentUserId);
         fetch(`/api/projects/user/${currentUserId}`)
           .then((res) => res.json())
           .then((result) => {
+            console.log("[TaskForm] Projects API response:", result);
             if (alive && result.ok) {
+              console.log("[TaskForm] Setting projects state:", result.data);
               setProjects(result.data ?? []);
+            } else {
+              console.error("[TaskForm] Projects API returned not ok:", result);
             }
           })
-          .catch((err) => console.error("Failed to fetch projects:", err));
+          .catch((err) => console.error("[TaskForm] Failed to fetch projects:", err));
+      } else {
+        console.log("[TaskForm] No currentUserId, skipping project fetch");
       }
     }
     run();
@@ -364,7 +371,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       <div>
         <label htmlFor={id.project} className="block text-sm font-medium">
-          Project
+          Project {projects.length > 0 && `(${projects.length} available)`}
         </label>
         <select
           id={id.project}

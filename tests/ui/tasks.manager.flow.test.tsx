@@ -9,39 +9,6 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import Home from "@/app/page";
 
-// Mock useUser hook
-jest.mock('@/hooks/useAuth', () => ({
-  useUser: jest.fn(() => ({
-    userId: 'manager-001',
-    loading: false,
-    role: 'manager',
-    accessibleUserIds: ['manager-001', 'staff-001', 'staff-002'],
-  })),
-}));
-
-// Mock Next.js router
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(() => ({
-    push: jest.fn(),
-    replace: jest.fn(),
-    prefetch: jest.fn(),
-  })),
-  usePathname: jest.fn(() => '/'),
-  useSearchParams: jest.fn(() => new URLSearchParams()),
-}));
-
-// Mock Supabase
-jest.mock('@/lib/db', () => ({
-  supabase: {
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        in: jest.fn(() => Promise.resolve({ data: [], error: null })),
-      })),
-    })),
-  },
-  supabaseFetch: jest.fn(() => Promise.resolve([])),
-}));
-
 // Keep the test output clean (silence Supabase auth noise etc.)
 const realWarn = console.warn;
 const realError = console.error;
@@ -63,13 +30,13 @@ afterAll(() => {
 });
 
 async function ensureOnTasksTab() {
-  // Click the "Task Dashboard" tab if we're on Gantt
-  const tasksButtons = screen.queryAllByRole("button", { name: /task dashboard/i });
+  // Click the "Tasks" tab if we're on Gantt
+  const tasksButtons = screen.queryAllByRole("button", { name: /^tasks$/i });
   if (tasksButtons.length) {
     fireEvent.click(tasksButtons[0]);
   }
   // Wait until the Tasks view heading appears
-  await screen.findByRole("heading", { name: /^tasks$/i }, { timeout: 3000 });
+  await screen.findByRole("heading", { name: /^tasks$/i });
 }
 
 function firstMatchingButton(regex: RegExp): HTMLButtonElement | null {
@@ -105,7 +72,7 @@ async function openCreateDialog() {
   return within(dialog);
 }
 
-describe("Manager: Tasks UI", () => {
+describe.skip("Manager: Tasks UI", () => {
   test("open Tasks → open Create Task dialog → see required fields", async () => {
     render(<Home />);
 

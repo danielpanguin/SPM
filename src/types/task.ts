@@ -1,4 +1,4 @@
-export type Priority = "Low" | "Medium" | "High";
+export type Priority = string; // P1-P10 format
 
 export type Status = "pending" | "in-progress" | "completed" | "blocked";
 
@@ -67,5 +67,5 @@ export interface UpdateTaskPayload {
   project_id?: number | null;
 }
 
-export const PRIORITIES: Priority[]  = ["Low","Medium","High"];
+export const PRIORITIES: string[]  = ["P10","P9","P8","P7","P6","P5","P4","P3","P2","P1"]; // Ordered by priority (P10 = highest)
 export const STATUSES: Status[]      = ["pending","in-progress","completed","blocked"];
