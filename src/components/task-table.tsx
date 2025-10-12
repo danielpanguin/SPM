@@ -249,7 +249,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
               className="cursor-pointer hover:bg-muted/50 select-none"
               onClick={() => handleSort('title')}
             >
-              <div className="flex items-center">
+              <div className="flex items-center whitespace-nowrap">
                 Task Title
                 <SortIcon field="title" type="string" />
               </div>
