@@ -60,11 +60,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       console.log('🔄 Fetching data from Supabase...')
       
       // Fetch tasks based on accessible user IDs (role-based access)
-      // Include both owned tasks and collaborator tasks (matching TaskDashboard logic)
-      const allTasks: any[] = []
-      
-      // 1. Fetch tasks owned by accessible users
-      const { data: ownedTasks, error: ownedError } = accessibleUserIds.length > 0
+      const { data: tasks, error: tasksError } = accessibleUserIds.length > 0
         ? await supabase
             .from('tasks')
             .select(`
@@ -74,49 +70,8 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
             .in('owned_by', accessibleUserIds)
         : { data: [], error: null }
       
-      if (ownedError) {
-        console.error('❌ Owned tasks error:', ownedError)
-        throw new Error(`Tasks table error: ${ownedError.message}`)
-      }
-      
-      if (ownedTasks) allTasks.push(...ownedTasks)
-      
-      // 2. Also fetch tasks where user is a collaborator (for staff users)
-      const { data: collaboratorTaskIds } = await supabase
-        .from("task_collaborator")
-        .select("task_id")
-        .in("user_id", accessibleUserIds)
-      
-      if (collaboratorTaskIds && collaboratorTaskIds.length > 0) {
-        const taskIds = collaboratorTaskIds.map(c => c.task_id)
-        const { data: collabTasks, error: collabError } = await supabase
-          .from("tasks")
-          .select(`
-            *,
-            status(status)
-          `)
-          .in("id", taskIds)
-        
-        if (collabError) {
-          console.error('❌ Collaborator tasks error:', collabError)
-          throw new Error(`Collaborator tasks error: ${collabError.message}`)
-        }
-        
-        if (collabTasks) {
-          // Merge and deduplicate by task ID
-          const existingIds = new Set(allTasks.map(t => t.id))
-          collabTasks.forEach(task => {
-            if (!existingIds.has(task.id)) {
-              allTasks.push(task)
-            }
-          })
-        }
-      }
-      
-      const tasks = allTasks
-      const tasksError = null
-      
       console.log('🎯 Fetching tasks for accessible user IDs:', accessibleUserIds)
+
       console.log('👤 Current user ID:', currentUserId)
       console.log('📋 Tasks query result:', { tasks, tasksError })
       console.log('🔢 Number of tasks found:', tasks?.length || 0)
