@@ -28,11 +28,12 @@ export type UITask = {
 };
 
 // Helper function to convert priority number to text label
+// P10 is highest priority, P1 is lowest
 function getPriorityLabel(priorityId: number | null): string {
   if (!priorityId) return "—";
-  if (priorityId <= 3) return "High";
-  if (priorityId <= 6) return "Medium";
-  if (priorityId <= 10) return "Low";
+  if (priorityId >= 8) return "High";   // P8-P10 = High
+  if (priorityId >= 4) return "Medium"; // P4-P7 = Medium
+  if (priorityId >= 1) return "Low";    // P1-P3 = Low
   return "—";
 }
 
@@ -62,7 +63,10 @@ function mapDbToUI(t: any): UITask {
       : null,
     ownedBy: t.owned_by ? { id: t.owned_by, name: t.owned_by_email ?? t.owned_by } : null,
     collaborators: Array.isArray(t.assignees)
-      ? t.assignees.map((id: string) => ({ id }))
+      ? t.assignees.map((id: string, idx: number) => ({ 
+          id, 
+          name: t.assignee_emails?.[idx] ?? id 
+        }))
       : [],
     tags: t.tags ?? [],
     createdAt: t.created_at ?? undefined,

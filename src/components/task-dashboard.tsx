@@ -74,9 +74,9 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
       name: userMap.get(apiTask.owned_by)?.username ?? apiTask.owned_by ?? "",
       role: (userMap.get(apiTask.owned_by)?.role ?? "staff") as any,
     },
-    collaborators: (apiTask.assignees ?? []).map((id: string) => ({
+    collaborators: (apiTask.assignees ?? []).map((id: string, idx: number) => ({
       id,
-      name: userMap.get(id)?.username ?? id,
+      name: apiTask.assignee_emails?.[idx] ?? userMap.get(id)?.username ?? id,
       role: (userMap.get(id)?.role ?? "staff") as any,
     })),
     startDate: apiTask.start_date ?? "",
@@ -93,22 +93,15 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
   }
 }
 
-function mapPriority(priorityId: number | null | undefined): "Low" | "Medium" | "High" {
+// P10 is highest priority, P1 is lowest
+function mapPriority(priorityId: number | null | undefined): string {
   console.log(`mapPriority called with: ${priorityId}`);
   if (!priorityId) {
-    console.log(`  → No priority, returning Medium`);
-    return "Medium"
+    console.log(`  → No priority, returning P1`);
+    return "P1"
   }
-  if (priorityId <= 3) {
-    console.log(`  → ${priorityId} <= 3, returning High`);
-    return "High"   // P1-P3 = High
-  }
-  if (priorityId <= 6) {
-    console.log(`  → ${priorityId} <= 6, returning Medium`);
-    return "Medium" // P4-P6 = Medium
-  }
-  console.log(`  → ${priorityId} > 6, returning Low`);
-  return "Low"                          // P7-P10 = Low
+  console.log(`  → Returning P${priorityId}`);
+  return `P${priorityId}`
 }
 
 export function TaskDashboard() {
@@ -286,7 +279,7 @@ export function TaskDashboard() {
 
       const mapped: Task[] = (data ?? []).map((row: any): Task => {
         const tagName: string | undefined =
-          row.task_tasktag?.[0]?.tag?.name ?? undefined // if you treat “Task Tag” as a single free-text
+          row.task_tasktag?.[0]?.task_tag?.name ?? row.task_tasktag?.[0]?.tag?.name ?? undefined
 
         return {
           id: String(row.id),
@@ -307,9 +300,9 @@ export function TaskDashboard() {
 
           collaborators:
             (row.task_collaborator ?? []).map((c: any) => ({
-              id: String(c.assignee?.id),
-              name: c.assignee?.username,
-              role: c.assignee?.role?.name ?? "member",
+              id: String(c.users?.id ?? c.assignee?.id),
+              name: c.users?.username ?? c.assignee?.username,
+              role: c.users?.roles?.name ?? c.assignee?.role?.name ?? "member",
             })) ?? [],
 
           startDate: row.start_date ?? null,
@@ -415,6 +408,38 @@ export function TaskDashboard() {
       totalTasks: total,
     }
   }, [tasks])
+
+  // Compute dynamic filter options from tasks
+  const filterOptions = useMemo(() => {
+    const statuses = new Set<string>()
+    const priorities = new Set<string>()
+    const projects = new Set<string>()
+    const assignees = new Set<string>()
+    const tags = new Set<string>()
+
+    tasks.forEach((t) => {
+      if (t.status) statuses.add(t.status)
+      if (t.priority) priorities.add(t.priority)
+      
+      const proj = projectByTaskId?.get(t.id)
+      if (proj) projects.add(proj)
+      
+      if (t.ownedBy?.name) assignees.add(t.ownedBy.name)
+      t.collaborators?.forEach(c => {
+        if (c.name) assignees.add(c.name)
+      })
+      
+      if (t.tag) tags.add(t.tag)
+    })
+
+    return {
+      statuses: Array.from(statuses).sort(),
+      priorities: Array.from(priorities).sort(),
+      projects: Array.from(projects).sort(),
+      assignees: Array.from(assignees).sort(),
+      tags: Array.from(tags).sort(),
+    }
+  }, [tasks, projectByTaskId])
 
   // ✅ Early returns only AFTER all hooks are declared:
   if (showArchive) {
@@ -542,6 +567,11 @@ export function TaskDashboard() {
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
                 onClearFilters={handleClearFilters}
+                availableStatuses={filterOptions.statuses}
+                availablePriorities={filterOptions.priorities}
+                availableProjects={filterOptions.projects}
+                availableAssignees={filterOptions.assignees}
+                availableTags={filterOptions.tags}
             />
           </div>
 

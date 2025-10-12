@@ -15,7 +15,7 @@ describe('TaskTable - Sorting Tests', () => {
       collaborators: [],
       startDate: '2025-01-01',
       endDate: '2025-01-31',
-      priority: 'Low',
+      priority: 'P1',
       status: 'pending',
       comments: [],
       updatedAt: '2025-01-01T00:00:00Z',
@@ -31,7 +31,7 @@ describe('TaskTable - Sorting Tests', () => {
       collaborators: [],
       startDate: '2025-01-15',
       endDate: '2025-02-15',
-      priority: 'High',
+      priority: 'P10',
       status: 'in-progress',
       comments: [],
       updatedAt: '2025-01-15T00:00:00Z',
@@ -47,7 +47,7 @@ describe('TaskTable - Sorting Tests', () => {
       collaborators: [],
       startDate: '2025-01-10',
       endDate: '2025-02-28',
-      priority: 'Medium',
+      priority: 'P5',
       status: 'completed',
       comments: [],
       updatedAt: '2025-01-10T00:00:00Z',
@@ -159,13 +159,13 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click priority header
-      const priorityHeader = screen.getByText('Task Priority');
+      const priorityHeader = screen.getByText('Priority');
       fireEvent.click(priorityHeader);
 
-      // Get all task rows - Low should be first
+      // Get all task rows - P1 should be first (lowest priority)
       const rows = container.querySelectorAll('tbody tr');
       const firstRow = within(rows[0] as HTMLElement);
-      expect(firstRow.getByText('Low')).toBeTruthy();
+      expect(firstRow.getByText('P1')).toBeTruthy();
     });
 
     it('should sort tasks by priority descending (High to Low)', () => {
@@ -179,14 +179,14 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click priority header twice
-      const priorityHeader = screen.getByText('Task Priority');
+      const priorityHeader = screen.getByText('Priority');
       fireEvent.click(priorityHeader);
       fireEvent.click(priorityHeader);
 
-      // Get all task rows - High should be first
+      // Get all task rows - P10 should be first (highest priority)
       const rows = container.querySelectorAll('tbody tr');
       const firstRow = within(rows[0] as HTMLElement);
-      expect(firstRow.getByText('High')).toBeTruthy();
+      expect(firstRow.getByText('P10')).toBeTruthy();
     });
   });
 
@@ -202,7 +202,7 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click status header
-      const statusHeader = screen.getByText('Task Status');
+      const statusHeader = screen.getByText('Status');
       fireEvent.click(statusHeader);
 
       // Get all task rows
@@ -266,7 +266,7 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click tag header
-      const tagHeader = screen.getByText('Task Tag');
+      const tagHeader = screen.getByText('Tag');
       fireEvent.click(tagHeader);
 
       // Get all task rows - "backend" should be first alphabetically
@@ -288,7 +288,7 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click deadline header
-      const deadlineHeader = screen.getByText('Task Deadline');
+      const deadlineHeader = screen.getByText('Deadline');
       fireEvent.click(deadlineHeader);
 
       // Get all task rows - earliest deadline first
@@ -310,7 +310,7 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click date created header
-      const dateCreatedHeader = screen.getByText('Date Created');
+      const dateCreatedHeader = screen.getByText('Created');
       fireEvent.click(dateCreatedHeader);
 
       // Get all task rows - oldest first
@@ -330,7 +330,7 @@ describe('TaskTable - Sorting Tests', () => {
       );
 
       // Click date created header twice
-      const dateCreatedHeader = screen.getByText('Date Created');
+      const dateCreatedHeader = screen.getByText('Created');
       fireEvent.click(dateCreatedHeader);
       fireEvent.click(dateCreatedHeader);
 

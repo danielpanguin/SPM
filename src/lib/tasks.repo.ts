@@ -232,6 +232,11 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
     supabase.from("users").select("id,email"),
   ]);
 
+  // Log any errors in tag retrieval
+  if (tagData.error) {
+    console.error("Error fetching tags:", tagData.error);
+  }
+
   const collabMap = new Map<number, UUID[]>();
   (collabData.data ?? []).forEach((c: any) => {
     const list = collabMap.get(c.task_id) ?? [];
@@ -242,8 +247,9 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   const tagMap = new Map<number, string[]>();
   (tagData.data ?? []).forEach((t: any) => {
     const list = tagMap.get(t.task_id) ?? [];
-    const tagName = t.task_tag?.name;
-    if (tagName) list.push(tagName);
+    // Handle both task_tag.name and nested structure
+    const tagName = t.task_tag?.name || (Array.isArray(t.task_tag) ? t.task_tag[0]?.name : null);
+    if (tagName && typeof tagName === 'string') list.push(tagName);
     tagMap.set(t.task_id, list);
   });
 
