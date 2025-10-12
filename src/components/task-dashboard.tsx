@@ -400,8 +400,18 @@ export function TaskDashboard() {
     const overdue = tasks.filter(
       (t) => t.endDate && new Date(t.endDate) < now && t.status !== "completed"
     ).length
+    
+    // Calculate unique team members from tasks
+    const uniqueMembers = new Set<string>()
+    tasks.forEach(t => {
+      if (t.ownedBy?.id) uniqueMembers.add(t.ownedBy.id)
+      t.collaborators?.forEach(c => {
+        if (c?.id) uniqueMembers.add(c.id)
+      })
+    })
+    
     return {
-      totalMembers: 5,
+      totalMembers: uniqueMembers.size || 0,
       activeTasks: active,
       completedTasks: completed,
       overdueTasks: overdue,
