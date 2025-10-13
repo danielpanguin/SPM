@@ -3,28 +3,41 @@ import { supabaseServer } from "@/lib/supabaseServer";
 
 /* ---------- time helpers (SGT) ---------- */
 const SGT = "Asia/Singapore";
-const formatYMD = (d: Date) =>
+
+// Return YYYY-MM-DD in SGT (for "now")
+const ymdSGT = (d = new Date()) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: SGT,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(d); // YYYY-MM-DD
-const startOfTodaySGT = () => new Date(formatYMD(new Date()) + "T00:00:00+08:00");
-const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
+  }).format(d);
+
+// Convert a raw DB date/timestamp to YYYY-MM-DD in SGT (CRITICAL)
+const toYmdSGT = (raw: unknown) =>
+  raw
+    ? new Intl.DateTimeFormat("en-CA", {
+        timeZone: SGT,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(String(raw)))
+    : "";
+
+const addDaysYMD = (ymd: string, n: number) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  base.setUTCDate(base.getUTCDate() + n);
+  return base.toISOString().slice(0, 10); // YYYY-MM-DD
+};
 
 /* ---------- schema ---------- */
-const TABLES = {
-  tasks: "tasks",
-  status: "status",
-  collab: "task_collaborator",
-  notifs: "notifications",
-} as const;
+const TABLES = { tasks: "tasks", status: "status", collab: "task_collaborator", notifs: "notifications" } as const;
 
 const TCOL = {
   id: "id",
   title: "title",
-  due: "end_date",
+  due: "end_date", // DATE or TIMESTAMP
   statusId: "status_id",
   createdBy: "created_by",
   ownedBy: "owned_by",
@@ -39,63 +52,71 @@ const NCOL = {
   title: "title",
   message: "message",
   isRead: "is_read",
-  dueDate: "due_date",
+  dueDate: "due_date", // store as YYYY-MM-DD (SGT day)
 } as const;
 
-/* ---------- deterministic id ---------- */
-const notifId = (taskId: number, userId: string, kind: string, dueISO: string) =>
-  `${taskId}-${userId}-${kind}-${dueISO}`;
+const K = { TODAY: "due_today", TOMORROW: "due_tomorrow", OVERDUE: "task_overdue" } as const;
+
+const notifId = (taskId: number, userId: string, kind: string, dueYMD: string) =>
+  `${taskId}-${userId}-${kind}-${dueYMD}`;
 
 export async function GET() {
   try {
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
 
     // Completed status id
-    const { data: statuses, error: sErr } = await sb
-      .from(TABLES.status)
-      .select("id,status");
+    const { data: statuses, error: sErr } = await sb.from(TABLES.status).select("id,status");
     if (sErr) throw sErr;
-
     const completedRow = (statuses ?? []).find(
       (r: any) => (r.status || "").toLowerCase() === "completed"
     );
     if (!completedRow?.id) throw new Error("Couldn't find 'Completed' in status table");
     const COMPLETED_ID: number = completedRow.id;
 
-    // Dates
-    const today = startOfTodaySGT();
-    const todayStr = formatYMD(today);
-    const tomorrowStr = formatYMD(addDays(today, 1));
+    // SGT days
+    const todayYMD = ymdSGT();
+    const tomorrowYMD = addDaysYMD(todayYMD, 1);
 
-    // Candidates
-    const selectCols = `${TCOL.id},${TCOL.title},${TCOL.due},${TCOL.statusId},${TCOL.createdBy},${TCOL.ownedBy},${TCOL.archived}`;
+    /* ---------- CLEANUP ---------- */
+    await sb.from(TABLES.notifs).delete().eq(NCOL.kind, K.TODAY).neq(NCOL.dueDate, todayYMD);
+    await sb
+      .from(TABLES.notifs)
+      .delete()
+      .eq(NCOL.kind, K.TOMORROW)
+      .neq(NCOL.dueDate, tomorrowYMD);
+    await sb
+      .from(TABLES.notifs)
+      .delete()
+      .in(NCOL.kind, ["overdue", K.OVERDUE])
+      .gte(NCOL.dueDate, todayYMD);
 
-    const [todayRes, tomRes, ovRes] = await Promise.all([
-      sb.from(TABLES.tasks).select(selectCols)
-        .eq(TCOL.due, todayStr).neq(TCOL.archived, true).neq(TCOL.statusId, COMPLETED_ID),
-      sb.from(TABLES.tasks).select(selectCols)
-        .eq(TCOL.due, tomorrowStr).neq(TCOL.archived, true).neq(TCOL.statusId, COMPLETED_ID),
-      sb.from(TABLES.tasks).select(selectCols)
-        .lt(TCOL.due, todayStr).neq(TCOL.archived, true).neq(TCOL.statusId, COMPLETED_ID),
-    ]);
+    // All active, non-completed tasks; NULL-safe for archived & status
+    const { data: allTasks, error: tErr } = await sb
+      .from(TABLES.tasks)
+      .select(
+        `${TCOL.id},${TCOL.title},${TCOL.due},${TCOL.statusId},${TCOL.createdBy},${TCOL.ownedBy},${TCOL.archived}`
+      )
+      .or(`${TCOL.archived}.is.null,${TCOL.archived}.eq.false`)
+      .or(`${TCOL.statusId}.is.null,${TCOL.statusId}.neq.${COMPLETED_ID}`);
+    if (tErr) throw tErr;
 
-    if (todayRes.error) throw todayRes.error;
-    if (tomRes.error) throw tomRes.error;
-    if (ovRes.error) throw ovRes.error;
+    const tasks = (allTasks ?? []) as Array<any>;
+    if (tasks.length === 0) {
+      await sb
+        .from(TABLES.notifs)
+        .delete()
+        .in(NCOL.kind, [K.TODAY, K.TOMORROW, K.OVERDUE, "overdue"]);
+      return NextResponse.json({
+        ok: true,
+        counts: { today: 0, tomorrow: 0, overdue: 0 },
+        inserted: 0,
+        updated: 0,
+        pruned: "all",
+      });
+    }
 
-    const dueToday = todayRes.data ?? [];
-    const dueTomorrow = tomRes.data ?? [];
-    const overdue = ovRes.data ?? [];
-
-    const all = [
-      ...dueToday.map((t) => ({ t, kind: "due_today" as const })),
-      ...dueTomorrow.map((t) => ({ t, kind: "due_tomorrow" as const })),
-      ...overdue.map((t) => ({ t, kind: "overdue" as const })),
-    ];
-    if (all.length === 0) return NextResponse.json({ ok: true, inserted: 0, updated: 0 });
-
-    // collab map
-    const taskIds: number[] = Array.from(new Set(all.map((x) => x.t[TCOL.id] as number)));
+    // collaborators map
+    const taskIds: number[] = Array.from(new Set(tasks.map((t) => t[TCOL.id] as number)));
     const { data: collabs, error: cErr } = await sb
       .from(TABLES.collab)
       .select("task_id,user_id")
@@ -110,31 +131,56 @@ export async function GET() {
 
     let inserted = 0;
     let updated = 0;
+    const keepIds = new Set<string>();
+    let countToday = 0,
+      countTomorrow = 0,
+      countOverdue = 0;
 
-    for (const { t, kind } of all) {
+    for (const t of tasks) {
       const taskId = t[TCOL.id] as number;
-      const title = (t[TCOL.title] ?? "") as string;
-      const dueDateStr = t[TCOL.due] as string; // "YYYY-MM-DD"
-      const dueISO = new Date(dueDateStr + "T00:00:00+08:00").toISOString();
+      const title = String(t[TCOL.title] ?? "");
+      const dueYMD = toYmdSGT(t[TCOL.due]); // SGT-normalized
 
       const recipients = new Set<string>();
-      if (t[TCOL.ownedBy]) recipients.add(t[TCOL.ownedBy] as string);
-      if (t[TCOL.createdBy]) recipients.add(t[TCOL.createdBy] as string);
-      (collabMap.get(taskId) ?? []).forEach((u) => recipients.add(u));
+      if (t[TCOL.ownedBy]) recipients.add(String(t[TCOL.ownedBy]));
+      if (t[TCOL.createdBy]) recipients.add(String(t[TCOL.createdBy]));
+      (collabMap.get(taskId) ?? []).forEach((u) => recipients.add(String(u)));
+      if (recipients.size === 0) continue;
+
+      let kind: typeof K[keyof typeof K] | null = null;
+      if (dueYMD) {
+        if (dueYMD === todayYMD) {
+          kind = K.TODAY;
+          countToday++;
+        } else if (dueYMD === tomorrowYMD) {
+          kind = K.TOMORROW;
+          countTomorrow++;
+        } else if (dueYMD < todayYMD) {
+          kind = K.OVERDUE;
+          countOverdue++;
+        }
+      }
+      if (!kind) continue;
 
       const titleText =
-        kind === "due_tomorrow" ? "Upcoming deadline" :
-        kind === "due_today"    ? "Task due today"     : "Task overdue";
-
+        kind === K.TOMORROW
+          ? "Upcoming deadline"
+          : kind === K.TODAY
+          ? "Task due today"
+          : "Task overdue";
       const message =
-        kind === "due_tomorrow" ? `“${title}” is due tomorrow.` :
-        kind === "due_today"    ? `“${title}” is due today.` :
-                                  `“${title}” is overdue.`;
+        kind === K.TOMORROW
+          ? `“${title}” is due tomorrow.`
+          : kind === K.TODAY
+          ? `“${title}” is due today.`
+          : `“${title}” is overdue.`;
 
       for (const userId of recipients) {
-        const idText = notifId(taskId, userId, kind, dueISO);
+        const suffix =
+          kind === K.TODAY ? todayYMD : kind === K.TOMORROW ? tomorrowYMD : dueYMD!;
+        const idText = notifId(taskId, userId, kind, suffix);
+        keepIds.add(idText);
 
-        // if exists -> update title/message so edited task titles propagate
         const { data: exists, error: exErr } = await sb
           .from(TABLES.notifs)
           .select(`${NCOL.id},${NCOL.title},${NCOL.message}`)
@@ -147,32 +193,58 @@ export async function GET() {
           if (cur.title !== titleText || cur.message !== message) {
             const { error: upErr } = await sb
               .from(TABLES.notifs)
-              .update({ [NCOL.title]: titleText, [NCOL.message]: message })
+              .update({
+                [NCOL.title]: titleText,
+                [NCOL.message]: message,
+                [NCOL.isRead]: false,
+              })
               .eq(NCOL.id, idText);
             if (upErr) throw upErr;
             updated++;
           }
-          continue;
+        } else {
+          const { error: insErr } = await sb.from(TABLES.notifs).insert([
+            {
+              [NCOL.id]: idText,
+              [NCOL.taskId]: taskId,
+              [NCOL.userId]: userId,
+              [NCOL.kind]: kind,
+              [NCOL.title]: titleText,
+              [NCOL.message]: message,
+              [NCOL.isRead]: false,
+              [NCOL.dueDate]: suffix, // YYYY-MM-DD SGT
+            },
+          ]);
+          if (insErr) throw insErr;
+          inserted++;
         }
-
-        const { error: insErr } = await sb.from(TABLES.notifs).insert([
-          {
-            [NCOL.id]: idText,
-            [NCOL.taskId]: taskId,
-            [NCOL.userId]: userId,
-            [NCOL.kind]: kind,
-            [NCOL.title]: titleText,
-            [NCOL.message]: message,
-            [NCOL.isRead]: false,
-            [NCOL.dueDate]: dueISO,
-          },
-        ]);
-        if (insErr) throw insErr;
-        inserted++;
       }
     }
 
-    return NextResponse.json({ ok: true, inserted, updated });
+    // PRUNE old rows for these tasks/kinds not recreated this run
+    const { data: oldRows, error: oldErr } = await sb
+      .from(TABLES.notifs)
+      .select(`${NCOL.id},${NCOL.taskId},${NCOL.kind}`)
+      .in(NCOL.taskId, taskIds) // numeric ids
+      .in(NCOL.kind, [K.TODAY, K.TOMORROW, K.OVERDUE, "overdue"]);
+    if (oldErr) throw oldErr;
+
+    const staleIds = (oldRows ?? [])
+      .map((r: any) => String(r[NCOL.id]))
+      .filter((id) => !keepIds.has(id));
+
+    if (staleIds.length) {
+      const { error: delErr } = await sb.from(TABLES.notifs).delete().in(NCOL.id, staleIds);
+      if (delErr) throw delErr;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      counts: { today: countToday, tomorrow: countTomorrow, overdue: countOverdue },
+      inserted,
+      updated,
+      pruned: staleIds.length,
+    });
   } catch (e: any) {
     console.error("cron/due-notifications", e);
     return NextResponse.json(
