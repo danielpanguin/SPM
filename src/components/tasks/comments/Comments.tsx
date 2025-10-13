@@ -10,10 +10,14 @@ type Comment = {
   task_id: number;
   message: string;
   created_at: string;
+  updated_at?: string | null;
   author: { id: string; username: string | null } | null;
 };
 
-type CommentUI = Comment & { createdAtTs: number };
+type CommentUI = Comment & {
+  createdAtTs: number;
+  updatedAtTs?: number | null;
+};
 
 type Props = {
   taskId: string;
@@ -44,8 +48,10 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       task_id: r.task_id as number,
       message: r.message as string,
       created_at: r.created_at as string,
+      updated_at: r.updated_at ?? null,
       author: Array.isArray(r.author) ? r.author[0] ?? null : r.author ?? null,
       createdAtTs: new Date(r.created_at).getTime(),
+      updatedAtTs: r.updated_at ? new Date(r.updated_at).getTime() : null, 
     })) as CommentUI[];
     shaped.sort((a, b) => (a.createdAtTs - b.createdAtTs) || (a.id - b.id)); // oldest -> newest
     return shaped;
@@ -128,6 +134,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
           task_id,
           message:content,
           created_at,
+          updated_at,
           author:users!fk_comments_user_id ( id, username )
         `)
         .eq("task_id", taskIdNum)
@@ -166,6 +173,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
           task_id,
           message:content,
           created_at,
+          updated_at,
           author:users!fk_comments_user_id ( id, username )
         `)
         .single();
@@ -219,6 +227,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
           task_id,
           message:content,
           created_at,
+          updated_at,
           author:users!fk_comments_user_id ( id, username )
         `)
         .single();
@@ -231,7 +240,9 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
           c.id === id
             ? {
                 ...c,
-                message: data.message as string,
+                message: data.message as string,     
+                updated_at: data.updated_at ?? c.updated_at,
+                updatedAtTs: data.updated_at ? new Date(data.updated_at).getTime() : c.updatedAtTs ?? null,
                 // keep createdAtTs same; created_at shouldn't change on update
               }
             : c
@@ -278,7 +289,11 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
               <div key={c.id} className="rounded-sm border border-gray-400 p-3 bg-gray-50 text-sm">
                 <div className="mb-1 text-gray-600 flex items-center gap-2">
                   <span className="font-medium">{c.author?.username ?? c.author?.id ?? "Unknown"}</span>
-                  <span className="text-xs text-gray-400">• {new Date(c.createdAtTs).toLocaleString()}</span>
+                  <span className="text-xs text-gray-400">
+                    {/* Prefer edited time if present; else created time */}
+                    • {new Date((c.updatedAtTs ?? c.createdAtTs)).toLocaleString()}
+                    {c.updatedAtTs && c.updatedAtTs !== c.createdAtTs ? " (edited)" : ""}
+                  </span>
 
                   {canEditComment(c) && !isEditing && (
                     <button

@@ -8,7 +8,7 @@ import Comments from "@/components/tasks/comments/Comments";
 // --------------------
 let CURRENT_USER_ID = "u-1";
 jest.mock("@/hooks/useAuth", () => ({
-  useUser: () => ({ currentUserId: CURRENT_USER_ID }),
+  useUser: () => ({ userId: CURRENT_USER_ID }),
 }));
 
 // --------------------

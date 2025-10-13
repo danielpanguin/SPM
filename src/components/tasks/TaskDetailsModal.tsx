@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Pencil, X } from "lucide-react";
 import type { ReactNode } from "react";
 import Comments from "@/components/tasks/comments/Comments";
+import { Badge } from "@/components/ui/ViewTaskUi/badge";
 
 /* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
@@ -51,12 +52,20 @@ interface Props {
   task: UITask | DetailsTask | null;
   onClose(): void;
   onEdit(): void;
+  projectByTaskId?: Map<string, string | null>
+  titleById?: Map<string | number, string>
 }
 
 type UserMap = Record<string, string>; // id -> label (email or id)
 
 /* ---------- Component ---------- */
-export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
+export default function TaskDetailsModal({ 
+    task,
+    onClose,
+    onEdit,
+    projectByTaskId,
+    titleById,
+  }: Props) {
   const [labels, setLabels] = useState<UserMap>({});
   const [commentCount, setCommentCount] = useState<number>(0);
 
@@ -96,11 +105,23 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
   if (!task) return null;
 
   // Handle both Task (with 'tag') and UITask (with 'tags')
-  const tagsValue = 'tags' in task && task.tags
-    ? task.tags.join(", ")
-    : ('tag' in task && task.tag)
-      ? task.tag
-      : "—";
+  // const tagsValue = 'tags' in task && task.tags
+  //   ? task.tags.join(", ")
+  //   : ('tag' in task && task.tag)
+  //     ? task.tag
+  //     : "—";
+
+  const tagsValue =
+  "tags" in task && task.tags?.length
+    ? task.tags.map(tag => (
+        <Badge key={tag} variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">
+          {tag}
+        </Badge>
+      ))
+    : task.tag
+    ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{task.tag}</Badge>
+    : "—"
+
 
   // Helper function to get display value for users
   const getUserDisplay = (user: Person | undefined) => {
@@ -116,21 +137,68 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
       .join(", ");
   };
 
-  const getPriorityColor = (p: string | number) => {
-    const val = String(p).toLowerCase();
-    if (val.includes("high")) return "bg-red-100 text-red-700 border-red-300";
-    if (val.includes("medium")) return "bg-yellow-100 text-yellow-700 border-yellow-300";
-    if (val.includes("low")) return "bg-green-100 text-green-700 border-green-300";
-    return "bg-gray-100 text-gray-600 border-gray-300";
-  };
 
-  const getStatusColor = (s: string) => {
-    const val = s.toLowerCase();
-    if (val.includes("open") || val.includes("todo")) return "bg-blue-100 text-blue-700 border-blue-300";
-    if (val.includes("in progress") || val.includes("doing")) return "bg-yellow-100 text-yellow-700 border-yellow-300";
-    if (val.includes("done") || val.includes("completed")) return "bg-green-100 text-green-700 border-green-300";
-    return "bg-gray-100 text-gray-600 border-gray-300";
-  };
+  const getParentTask = () => {
+    if (!task?.parentTaskId) return "—"
+    const key = String(task.parentTaskId)            // <-- normalize to string
+    // const title = titleById?.get(key)
+    const title = titleById?.get(task.parentTaskId!);
+    return title ? `${title} (${task.parentTaskId})` : key
+  }
+
+  const getPriorityClass = (p: string | number | undefined | null) => {
+    if (p == null) return "bg-gray-100 text-gray-800 border-gray-200"
+
+    const raw = String(p).trim()
+    const lc = raw.toLowerCase()
+
+    // 1) P-format like "P10"
+    const match = lc.match(/^p(\d+)$/)
+    if (match) {
+      const n = parseInt(match[1], 10)
+      if (n >= 8) return "bg-red-100 text-red-800 border-red-200"      // High
+      if (n >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200" // Medium
+      if (n >= 1) return "bg-green-100 text-green-800 border-green-200"    // Low
+      return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+
+    // 2) Label format like "High" | "Medium" | "Low"
+    if (lc.includes("high")) return "bg-red-100 text-red-800 border-red-200"
+    if (lc.includes("medium")) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    if (lc.includes("low")) return "bg-green-100 text-green-800 border-green-200"
+
+    // 3) Numeric (1–10) just in case
+    const num = Number(raw)
+    if (!Number.isNaN(num)) {
+      if (num >= 8) return "bg-red-100 text-red-800 border-red-200"
+      if (num >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      if (num >= 1) return "bg-green-100 text-green-800 border-green-200"
+    }
+
+    return "bg-gray-100 text-gray-800 border-gray-200"
+  }
+
+  const getStatusClass = (s?: string | null) => {
+    const map: Record<string, string> = {
+      completed: "bg-green-100 text-green-800 border-green-200",
+      "in-progress": "bg-blue-100 text-blue-800 border-blue-200",
+      blocked: "bg-red-100 text-red-800 border-red-200",
+      archived: "bg-gray-200 text-gray-700 border-gray-300",
+      review: "bg-purple-100 text-purple-800 border-purple-200",
+      "to-do": "bg-gray-100 text-gray-800 border-gray-200",
+      todo: "bg-gray-100 text-gray-800 border-gray-200",
+      open: "bg-blue-100 text-blue-800 border-blue-200",
+      doing: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      done: "bg-green-100 text-green-800 border-green-200",
+    }
+    const key = (s ?? "").toLowerCase()
+    return map[key] ?? "bg-gray-100 text-gray-800 border-gray-200"
+  }
+
+  // optional: a display helper to keep the label tidy
+  const niceStatus = (s?: string | null) =>
+    s ? String(s).replace("-", " ") : "—"
+
 
 
   return (
@@ -143,31 +211,24 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-xl font-semibold">{task.title}</h3>
             </div>
-            {/* 🏷️ Priority badge */}
             <div className="justify-evenly space-x-2">
               {task.priority && (
-                <span
-                  className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(task.priority)}`}
-                >
-                  Priority: {task.priority}
-                </span>
+                <Badge variant="outline" className={`${getPriorityClass(task.priority)} text-xs`}>
+                  {String(task.priority)}
+                </Badge>
               )}
 
-              {/* 🏷️ Status badge */}
               {task.status && (
-                <span
-                  className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(task.status)}`}
-                >
-                  {task.status}
-                </span>
+                <Badge variant="outline" className={`${getStatusClass(task.status)} capitalize text-xs`}>
+                  {niceStatus(task.status)}
+                </Badge>
               )}
             </div>
         </div>
 
           {/* 🧾 Details Grid */}
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="Project" value={(task as any).project?.name || "—"} />
-          <Field label="Status" value={task.status || "—"} />
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          
           <Field label="Start Date" value={task.startDate || "—"} />
           <Field label="End Date" value={task.endDate || "—"} />
           <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
@@ -212,8 +273,9 @@ export default function TaskDetailsModal({ task, onClose, onEdit }: Props) {
             <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
             <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
             <Field label="Collaborators" value={getCollaboratorsDisplay()} />
-            <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} />
+            <Field label="Project" value={(task as any).project?.name || "—"} />
             <Field label="Tags" value={tagsValue} />
+            <Field label="Parent Task" value={getParentTask()} />
             <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
             <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
           </div>
