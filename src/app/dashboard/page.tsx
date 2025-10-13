@@ -1,100 +1,95 @@
-'use client'
+// src/app/dashboard/page.tsx
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import GanttChart from '@/components/ui/GanttChart'
-import { UserProvider, useUser } from '@/hooks/useAuth'
-import { TaskDashboard } from "@/components/task-dashboard"
-import { User, LogOut } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { UserProvider, useUser } from "@/hooks/useAuth";
+import { TaskDashboard } from "@/components/task-dashboard";
+import GanttChart from "@/components/ui/GanttChart";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { User, LogOut } from "lucide-react";
 
 function DashboardContent() {
-  const [isDarkMode, setIsDarkMode] = useState(false)
-  const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
-  const { loading, userId, email, profile, signOut } = useUser()
-  const router = useRouter()
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<"gantt" | "tasks">("tasks");
+  const { loading, userId, email, profile, signOut } = useUser();
+  const router = useRouter();
 
-  const handleSignOut = async () => {
-    await signOut()
-    router.push('/login')
-  }
-
-  // Redirect to login if not authenticated
   useEffect(() => {
-    if (!loading && !userId) {
-      router.replace('/login')
-    }
-  }, [loading, userId, router])
+    if (!loading && !userId) router.replace("/login");
+  }, [loading, userId, router]);
 
-  // Don't render if not authenticated
-  if (!userId) {
-    return null
-  }
+  if (!userId) return null;
 
   return (
-    <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Login Banner */}
-      <div className={`sticky top-0 z-50 border-b transition-colors ${
-        isDarkMode
-          ? 'bg-gray-800 border-gray-700'
-          : 'bg-gray-100 border-gray-300'
-      }`}>
-        <div className="flex items-center justify-between h-16 space-x-4 p-3 sm:p-6">
-          {/* Tab Navigation */}
+    <div className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"}`}>
+      <div
+        className={`sticky top-0 z-50 border-b ${
+          isDarkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-300"
+        }`}
+      >
+        <div className="flex h-16 items-center justify-between gap-4 p-3 sm:p-6">
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('gantt')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'gantt'
+              onClick={() => setActiveTab("gantt")}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === "gantt"
                   ? isDarkMode
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-white text-gray-900 shadow'
+                    ? "bg-gray-700 text-white"
+                    : "bg-white text-gray-900 shadow"
                   : isDarkMode
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? "text-gray-400 hover:text-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
               Gantt
             </button>
             <button
-              onClick={() => setActiveTab('tasks')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'tasks'
+              onClick={() => setActiveTab("tasks")}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === "tasks"
                   ? isDarkMode
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-white text-gray-900 shadow'
+                    ? "bg-gray-700 text-white"
+                    : "bg-white text-gray-900 shadow"
                   : isDarkMode
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? "text-gray-400 hover:text-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
               Tasks
             </button>
           </div>
 
-          <div className="flex items-center space-x-4">
-            {/* Current User Display */}
-            <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border ${
-              isDarkMode
-                ? 'bg-gray-800 border-gray-600 text-gray-200'
-                : 'bg-white border-gray-300 text-gray-700'
-            }`}>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+
+            <div
+              className={`flex items-center gap-3 rounded-lg border px-4 py-2 ${
+                isDarkMode
+                  ? "bg-gray-800 border-gray-600 text-gray-200"
+                  : "bg-white border-gray-300 text-gray-700"
+              }`}
+            >
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4" />
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">
-                    {profile?.username || email?.split('@')[0] || 'User'}
+                    {profile?.username || email?.split("@")[0] || "User"}
                   </span>
                   {profile?.role && (
-                    <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <span className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                       {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
                     </span>
                   )}
                 </div>
               </div>
               <button
-                onClick={handleSignOut}
-                className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                onClick={async () => {
+                  await signOut();
+                  router.push("/login");
+                }}
+                className={`rounded p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                  isDarkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"
                 }`}
                 title="Sign out"
               >
@@ -102,35 +97,24 @@ function DashboardContent() {
               </button>
             </div>
 
-            {/* Dark Mode Toggle */}
             <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`p-2 rounded-lg border transition-colors ${
+              onClick={() => setIsDarkMode((v) => !v)}
+              className={`rounded-lg border p-2 ${
                 isDarkMode
-                  ? 'border-gray-600 hover:bg-gray-700 text-gray-300'
-                  : 'border-gray-300 hover:bg-gray-50 text-gray-600'
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
               }`}
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              {isDarkMode ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
+              {isDarkMode ? "☀️" : "🌙"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      {activeTab === 'gantt' && <GanttChart isDarkMode={isDarkMode} />}
-      {activeTab === 'tasks' && <TaskDashboard isDarkMode={isDarkMode} />}
+      {activeTab === "gantt" ? <GanttChart isDarkMode={isDarkMode} /> : <TaskDashboard isDarkMode={isDarkMode} />}
     </div>
-  )
+  );
 }
 
 export default function DashboardPage() {
@@ -138,5 +122,5 @@ export default function DashboardPage() {
     <UserProvider>
       <DashboardContent />
     </UserProvider>
-  )
+  );
 }

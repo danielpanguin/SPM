@@ -1,5 +1,11 @@
 'use client'
 
+import { useState } from 'react'
+import GanttChart from '@/components/ui/GanttChart'
+import { TaskDashboard } from "@/components/task-dashboard"
+// import LoginSimulator from '@/components/forms/LoginSimulator'
+import NotificationBell from "@/components/notifications/NotificationBell" // ← ADDED
+
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserProvider, useUser } from '@/hooks/useAuth'
