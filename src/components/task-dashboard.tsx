@@ -109,7 +109,7 @@ function mapPriority(priorityId: number | null | undefined): string {
 }
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
-  const { accessibleUserIds } = useUser()
+  const { accessibleUserIds, role } = useUser()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -129,6 +129,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
+  const [archivedCount, setArchivedCount] = useState<number>(0)
 
   console.log("TaskDashboard render - tasks count:", tasks.length)
   const [loading, setLoading] = useState<boolean>(true)
@@ -179,20 +180,23 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           created_by_user:created_by (
             id,
             username,
+            email,
             roles ( id, name )
           ),
           owned_by_user:owned_by (
             id,
             username,
+            email,
             roles ( id, name )
           ),
           status:status_id ( id, status ),
+          priority:priority_id ( id ),
           project:project_id ( id, name ),
           task_tasktag (
             task_tag ( id, name )
           ),
           task_collaborator (
-            users ( id, username )
+            users ( id, username, email )
           )
         `)
         .in("owned_by", accessibleUserIds)
@@ -228,20 +232,23 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             created_by_user:created_by (
               id,
               username,
+              email,
               roles ( id, name )
             ),
             owned_by_user:owned_by (
               id,
               username,
+              email,
               roles ( id, name )
             ),
             status:status_id ( id, status ),
+            priority:priority_id ( id ),
             project:project_id ( id, name ),
             task_tasktag (
               task_tag ( id, name )
             ),
             task_collaborator (
-              users ( id, username )
+              users ( id, username, email )
             )
           `)
           .in("id", taskIds)
@@ -336,6 +343,18 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
+      
+      // Load archived count for managers/admins
+      if (role === 'manager' || role === 'admin') {
+        const { count } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .in('owned_by', accessibleUserIds)
+          .eq('is_archived', true)
+        
+        setArchivedCount(count || 0)
+      }
+      
       setLoading(false)
       } catch (err) {
         console.error("[Supabase] Unexpected error loading tasks:", err)
@@ -345,7 +364,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
     }
 
     load()
-  }, [accessibleUserIds])
+  }, [accessibleUserIds, role])
 
   // Keep header search in sync with filters
   useEffect(() => {
@@ -529,6 +548,18 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
               <p className="text-xs !text-gray-900">Need attention</p>
             </CardContent>
           </Card>
+
+          {(role === 'manager' || role === 'admin') && (
+            <Card className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={handleShowArchive}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium !text-black">Archived</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold !text-gray-600">{archivedCount}</div>
+                <p className="text-xs !text-gray-900">View archive →</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Main Content Area */}
@@ -546,9 +577,11 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
                 </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
-                  Archived Tasks
-                </Button>
+                {(role === 'manager' || role === 'admin') && (
+                  <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
+                    Archived Tasks
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
@@ -619,9 +652,21 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                     onTaskClick={handleTaskClick}
                     onTaskUpdate={(taskId, updates) => {
                       // Update task in local state without reloading
-                      setTasks(prev => prev.map(t => 
-                        t.id === taskId ? { ...t, ...updates } : t
-                      ))
+                      setTasks(prev => {
+                        // If status is archived, remove the task from the list
+                        if (updates.status === 'archived') {
+                          return prev.filter(t => t.id !== taskId)
+                        }
+                        // Otherwise, update the task
+                        return prev.map(t => 
+                          t.id === taskId ? { ...t, ...updates } : t
+                        )
+                      })
+                      
+                      // If archived, also update the archived count
+                      if (updates.status === 'archived' && (role === 'manager' || role === 'admin')) {
+                        setArchivedCount(prev => prev + 1)
+                      }
                     }}
                     projectByTaskId={projectByTaskId}
                     titleById={titleById}

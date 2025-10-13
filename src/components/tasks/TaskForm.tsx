@@ -31,7 +31,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [ownedById, setOwnedById] = useState<string | undefined>(
-    (initial?.ownedBy as any)?.id
+    (initial?.ownedBy as any)?.id ?? currentUserId ?? undefined
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];

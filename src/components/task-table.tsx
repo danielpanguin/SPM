@@ -9,6 +9,7 @@ import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
 import { fetchStatuses, updateTaskStatusAPI } from "@/components/useTasks"
 import { useUser } from "@/hooks/useAuth"
+import { useToast } from "@/hooks/use-toast"
 
 type SortField = 'taskId' | 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
@@ -29,9 +30,10 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
   const [statuses, setStatuses] = useState<Array<{ id: number; status: string }>>([])
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const { userId, role } = useUser()
+  const { toast } = useToast()
   
-  // Check if user can archive tasks (managers and admins only)
-  const canArchive = role === 'manager' || role === 'admin'
+  // Check if user can archive tasks (managers only)
+  const canArchive = role === 'manager'
 
   // Load available statuses on mount
   useEffect(() => {
@@ -56,34 +58,49 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
     // Check if trying to archive without permission
     const isArchiving = newStatus.status.toLowerCase() === 'archived'
     if (isArchiving && !canArchive) {
-      alert("Only managers and admins can archive tasks.")
+      toast({
+        title: "Permission Denied",
+        description: "Only managers can archive tasks.",
+        variant: "destructive",
+      })
       return
     }
     
     // Normalize status to match Task type format
     const normalizedStatus = newStatus.status.toLowerCase().replace(/\s+/g, '-') as Task['status']
     
-    // If archiving, confirm with user
-    if (isArchiving) {
-      const confirmed = confirm("Are you sure you want to archive this task? It will be removed from the main task list.")
-      if (!confirmed) return
-    }
-    
-    // OPTIMISTIC UPDATE: Update UI immediately before API call
-    if (onTaskUpdate) {
-      onTaskUpdate(taskId, { status: normalizedStatus })
-    }
-    
     try {
       setUpdatingStatus(taskId)
-      // API call happens in background
-      await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
       
-      // If archived, remove from list after a brief delay
+      // For archiving, we need to handle it differently
       if (isArchiving) {
-        setTimeout(() => {
-          window.location.reload() // Refresh to update the list
-        }, 500)
+        // First, update the API
+        await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
+        
+        // Show success notification
+        toast({
+          title: "Task Archived",
+          description: "The task has been moved to the archive.",
+        })
+        
+        // Remove task from local state by updating with a special marker
+        // The parent component should filter this out
+        if (onTaskUpdate) {
+          onTaskUpdate(taskId, { status: 'archived' as Task['status'] })
+        }
+      } else {
+        // OPTIMISTIC UPDATE for non-archive status changes
+        if (onTaskUpdate) {
+          onTaskUpdate(taskId, { status: normalizedStatus })
+        }
+        
+        // API call happens in background
+        await updateTaskStatusAPI(Number(taskId), newStatusId, userId || undefined)
+        
+        toast({
+          title: "Status Updated",
+          description: `Task status changed to ${newStatus.status}`,
+        })
       }
     } catch (error) {
       console.error("Error updating task status:", error)
@@ -91,7 +108,11 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
       if (onTaskUpdate) {
         onTaskUpdate(taskId, { status: oldStatus })
       }
-      alert("Failed to update task status. Changes have been reverted.")
+      toast({
+        title: "Update Failed",
+        description: "Failed to update task status. Changes have been reverted.",
+        variant: "destructive",
+      })
     } finally {
       setUpdatingStatus(null)
     }

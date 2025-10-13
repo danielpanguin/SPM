@@ -1,6 +1,6 @@
 export type Priority = string; // P1-P10 format
 
-export type Status = "pending" | "in-progress" | "completed" | "blocked";
+export type Status = "pending" | "in-progress" | "completed" | "blocked" | "archived";
 
 export type Role = "manager" | "staff" | "admin";
 

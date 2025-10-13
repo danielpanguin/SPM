@@ -60,6 +60,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       console.log('🔄 Fetching data from Supabase...')
       
       // Fetch tasks based on accessible user IDs (role-based access)
+      // Exclude archived tasks from Gantt chart
       const { data: tasks, error: tasksError } = accessibleUserIds.length > 0
         ? await supabase
             .from('tasks')
@@ -68,6 +69,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
               status(status)
             `)
             .in('owned_by', accessibleUserIds)
+            .eq('is_archived', false)
         : { data: [], error: null }
       
       console.log('🎯 Fetching tasks for accessible user IDs:', accessibleUserIds)
