@@ -1,4 +1,3 @@
-// src/components/tasks/TaskDetailsModal.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,7 +7,7 @@ import type { ReactNode } from "react";
 import Comments from "@/components/tasks/comments/Comments";
 import { Badge } from "@/components/ui/ViewTaskUi/badge";
 
-/* ---------- Types ---------- */
+/* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
 
 export type UITask = {
@@ -28,7 +27,7 @@ export type UITask = {
   parentTaskId?: string | number | null;
   project_id?: number | null;
   project?: { id: number; name: string } | null;
-  tag?: string | null;
+  tag?: string | null; // For backward compatibility
 };
 
 type DetailsTask = {
@@ -47,9 +46,6 @@ type DetailsTask = {
   comments?: Array<unknown>;
   createdAt?: string;
   updatedAt?: string;
-  project_id?: number | null;
-  project?: { id: number; name: string } | null;
-  tags?: string[] | null;
 };
 
 interface Props {
@@ -60,24 +56,7 @@ interface Props {
   titleById?: Map<string | number, string>
 }
 
-type UserMap = Record<string, string>;
-const dash = (x?: string | null) => (x ? x : "—");
-function toPriorityLabel(v: number | string | null | undefined) {
-  if (v == null) return "—";
-  const n = Number(v);
-  const map: Record<number, string> = { 1: "low", 2: "medium", 3: "high", 4: "urgent" };
-  return map[n] ?? String(v);
-}
-
-/** helpers used in JSX (the ones that were 'not defined') */
-function getUserDisplay(p?: Person | null): string {
-  if (!p) return "—";
-  return p.name || (p.email ?? "") || (p.id ? String(p.id) : "—");
-}
-function getCollaboratorsDisplay(list?: Array<Person> | null): string {
-  if (!list || !list.length) return "—";
-  return list.map((c) => getUserDisplay(c)).join(", ");
-}
+type UserMap = Record<string, string>; // id -> label (email or id)
 
 /* ---------- Component ---------- */
 export default function TaskDetailsModal({ 
@@ -94,36 +73,32 @@ export default function TaskDetailsModal({
     setCommentCount(0);
   }, [task?.id]);
 
-  const taskId = useMemo(() => (task?.id != null ? Number(task.id) : null), [task?.id]);
-
-  // hydrate latest (non-fatal)
   useEffect(() => {
     let alive = true;
-    async function hydrate() {
-      if (!taskId) return;
-
-      // users for labels
+    async function hydrateUsers() {
+      if (!task) return;
       const ids = new Set<string>();
-      const t = task as any;
-      if (t?.createdBy?.id) ids.add(String(t.createdBy.id));
-      if (t?.ownedBy?.id) ids.add(String(t.ownedBy.id));
-      (t?.collaborators ?? []).forEach((c: any) => c?.id && ids.add(String(c.id)));
+      if (task.createdBy?.id) ids.add(String(task.createdBy.id));
+      if (task.ownedBy?.id) ids.add(String(task.ownedBy.id));
+      (task.collaborators ?? []).forEach((c) => {
+        if (c?.id) ids.add(String(c.id));
+      });
+      if (!ids.size) return;
 
-      if (ids.size) {
-        const { data } = await supabase.from("users").select("id,email").in("id", Array.from(ids));
-        if (!alive) return;
-        const map: UserMap = {};
-        (data ?? []).forEach((u) => (map[u.id] = u.email ?? u.id));
-        setLabels(map);
-      }
-
-      // here you could also fetch latest task details if needed
+      const { data } = await supabase
+        .from("users")
+        .select("id,email")
+        .in("id", Array.from(ids));
+      if (!alive) return;
+      const map: UserMap = {};
+      (data ?? []).forEach((u: any) => (map[u.id] = u.email || u.id));
+      setLabels(map);
     }
-    hydrate();
+    hydrateUsers();
     return () => {
       alive = false;
     };
-  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [task?.id]);
 
   // const [commentCount, setCommentCount] = useState(task?.comments.length ?? 0);
 
@@ -148,16 +123,19 @@ export default function TaskDetailsModal({
     : "—"
 
 
-  const createdByText = getUserDisplay(merged.createdBy);
-  const ownedByText = getUserDisplay(merged.ownedBy);
-  const collabsText = getCollaboratorsDisplay(merged.collaborators);
+  // Helper function to get display value for users
+  const getUserDisplay = (user: Person | undefined) => {
+    if (!user?.id) return "—";
+    return labels[String(user.id)] || user.name || user.email || String(user.id);
+  };
 
-  const tagsValue =
-    Array.isArray(merged.tags) && merged.tags.length
-      ? merged.tags.join(", ")
-      : (task as any)?.tag
-      ? String((task as any).tag)
-      : "—";
+  // Helper function to get collaborators display
+  const getCollaboratorsDisplay = () => {
+    if (!task.collaborators || task.collaborators.length === 0) return "—";
+    return task.collaborators
+      .map(c => labels[String(c.id)] || c.name || (c as any).email || String(c.id))
+      .join(", ");
+  };
 
 
   const getParentTask = () => {
@@ -307,6 +285,7 @@ export default function TaskDetailsModal({
   );
 }
 
+/** accept any renderable value so numbers/strings are fine */
 function Field({
   label,
   value,
@@ -319,7 +298,7 @@ function Field({
   return (
     <div className={className}>
       <div className="text-gray-500">{label}</div>
-      <div className="break-words font-medium">{value}</div>
+      <div className="font-medium break-words">{value}</div>
     </div>
   );
 }
