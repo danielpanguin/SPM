@@ -1,5 +1,12 @@
 /** @jest-environment node */
-
+import {
+  sendTaskEmails,
+  generateReminderEmail,
+  generateOverdueTasksEmail,
+  generateDailySummaryEmail,
+  formatDateDDMMYYYY,
+  sortTasksByDate,
+} from '@/app/api/emails/route';
 // Mock nodemailer before any imports
 jest.mock('nodemailer');
 jest.mock('@/app/api/emails/route', () => ({

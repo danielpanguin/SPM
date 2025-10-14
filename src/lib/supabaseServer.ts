@@ -1,6 +1,6 @@
 // src/lib/supabaseServer.ts
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -14,19 +14,12 @@ export async function supabaseServer() {
 
   return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
-      get(name: string) {
-        return store.get(name)?.value;
+      getAll() {
+        return store.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
+      setAll(cookiesToSet) {
         try {
-          store.set(name, value, options);
-        } catch {
-          // read-only cookies in some edge contexts; safe to ignore
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          store.set(name, "", { ...options, expires: new Date(0) });
+          cookiesToSet.forEach(({ name, value, options }) => store.set(name, value, options));
         } catch {
           //
         }
