@@ -718,7 +718,7 @@ export function TaskCompletionReport() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {role === 'manager' && (
+                      {role === 'manager' && userId && (
                         <>
                           <SelectItem value="my-team">My Team</SelectItem>
                           <SelectItem value={userId}>My Tasks</SelectItem>
