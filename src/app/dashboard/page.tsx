@@ -9,7 +9,7 @@ import { User, LogOut } from 'lucide-react'
 
 function DashboardContent() {
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('gantt')
+  const [activeTab, setActiveTab] = useState<'gantt' | 'tasks'>('tasks')
   const { loading, userId, email, profile, signOut } = useUser()
   const router = useRouter()
 

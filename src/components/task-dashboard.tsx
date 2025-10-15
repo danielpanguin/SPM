@@ -2,6 +2,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Button } from "@/components/ui/ViewTaskUi/button"
@@ -110,6 +111,7 @@ function mapPriority(priorityId: number | null | undefined): string {
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const { accessibleUserIds, role } = useUser()
+  const router = useRouter()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -571,9 +573,15 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                 <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  View Reports
-                </Button>
+                {(role === 'manager' || role === 'admin') && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => router.push('/reports/completion')}
+                  >
+                    Task Completion Report
+                  </Button>
+                )}
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
                 </Button>
