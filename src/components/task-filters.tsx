@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/ViewTaskUi/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
-import { X, Filter, Calendar, User, Tag, AlertTriangle } from "lucide-react"
+import { X, Filter, Calendar, User, Tag, AlertTriangle, FileText } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export interface TaskFilters {
   search: string
@@ -28,6 +29,7 @@ interface TaskFiltersProps {
   availableProjects?: string[]
   availableAssignees?: string[]
   availableTags?: string[]
+  projectNameToId?: Map<string, number>
 }
 
 export function TaskFiltersComponent({ 
@@ -38,9 +40,11 @@ export function TaskFiltersComponent({
   availablePriorities = [],
   availableProjects = [],
   availableAssignees = [],
-  availableTags = []
+  availableTags = [],
+  projectNameToId
 }: TaskFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const router = useRouter()
 
   const updateFilter = (key: keyof TaskFilters, value: string) => {
     onFiltersChange({ ...filters, [key]: value })
@@ -143,7 +147,25 @@ export function TaskFiltersComponent({
 
             {/* Project Filter */}
             <div>
-              <Label className="text-sm font-medium !text-black">Project</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-sm font-medium !text-black">Project</Label>
+                {filters.project !== "all" && projectNameToId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const projectId = projectNameToId.get(filters.project)
+                      if (projectId) {
+                        router.push(`/reports/project/${projectId}`)
+                      }
+                    }}
+                    className="h-6 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    View Report
+                  </Button>
+                )}
+              </div>
               <Select value={filters.project} onValueChange={(value) => updateFilter("project", value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="All projects" />

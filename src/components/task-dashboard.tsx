@@ -140,6 +140,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   // project/task title lookups for display-only fields (Project & Parent Task)
   const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
+  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map())
 
   // Load tasks with nested relationships (filtered by accessibleUserIds)
   useEffect(() => {
@@ -341,10 +342,19 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         (data ?? []).map((row: any) => [String(row.id), row.project?.name ?? null])
       )
       const titleMap = new Map<string, string>(mapped.map((t) => [t.id, t.title]))
+      
+      // Build project name to ID mapping
+      const projNameToId = new Map<string, number>()
+      data?.forEach((row: any) => {
+        if (row.project?.name && row.project?.id) {
+          projNameToId.set(row.project.name, row.project.id)
+        }
+      })
 
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
+      setProjectNameToId(projNameToId)
       
       // Load archived count for managers/admins
       if (role === 'manager' || role === 'admin') {
@@ -631,6 +641,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                 availableProjects={filterOptions.projects}
                 availableAssignees={filterOptions.assignees}
                 availableTags={filterOptions.tags}
+                projectNameToId={projectNameToId}
             />
           </div>
 
