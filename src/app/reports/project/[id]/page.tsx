@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { ProjectTaskReport } from "@/components/project-task-report"
+import { UserProvider } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
 
 export default function ProjectReportPage() {
@@ -46,5 +47,9 @@ export default function ProjectReportPage() {
     )
   }
 
-  return <ProjectTaskReport projectId={projectId} projectName={projectName} />
+  return (
+    <UserProvider>
+      <ProjectTaskReport projectId={projectId} projectName={projectName} />
+    </UserProvider>
+  )
 }
