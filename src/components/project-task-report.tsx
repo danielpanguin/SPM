@@ -58,12 +58,15 @@ export function ProjectTaskReport({ projectId, projectName }: ProjectTaskReportP
         // Fetch related data separately
         const taskIds = projectTasks?.map(t => t.id) || []
         
-        // Get users for owned_by
+        // Get users for owned_by and created_by
         const ownerIds = [...new Set(projectTasks?.map(t => t.owned_by).filter(Boolean))]
-        const { data: owners } = await supabase
+        const creatorIds = [...new Set(projectTasks?.map(t => t.created_by).filter(Boolean))]
+        const allUserIds = [...new Set([...ownerIds, ...creatorIds])]
+        
+        const { data: users } = await supabase
           .from('users')
-          .select('id, name, email')
-          .in('id', ownerIds)
+          .select('id, username, email, roles(id, name)')
+          .in('id', allUserIds)
         
         // Get statuses
         const statusIds = [...new Set(projectTasks?.map(t => t.status_id).filter(Boolean))]
@@ -73,8 +76,16 @@ export function ProjectTaskReport({ projectId, projectName }: ProjectTaskReportP
           .in('id', statusIds)
         
         // Create lookup maps
-        const ownerMap = new Map(owners?.map(o => [o.id, o]) || [])
+        const userMap = new Map(users?.map((u: any) => [u.id, {
+          id: u.id,
+          name: u.username,
+          email: u.email,
+          role: u.roles?.[0]?.name || 'user'
+        }]) || [])
         const statusMap = new Map(statuses?.map(s => [s.id, s.status]) || [])
+        
+        console.log('[Project Report] User map:', userMap)
+        console.log('[Project Report] Status map:', statusMap)
         
         // Map the data to Task type
         const mappedTasks = (projectTasks || []).map((task: any) => ({
@@ -84,9 +95,9 @@ export function ProjectTaskReport({ projectId, projectName }: ProjectTaskReportP
           startDate: task.start_date,
           endDate: task.end_date,
           status: statusMap.get(task.status_id) || 'pending',
-          priority: task.priority_id === 1 ? 'high' : task.priority_id === 2 ? 'medium' : 'low',
-          ownedBy: task.owned_by ? ownerMap.get(task.owned_by) : undefined,
-          createdBy: task.created_by ? ownerMap.get(task.created_by) : undefined,
+          priority: task.priority_id ? `P${task.priority_id}` : 'P1',
+          ownedBy: task.owned_by ? userMap.get(task.owned_by) : undefined,
+          createdBy: task.created_by ? userMap.get(task.created_by) : undefined,
           project: { id: projectId, name: projectName },
           collaborators: [],
           comments: [],
