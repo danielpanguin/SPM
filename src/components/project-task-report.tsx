@@ -42,16 +42,9 @@ export function ProjectTaskReport({ projectId, projectName }: ProjectTaskReportP
 
         const { data: projectTasks, error } = await supabase
           .from('tasks')
-          .select(`
-            *,
-            ownedBy:owned_by(id, name, email),
-            project:project_id(id, name),
-            created_by_user:created_by(id, name, email),
-            task_collaborator(
-              users(id, name, email)
-            )
-          `)
+          .select('*')
           .eq('project_id', projectId)
+          .eq('is_archived', false)
           .order('created_at', { ascending: false })
 
         if (error) {
@@ -60,7 +53,49 @@ export function ProjectTaskReport({ projectId, projectName }: ProjectTaskReportP
         }
 
         console.log('[Project Report] Fetched tasks:', projectTasks?.length || 0)
-        setTasks(projectTasks || [])
+        console.log('[Project Report] Sample task:', projectTasks?.[0])
+        
+        // Fetch related data separately
+        const taskIds = projectTasks?.map(t => t.id) || []
+        
+        // Get users for owned_by
+        const ownerIds = [...new Set(projectTasks?.map(t => t.owned_by).filter(Boolean))]
+        const { data: owners } = await supabase
+          .from('users')
+          .select('id, name, email')
+          .in('id', ownerIds)
+        
+        // Get statuses
+        const statusIds = [...new Set(projectTasks?.map(t => t.status_id).filter(Boolean))]
+        const { data: statuses } = await supabase
+          .from('statuses')
+          .select('id, status')
+          .in('id', statusIds)
+        
+        // Create lookup maps
+        const ownerMap = new Map(owners?.map(o => [o.id, o]) || [])
+        const statusMap = new Map(statuses?.map(s => [s.id, s.status]) || [])
+        
+        // Map the data to Task type
+        const mappedTasks = (projectTasks || []).map((task: any) => ({
+          id: String(task.id),
+          title: task.title,
+          description: task.description,
+          startDate: task.start_date,
+          endDate: task.end_date,
+          status: statusMap.get(task.status_id) || 'pending',
+          priority: task.priority_id === 1 ? 'high' : task.priority_id === 2 ? 'medium' : 'low',
+          ownedBy: task.owned_by ? ownerMap.get(task.owned_by) : undefined,
+          createdBy: task.created_by ? ownerMap.get(task.created_by) : undefined,
+          project: { id: projectId, name: projectName },
+          collaborators: [],
+          comments: [],
+          createdAt: task.created_at,
+          updatedAt: task.updated_at
+        }))
+        
+        console.log('[Project Report] Mapped tasks:', mappedTasks.length)
+        setTasks(mappedTasks as Task[])
       } catch (error) {
         console.error('[Project Report] Error:', error)
       } finally {
