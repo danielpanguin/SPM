@@ -75,13 +75,16 @@ function setupMocks() {
 
     if (table === "users") {
       chainable.select.mockResolvedValue({ data: mockUsers, error: null });
+      return chainable;
     } else if (table === "status") {
       chainable.select.mockResolvedValue({ data: mockStatuses, error: null });
+      return chainable;
     } else if (table === "priority") {
-      chainable.select.mockResolvedValue({ data: mockPriorities, error: null });
+      chainable.order.mockResolvedValue({ data: mockPriorities, error: null });
+      return chainable;
     } else if (table === "tasks") {
-      chainable.is.mockReturnThis();
       chainable.order.mockResolvedValue({ data: [mockParentTask], error: null });
+      return chainable;
     }
 
     return chainable;

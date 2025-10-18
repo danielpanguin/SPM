@@ -74,9 +74,9 @@ const mockFilters = {
   search: "",
   status: "all",
   priority: "all",
-  project: [],
+  project: "all", // Changed from [] to "all" to match dev version
   assignee: [],
-  tag: [],
+  tag: "all", // Changed from [] to "all" to match dev version
   parentTask: [],
   deadline: [],
   deadlineDueBy: "",
