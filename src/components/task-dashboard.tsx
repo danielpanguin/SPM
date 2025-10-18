@@ -596,7 +596,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                     <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
                     <p className="text-sm !text-gray-900">All tasks across your projects</p>
                   </div>
-                  <Button onClick={() => setCreating(true)}>Create Task</Button>
+                  <Button className="border-1 hover:bg-gray-200" onClick={() => setCreating(true)}>Create Task</Button>
                 </div>
               </CardHeader>
               <CardContent>
