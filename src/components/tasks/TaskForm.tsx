@@ -478,11 +478,6 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         <button type="submit" disabled={busy} className="rounded bg-black text-white px-4 py-2">
           {busy ? "Saving..." : mode === "create" ? "Create Task" : "Save Changes"}
         </button>
-        {onCancel && (
-          <button type="button" className="rounded border px-4 py-2" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
       </div>
     </form>
   );
