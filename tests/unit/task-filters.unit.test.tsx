@@ -268,15 +268,33 @@ describe('TaskFilters - Unit Tests', () => {
         />
       );
 
-      const filterBadges = screen.getAllByRole('button', { name: '' });
-      const removeButton = filterBadges.find((btn) =>
-        btn.querySelector('.lucide-x')
+      const statusBadgeText = screen.getByText(/status:\s*completed/i);
+      fireEvent.click(statusBadgeText);
+      expect(mockOnFiltersChange).toHaveBeenCalled();
+
+    });
+    
+    it('removes any badge that is clicked', () => {
+      render(
+        <TaskFiltersComponent
+          filters={{
+            ...defaultFilters,
+            status: 'completed',
+            priority: 'high',
+          }}
+          onFiltersChange={mockOnFiltersChange}
+          onClearFilters={mockOnClearFilters}
+        />
       );
 
-      if (removeButton) {
-        fireEvent.click(removeButton);
-        expect(mockOnFiltersChange).toHaveBeenCalled();
-      }
+      // Grab all badges by their "key: value" texts
+      const badgeTexts = screen.getAllByText(/^(status|priority):\s*(completed|high)$/i);
+
+      badgeTexts.forEach((badgeTextEl) => {
+        fireEvent.click(badgeTextEl);
+      });
+
+      expect(mockOnFiltersChange).toHaveBeenCalled();
     });
   });
 
