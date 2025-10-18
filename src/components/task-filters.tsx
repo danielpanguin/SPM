@@ -231,7 +231,7 @@ export function TaskFiltersComponent({
             {Object.entries(filters).map(([key, value]) => {
               if (value && value !== "all") {
                 return (
-                  <Badge key={key} variant="secondary" className="text-xs !text-black">
+                  <Badge key={key} variant="outline" className="text-xs !text-black">
                     {key}: {value}
                     <Button
                       variant="ghost"
