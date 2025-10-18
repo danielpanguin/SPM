@@ -70,7 +70,7 @@ export function TaskFiltersComponent({
                 Clear All
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs">
+            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs border-1">
               {isExpanded ? "Collapse" : "Expand"}
             </Button>
           </div>
@@ -231,16 +231,11 @@ export function TaskFiltersComponent({
             {Object.entries(filters).map(([key, value]) => {
               if (value && value !== "all") {
                 return (
-                  <Badge key={key} variant="outline" className="text-xs !text-black">
-                    {key}: {value}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 ml-1 hover:bg-transparent"
-                      onClick={() => updateFilter(key as keyof TaskFilters, "")}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                  <Badge key={key} variant="outline" className="text-xs !text-black flex hover:bg-gray-200" onClick={() => updateFilter(key as keyof TaskFilters, "")}>
+                    <span className="py-auto">
+                      {key}: {value}
+                    </span>
+                    <X className="my-auto h-3 w-3" />
                   </Badge>
                 )
               }
