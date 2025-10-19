@@ -3,6 +3,8 @@
 ## Overview
 The Task Completion Report provides managers and admins with a comprehensive view of task completion metrics across their teams. The report supports flexible filtering and time-based navigation to track performance over weekly or monthly periods.
 
+**Note:** This branch contains ONLY the Task Completion Report feature. Project-specific report generation is NOT included in this branch.
+
 ## Access
 - **Location**: Dashboard → Quick Actions → "Task Completion Report"
 - **Route**: `/reports/completion`
