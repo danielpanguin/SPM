@@ -7,10 +7,10 @@
 **Test Status:** ✅ **100% PASSING**
 
 ### Overall Results
-- **Total Test Suites:** 2 passed, 2 total
-- **Total Tests:** 23 passed, 23 total  
+- **Total Test Suites:** 3 passed, 3 total
+- **Total Tests:** 35 passed, 35 total  
 - **Pass Rate:** 100%
-- **Coverage:** 76.7% for task-completion-report.tsx
+- **Coverage:** 80.32% statements, 71.76% branches for task-completion-report.tsx
 
 ---
 
@@ -83,12 +83,49 @@
 
 ---
 
+### Coverage Tests (12 tests) ✅
+**File:** `tests/unit/task-completion-report-coverage.test.tsx`
+
+**Department Filter Logic (2 tests)**
+- ✅ should filter by my-department when selected
+- ✅ should filter by specific department ID
+
+**Manager User Filter Logic (1 test)**
+- ✅ should filter by specific user for manager
+
+**Project Filter Logic (1 test)**
+- ✅ should filter by my-projects
+
+**Task Loading with Collaborators (1 test)**
+- ✅ should load tasks with collaborators
+
+**Date Range Formatting (2 tests)**
+- ✅ should format weekly date range correctly
+- ✅ should format monthly date range correctly
+
+**Empty States (1 test)**
+- ✅ should show no tasks message when no data
+
+**Back to Dashboard Navigation (1 test)**
+- ✅ should navigate back to dashboard when clicked
+
+**Admin Department Filter with User Filter (1 test)**
+- ✅ should apply department filter with user filter for admin
+
+**Manager Project Tasks (1 test)**
+- ✅ should load tasks from manager projects
+
+**Task Created Date Filtering (1 test)**
+- ✅ should include tasks created in date range
+
+---
+
 ## Code Coverage
 
 ### Component Coverage
 | File | Statements | Branches | Functions | Lines |
 |------|-----------|----------|-----------|-------|
-| **task-completion-report.tsx** | **76.7%** | **66.47%** | **73.07%** | **77.63%** |
+| **task-completion-report.tsx** | **80.32%** | **71.76%** | **78.84%** | **81.14%** |
 
 ### UI Components Coverage
 | Component | Statements | Branches | Functions | Lines |
@@ -194,10 +231,10 @@ npm test -- --testPathPattern="task-completion-report" --coverage
 
 ### Test Results
 ```
-Test Suites: 2 passed, 2 total
-Tests:       23 passed, 23 total
+Test Suites: 3 passed, 3 total
+Tests:       35 passed, 35 total
 Snapshots:   0 total
-Time:        4.467 s
+Time:        5.084 s
 ```
 
 ### Test Environment
@@ -291,8 +328,8 @@ Time:        4.467 s
 
 ## Conclusion
 
-✅ **All 23 tests passing (100% pass rate)**  
-✅ **76.7% code coverage for main component**  
+✅ **All 35 tests passing (100% pass rate)**  
+✅ **80.32% code coverage for main component**  
 ✅ **All functional requirements tested and validated**  
 ✅ **All non-functional requirements met**  
 ✅ **Ready for code review and deployment**
