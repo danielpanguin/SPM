@@ -1,9 +1,22 @@
 // components/useTasks.ts
-export async function fetchTasks(q?: { project_id?: number; assignee_id?: string }) {
+export async function fetchTasks(q?: { 
+  project_id?: number; 
+  assignee_id?: string;
+  userId?: string;
+  role?: string;
+}) {
   const sp = new URLSearchParams();
   if (q?.project_id) sp.set("project_id", String(q.project_id));
   if (q?.assignee_id) sp.set("assignee_id", q.assignee_id);
-  const res = await fetch(`/api/tasks?${sp.toString()}`, { cache: "no-store" });
+  
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  if (q?.userId) headers["x-user-id"] = q.userId;
+  if (q?.role) headers["x-view-role"] = q.role;
+  
+  const res = await fetch(`/api/tasks?${sp.toString()}`, { 
+    cache: "no-store",
+    headers 
+  });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error || "Failed to fetch tasks");
   return j.data as any[];
