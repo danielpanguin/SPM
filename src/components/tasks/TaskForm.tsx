@@ -41,9 +41,16 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
-  const [parentTaskId, setParentTaskId] = useState<number | "">(
-    (initial?.parentTaskId as number) ?? ""
-  );
+  const [parentTaskId, setParentTaskId] = useState<number | "">(() => {
+    // Convert string or number parentTaskId to number, or empty string if not present
+    if (initial?.parentTaskId) {
+      const parsed = typeof initial.parentTaskId === 'string'
+        ? parseInt(initial.parentTaskId, 10)
+        : initial.parentTaskId;
+      return isNaN(parsed) ? "" : parsed;
+    }
+    return "";
+  });
   const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
   const [priorityId, setPriorityId] = useState<number | "">(() => {
     // Extract priority ID from P1-P10 format or use priority_id directly
@@ -334,9 +341,13 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {(error || hydrating) && (
-        <p className="text-sm">
-          {hydrating ? "Loading latest task data…" : <span className="text-red-600">{error}</span>}
-        </p>
+        <div className={`p-3 rounded-md ${hydrating ? 'bg-blue-50 border border-blue-200' : 'bg-red-50 border border-red-300'}`}>
+          {hydrating ? (
+            <p className="text-sm text-blue-700">Loading latest task data…</p>
+          ) : (
+            <p className="text-sm font-semibold text-red-700">{error}</p>
+          )}
+        </div>
       )}
 
       <div>
