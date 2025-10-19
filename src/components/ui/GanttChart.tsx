@@ -5,7 +5,11 @@ import { supabase, Task, User } from '@/lib/db'
 import { useUser } from '@/hooks/useAuth'
 
 interface TasksByUser {
-  user: User
+  user: {
+    id: string
+    username: string | null
+    email: string
+  }
   tasks: Task[]
 }
 
@@ -15,9 +19,8 @@ interface GanttChartProps {
 
 export default function GanttChart({ isDarkMode }: GanttChartProps) {
   const {
-    currentUserId,
-    currentUserRoleId,
-    currentUserRoleName,
+    userId,
+    role,
     accessibleUserIds
   } = useUser()
   
@@ -74,7 +77,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       
       console.log('🎯 Fetching tasks for accessible user IDs:', accessibleUserIds)
 
-      console.log('👤 Current user ID:', currentUserId)
+      console.log('👤 Current user ID:', userId)
       console.log('📋 Tasks query result:', { tasks, tasksError })
       console.log('🔢 Number of tasks found:', tasks?.length || 0)
 
@@ -121,7 +124,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
           acc[userId] = {
             user: {
               id: user.id,
-              name: user.username || user.name, // Use username if available, fallback to name
+              username: user.username || user.email.split('@')[0], // Use username if available, fallback to email prefix
               email: user.email
             },
             tasks: []
@@ -130,7 +133,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
         
         acc[userId].tasks.push({
           ...task,
-          user_name: user.username || user.name
+          user_name: user.username || user.email.split('@')[0]
         })
         
         return acc
@@ -237,6 +240,9 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
 
   // Calculate task bar position and width for the current month
   const getTaskBarStyle = (task: Task) => {
+    if (!task.start_date || !task.end_date) {
+      return { left: '0%', width: '0%', display: 'none' }
+    }
     const taskStart = new Date(task.start_date)
     const taskEnd = new Date(task.end_date)
     
@@ -454,7 +460,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                         : 'text-gray-800 border-gray-200 bg-gray-100'
                     }`}
                   >
-                    <span>{user.name} ({tasks.length} tasks)</span>
+                    <span>{user.username} ({tasks.length} tasks)</span>
                     <svg 
                       className={`w-4 h-4 transition-transform duration-200 ${
                         isUserCollapsed(user.id) ? 'rotate-0' : 'rotate-90'
@@ -491,15 +497,15 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                           : 'border-gray-100 hover:bg-gray-50'
                       }`}>
                         <div className={`w-48 sm:w-56 md:w-64 p-2 sm:p-3 text-xs sm:text-sm border-r ${
-                          isDarkMode 
-                            ? 'border-gray-700' 
+                          isDarkMode
+                            ? 'border-gray-700'
                             : 'border-gray-200'
                         }`}>
                           <div className={`font-medium truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                             {task.title}
                           </div>
                           <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {formatDate(task.start_date)} - {formatDate(task.end_date)}
+                            {task.start_date && task.end_date ? `${formatDate(task.start_date)} - ${formatDate(task.end_date)}` : 'No dates'}
                           </div>
                         </div>
                         <div className={`flex-1 relative h-12 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -520,7 +526,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                               title={`${task.title} (${(task.status as any)?.status || 'No status'})`}
                             >
                               <span className="truncate">
-                                {task.progress ? `${task.progress}%` : (task.status as any)?.status || 'N/A'}
+                                {(task.status as any)?.status || 'N/A'}
                               </span>
                               {task.is_overdue && (
                                 <span className="ml-2 px-1 py-0.5 bg-red-600 rounded text-xs font-bold">

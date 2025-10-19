@@ -5,13 +5,17 @@ import { supabase } from "@/lib/supabaseClient";
 import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
 import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
+import { notifyTaskSync } from "@/lib/notifyTaskSync";
+
+const MAX_TOTAL_ASSIGNEES = 5;      // owner + collaborators
+const MAX_COLLABORATORS = 4;        // collaborators only (excludes owner)
 
 type Mode = "create" | "edit";
 
 interface Props {
   mode: Mode;
   initial?: Partial<UITask>;
-  onSaved(taskFromApi: any): void;   // we map in parent
+  onSaved(taskFromApi: any): void; // we map in parent
   onCancel?(): void;
 }
 
@@ -35,7 +39,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === 'string');
+    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
   });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
@@ -49,6 +53,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     (initial?.project_id as number) ?? ""
   );
   const [busy, setBusy] = useState(false);
+  const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // field ids
@@ -88,21 +93,12 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       // Fetch user's assigned projects
       if (currentUserId) {
-        console.log("[TaskForm] Fetching projects for currentUserId:", currentUserId);
         fetch(`/api/projects/user/${currentUserId}`)
           .then((res) => res.json())
           .then((result) => {
-            console.log("[TaskForm] Projects API response:", result);
-            if (alive && result.ok) {
-              console.log("[TaskForm] Setting projects state:", result.data);
-              setProjects(result.data ?? []);
-            } else {
-              console.error("[TaskForm] Projects API returned not ok:", result);
-            }
+            if (alive && result.ok) setProjects(result.data ?? []);
           })
           .catch((err) => console.error("[TaskForm] Failed to fetch projects:", err));
-      } else {
-        console.log("[TaskForm] No currentUserId, skipping project fetch");
       }
     }
     run();
@@ -112,7 +108,105 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 
-  const allowedUsers = useMemo(() => users, [users]);
+  /**
+   * Always hydrate latest DB values when editing.
+   */
+  useEffect(() => {
+    if (mode !== "edit") return;
+    const taskId = Number(initial?.id);
+    if (!taskId) return;
+
+    let alive = true;
+    async function hydrate() {
+      setHydrating(true);
+      try {
+        // 1) task core row
+        const { data: tRows, error: tErr } = await supabase
+          .from("tasks")
+          .select(
+            "id,title,description,start_date,end_date,priority_id,status_id,created_by,owned_by,parent_task_id,project_id"
+          )
+          .eq("id", taskId)
+          .limit(1);
+
+        if (tErr) throw tErr;
+        const t = (tRows && tRows[0]) || null;
+        if (!t) throw new Error("Task not found");
+
+        // 2) collaborators
+        const { data: collabRows, error: cErr } = await supabase
+          .from("task_collaborator")
+          .select("user_id")
+          .eq("task_id", taskId);
+
+        if (cErr) throw cErr;
+
+        // 3) tag id then name
+        let tagName = "";
+        const { data: tagJoin, error: ttErr } = await supabase
+          .from("task_tasktag")
+          .select("tag_id")
+          .eq("task_id", taskId)
+          .limit(1);
+
+        if (ttErr) throw ttErr;
+        if (tagJoin && tagJoin.length) {
+          const tagId = tagJoin[0]?.tag_id;
+          if (tagId != null) {
+            const { data: tagRow, error: tagErr } = await supabase
+              .from("task_tag")
+              .select("name")
+              .eq("id", tagId)
+              .limit(1);
+            if (tagErr) throw tagErr;
+            tagName = (tagRow && tagRow[0]?.name) || "";
+          }
+        }
+
+        if (!alive) return;
+
+        // apply to form
+        setTitle(t.title ?? "");
+        setDescription(t.description ?? "");
+        setStartDate(t.start_date ?? "");
+        setEndDate(t.end_date ?? "");
+        setPriorityId(t.priority_id ?? "");
+        setStatusId(t.status_id ?? "");
+        setOwnedById(t.owned_by ?? undefined);
+        setParentTaskId(t.parent_task_id ?? "");
+        setProjectId(t.project_id ?? "");
+        setCollaboratorIds((collabRows ?? []).map((r: any) => String(r.user_id)));
+        setTag(tagName ?? "");
+        setError(null);
+      } catch (err: any) {
+        console.error("[TaskForm] hydrate error:", err);
+        if (err?.message) {
+          setError("Failed to load latest task data. You can still edit and save.");
+        }
+      } finally {
+        if (alive) setHydrating(false);
+      }
+    }
+
+    hydrate();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, initial?.id]);
+
+  // Owner dropdown should list all users; collaborators should exclude the owner.
+  const ownerOptions = users;
+  const collabOptions = useMemo(
+    () => users.filter((u) => u.id !== ownedById),
+    [users, ownedById]
+  );
+
+  // If owner changes, auto-remove owner from collaborators (AC-231 guard)
+  useEffect(() => {
+    if (!ownedById) return;
+    setCollaboratorIds((prev) => prev.filter((id) => id !== ownedById));
+  }, [ownedById]);
 
   function validate(): string | null {
     if (!title.trim()) return "Title is required.";
@@ -136,7 +230,8 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
     try {
       // UUID regex pattern
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
       // Filter out any invalid UUIDs from collaboratorIds
       const validCollaboratorIds = collaboratorIds.filter((id) => {
@@ -146,6 +241,13 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         }
         return isValid;
       });
+
+      // ***** 1d) TOTAL ASSIGNEES CHECK (owner + collaborators <= 5) *****
+      if ((validCollaboratorIds.length + 1) > MAX_TOTAL_ASSIGNEES) {
+        setError(`A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned, including the owner.`);
+        setBusy(false);
+        return;
+      }
 
       const payload = {
         title,
@@ -162,17 +264,18 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         tags: tag ? [tag] : [],
       };
 
-      console.log("Submitting task payload:", payload);
-      console.log("Mode:", mode, "Task ID:", initial?.id);
-      console.log("Original collaboratorIds:", collaboratorIds);
-      console.log("Filtered validCollaboratorIds:", validCollaboratorIds);
-
+      // save
       const data =
         mode === "create"
           ? await createTaskAPI(payload)
           : await updateTaskAPI(Number(initial?.id), payload);
 
-      console.log("Task saved successfully:", data);
+      // fire the sync notifier
+      const savedTaskId = (Array.isArray(data) ? data[0]?.id : data?.id) ?? initial?.id;
+      if (savedTaskId) {
+        notifyTaskSync(savedTaskId as any);
+      }
+
       onSaved(data);
     } catch (err: any) {
       console.error("Error saving task:", err);
@@ -183,12 +286,24 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   }
 
   function toggleCollaborator(x: string) {
-    setCollaboratorIds((prev) => (prev.includes(x) ? prev.filter((i) => i !== x) : [...prev, x]));
+    setCollaboratorIds((prev) => {
+      const exists = prev.includes(x);
+      if (exists) return prev.filter((i) => i !== x);
+      if (prev.length >= MAX_COLLABORATORS) {
+        setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+        return prev;
+      }
+      return [...prev, x];
+    });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {(error || hydrating) && (
+        <p className="text-sm">
+          {hydrating ? "Loading latest task data…" : <span className="text-red-600">{error}</span>}
+        </p>
+      )}
 
       <div>
         <label htmlFor={id.title} className="block text-sm font-medium">
@@ -244,7 +359,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             onChange={(e) => setPriorityId(Number(e.target.value))}
           >
             {prioOpts.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -260,7 +377,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             onChange={(e) => setStatusId(Number(e.target.value))}
           >
             {statusOpts.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -296,8 +415,10 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           onChange={(e) => setOwnedById(e.target.value)}
           required
         >
-          <option value="" disabled>Select user</option>
-          {allowedUsers.map((u) => (
+          <option value="" disabled>
+            Select user
+          </option>
+          {ownerOptions.map((u) => (
             <option key={u.id} value={u.id}>
               {u.email || u.id}
             </option>
@@ -308,8 +429,13 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       <div>
         <label className="block text-sm font-medium">Collaborators</label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {allowedUsers.map((u) => (
-            <label key={u.id} className={`flex items-center gap-2 rounded border p-2 ${collaboratorIds.includes(u.id) ? "bg-gray-50" : ""}`}>
+          {collabOptions.map((u) => (
+            <label
+              key={u.id}
+              className={`flex items-center gap-2 rounded border p-2 ${
+                collaboratorIds.includes(u.id) ? "bg-gray-50" : ""
+              }`}
+            >
               <input
                 type="checkbox"
                 checked={collaboratorIds.includes(u.id)}
