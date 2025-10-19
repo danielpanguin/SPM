@@ -354,7 +354,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should filter overdue tasks', () => {
-      const filters = { ...defaultFilters, deadline: 'overdue' };
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
 
       render(
         <TaskTable
@@ -374,7 +374,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should not show completed tasks as overdue', () => {
-      const filters = { ...defaultFilters, deadline: 'overdue' };
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
 
       render(
         <TaskTable
@@ -399,7 +399,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         },
       ];
 
-      const filters = { ...defaultFilters, deadline: 'this-week' };
+      const filters = { ...defaultFilters, deadline: ['this-week'] };
 
       render(
         <TaskTable
@@ -428,7 +428,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         }
       ];
 
-      const filters = { ...defaultFilters, deadline: 'this-month' };
+      const filters = { ...defaultFilters, deadline: ['this-month'] };
 
       render(
         <TaskTable
@@ -455,7 +455,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should include tasks due today in "today" filter', () => {
-      const filters = { ...defaultFilters, deadline: 'today' };
+      const filters = { ...defaultFilters, deadline: ['today'] };
 
       render(
         <TaskTable
@@ -472,7 +472,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should not include today tasks in overdue filter', () => {
-      const filters = { ...defaultFilters, deadline: 'overdue' };
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
 
       render(
         <TaskTable
@@ -603,7 +603,9 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         assignee: [],
         tag: [],
         parentTask: [],
-        deadline: 'all',
+        deadline: [],
+        deadlineDueBy: '',
+        deadlineDueAfter: '',
       };
 
       render(
@@ -631,7 +633,9 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         assignee: [],
         tag: [],
         parentTask: [],
-        deadline: 'all',
+        deadline: [],
+        deadlineDueBy: '',
+        deadlineDueAfter: '',
       };
 
       render(
@@ -811,7 +815,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should filter by priority and update task list view', () => {
-      const filters = { ...defaultFilters, priority: '2' };
+      const filters = { ...defaultFilters, priority: 'P2' };
 
       render(
         <TaskTable
@@ -914,7 +918,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should show no tasks message when filters match nothing', () => {
-      const filters = { ...defaultFilters, status: 'pending', tag: ['nonexistent'] };
+      const filters = { ...defaultFilters, status: 'pending', tag: ['nonexistent'], deadlineDueBy: '', deadlineDueAfter: '' };
 
       render(
         <TaskTable

@@ -18,6 +18,10 @@ import type { Task, Priority } from "@/types/task"// bring in your canonical Tas
 
 export type Status = "pending" | "in-progress" | "completed" | "blocked"
 
+interface TaskDashboardProps {
+  isDarkMode?: boolean
+}
+
 function normalizeStatus(dbStatus: string | null | undefined): Status {
   const s = (dbStatus ?? "").trim().toLowerCase()
   switch (s) {
@@ -36,6 +40,7 @@ function normalizeStatus(dbStatus: string | null | undefined): Status {
 
 // Map API response (TaskHydrated) to Task type
 async function mapApiResponseToTask(apiTask: any): Promise<Task> {
+  console.log("mapApiResponseToTask called for task:", apiTask.id, apiTask.title);
   // Fetch user details for created_by, owned_by, and assignees
   const userIds = [
     apiTask.created_by,
@@ -73,9 +78,9 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
       name: userMap.get(apiTask.owned_by)?.username ?? apiTask.owned_by ?? "",
       role: (userMap.get(apiTask.owned_by)?.role ?? "staff") as any,
     },
-    collaborators: (apiTask.assignees ?? []).map((id: string) => ({
+    collaborators: (apiTask.assignees ?? []).map((id: string, idx: number) => ({
       id,
-      name: userMap.get(id)?.username ?? id,
+      name: apiTask.assignee_emails?.[idx] ?? userMap.get(id)?.username ?? id,
       role: (userMap.get(id)?.role ?? "staff") as any,
     })),
     startDate: apiTask.start_date ?? "",
@@ -92,7 +97,18 @@ async function mapApiResponseToTask(apiTask: any): Promise<Task> {
   }
 }
 
-export function TaskDashboard() {
+// P10 is highest priority, P1 is lowest
+function mapPriority(priorityId: number | null | undefined): string {
+  console.log(`mapPriority called with: ${priorityId}`);
+  if (!priorityId) {
+    console.log(`  → No priority, returning P1`);
+    return "P1"
+  }
+  console.log(`  → Returning P${priorityId}`);
+  return `P${priorityId}`
+}
+
+export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const { accessibleUserIds } = useUser()
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -131,7 +147,9 @@ export function TaskDashboard() {
   // Load tasks with nested relationships (filtered by accessibleUserIds)
   useEffect(() => {
     console.log("useEffect triggered, accessibleUserIds:", accessibleUserIds)
+    console.log("accessibleUserIds type:", typeof accessibleUserIds, "length:", accessibleUserIds?.length)
     if (!accessibleUserIds || accessibleUserIds.length === 0) {
+      console.log("⚠️ No accessibleUserIds, setting empty tasks")
       setTasks([])
       setProjectByTaskId(new Map())
       setTitleById(new Map())
@@ -140,23 +158,19 @@ export function TaskDashboard() {
     }
 
     const load = async () => {
-      console.log("Loading tasks from database...")
+      console.log("🔄 Loading tasks from database...")
+      console.log("🔑 accessibleUserIds for query:", accessibleUserIds)
       setLoading(true)
       setError(null)
 
-      // accessibleUserIds are UUIDs (strings), not numbers - use them directly
-      const ownedByIds = accessibleUserIds.filter((id) => id && id.trim() !== '')
-
-      if (ownedByIds.length === 0) {
-        console.log("[Supabase] No accessible user IDs, skipping query")
-        setTasks([])
-        setLoading(false)
-        return
-      }
-
       try {
-        // Pull everything needed to fill your Task interface
-        const { data, error } = await supabase
+        // For staff: fetch tasks where they are collaborators
+        // For managers/admins: fetch all tasks for accessible user IDs
+        const allTasks: any[] = []
+
+        console.log("📥 Fetching owned tasks...")
+        // Fetch tasks owned by accessible users
+        const { data: ownedTasks, error: ownedError } = await supabase
           .from("tasks")
           .select(`
           id,
@@ -190,9 +204,77 @@ export function TaskDashboard() {
             users ( id, username )
           )
         `)
-        .in("owned_by", ownedByIds);
+        .in("owned_by", accessibleUserIds)
 
+        console.log("📊 Owned tasks result:", { count: ownedTasks?.length, error: ownedError })
+        if (ownedError) throw ownedError
+        if (ownedTasks) {
+          console.log("✅ Adding", ownedTasks.length, "owned tasks")
+          allTasks.push(...ownedTasks)
+        }
+        
+        // Also fetch tasks where user is a collaborator (for staff users)
+        console.log("📥 Fetching collaborator tasks...")
+        const { data: collaboratorTaskIds } = await supabase
+          .from("task_collaborator")
+          .select("task_id")
+          .in("user_id", accessibleUserIds)
 
+        console.log("📊 Collaborator task IDs result:", { count: collaboratorTaskIds?.length })
+        
+        if (collaboratorTaskIds && collaboratorTaskIds.length > 0) {
+          const taskIds = collaboratorTaskIds.map(c => c.task_id)
+          const { data: collabTasks, error: collabError } = await supabase
+            .from("tasks")
+            .select(`
+            id,
+            title,
+            description,
+            created_by,
+            owned_by,
+            parent_task_id,
+            start_date,
+            end_date,
+            created_at,
+            priority_id,
+            status_id,
+            project_id,
+            created_by_user:created_by (
+              id,
+              username,
+              roles ( id, name )
+            ),
+            owned_by_user:owned_by (
+              id,
+              username,
+              roles ( id, name )
+            ),
+            status:status_id ( id, status ),
+            project:project_id ( id, name ),
+            task_tasktag (
+              task_tag ( id, name )
+            ),
+            task_collaborator (
+              users ( id, username )
+            )
+          `)
+          .in("id", taskIds)
+          
+          console.log("📊 Collaborator tasks result:", { count: collabTasks?.length, error: collabError })
+          if (collabError) throw collabError
+          if (collabTasks) {
+            // Merge and deduplicate by task ID
+            const existingIds = new Set(allTasks.map(t => t.id))
+            const newTasks = collabTasks.filter(task => !existingIds.has(task.id))
+            console.log("✅ Adding", newTasks.length, "new collaborator tasks")
+            allTasks.push(...newTasks)
+          }
+        }
+
+        const data = allTasks
+        const error = null
+
+      console.log("📦 Total tasks fetched:", data?.length)
       console.log("Supabase fetch result:", { data, error })
 
       if (error) {
@@ -217,7 +299,7 @@ export function TaskDashboard() {
 
       const mapped: Task[] = (data ?? []).map((row: any): Task => {
         const tagName: string | undefined =
-          row.task_tasktag?.[0]?.tag?.name ?? undefined // if you treat “Task Tag” as a single free-text
+          row.task_tasktag?.[0]?.task_tag?.name ?? row.task_tasktag?.[0]?.tag?.name ?? undefined
 
         return {
           id: String(row.id),
@@ -227,20 +309,20 @@ export function TaskDashboard() {
           createdBy: {
             id: String(row.created_by_user?.id ?? row.created_by),
             name: row.created_by_user?.username ?? String(row.created_by),
-            role: row.created_by_user?.role?.name ?? "member",
+            role: (row.created_by_user?.roles?.name ?? "staff") as any,
           },
 
           ownedBy: {
             id: String(row.owned_by_user?.id ?? row.owned_by),
             name: row.owned_by_user?.username ?? String(row.owned_by),
-            role: row.owned_by_user?.role?.name ?? "member",
+            role: (row.owned_by_user?.roles?.name ?? "staff") as any,
           },
 
           collaborators:
             (row.task_collaborator ?? []).map((c: any) => ({
-              id: String(c.assignee?.id),
-              name: c.assignee?.username,
-              role: c.assignee?.role?.name ?? "member",
+              id: String(c.users?.id ?? c.assignee?.id),
+              name: c.users?.username ?? c.assignee?.username,
+              role: (c.users?.roles?.name ?? c.assignee?.role?.name ?? "staff") as any,
             })) ?? [],
 
           startDate: row.start_date ?? null,
@@ -248,7 +330,7 @@ export function TaskDashboard() {
           parentTaskId: row.parent_task_id ? String(row.parent_task_id) : null,
 
           tag: tagName,
-          priority: (row.priority_id ? `P${row.priority_id}` : "P5") as Priority,
+          priority: mapPriority(row.priority_id) as Priority,
           status: normalizeStatus(row.status?.status),
 
           comments: [], // map if/when you add a comments relation
@@ -396,14 +478,56 @@ export function TaskDashboard() {
     const overdue = tasks.filter(
       (t) => t.endDate && new Date(t.endDate) < now && t.status !== "completed"
     ).length
+    
+    // Calculate unique team members from tasks
+    const uniqueMembers = new Set<string>()
+    tasks.forEach(t => {
+      if (t.ownedBy?.id) uniqueMembers.add(t.ownedBy.id)
+      t.collaborators?.forEach(c => {
+        if (c?.id) uniqueMembers.add(c.id)
+      })
+    })
+    
     return {
-      totalMembers: 5,
+      totalMembers: uniqueMembers.size || 0,
       activeTasks: active,
       completedTasks: completed,
       overdueTasks: overdue,
       totalTasks: total,
     }
   }, [tasks])
+
+  // Compute dynamic filter options from tasks
+  const filterOptions = useMemo(() => {
+    const statuses = new Set<string>()
+    const priorities = new Set<string>()
+    const projects = new Set<string>()
+    const assignees = new Set<string>()
+    const tags = new Set<string>()
+
+    tasks.forEach((t) => {
+      if (t.status) statuses.add(t.status)
+      if (t.priority) priorities.add(t.priority)
+      
+      const proj = projectByTaskId?.get(t.id)
+      if (proj) projects.add(proj)
+      
+      if (t.ownedBy?.name) assignees.add(t.ownedBy.name)
+      t.collaborators?.forEach(c => {
+        if (c.name) assignees.add(c.name)
+      })
+      
+      if (t.tag) tags.add(t.tag)
+    })
+
+    return {
+      statuses: Array.from(statuses).sort(),
+      priorities: Array.from(priorities).sort(),
+      projects: Array.from(projects).sort(),
+      assignees: Array.from(assignees).sort(),
+      tags: Array.from(tags).sort(),
+    }
+  }, [tasks, projectByTaskId])
 
   // ✅ Early returns only AFTER all hooks are declared:
   if (showArchive) {
@@ -414,14 +538,14 @@ export function TaskDashboard() {
     );
   }
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-gray-200 bg-white">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
-              <p className="text-muted-foreground">Manage and track your team's tasks</p>
+              <h1 className="text-2xl font-bold text-black">Tasks</h1>
+              <p className="text-gray-700">Manage and track your team's tasks</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -448,31 +572,31 @@ export function TaskDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
+              <CardTitle className="text-sm font-medium !text-black">Active Tasks</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.activeTasks}</div>
-              <p className="text-xs text-muted-foreground">In progress</p>
+              <div className="text-2xl font-bold !text-black">{stats.activeTasks}</div>
+              <p className="text-xs !text-gray-900">In progress</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <CardTitle className="text-sm font-medium !text-black">Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.completedTasks}</div>
-              <p className="text-xs text-muted-foreground">This month</p>
+              <div className="text-2xl font-bold !text-black">{stats.completedTasks}</div>
+              <p className="text-xs !text-gray-900">This month</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+              <CardTitle className="text-sm font-medium !text-black">Overdue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
-              <p className="text-xs text-muted-foreground">Need attention</p>
+              <div className="text-2xl font-bold !text-red-600">{stats.overdueTasks}</div>
+              <p className="text-xs !text-gray-900">Need attention</p>
             </CardContent>
           </Card>
         </div>
@@ -483,7 +607,7 @@ export function TaskDashboard() {
           <div className="lg:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
+                <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button variant="outline" className="w-full justify-start bg-transparent">
@@ -531,31 +655,33 @@ export function TaskDashboard() {
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
                 onClearFilters={handleClearFilters}
-                availableProjects={availableFilterOptions.projects}
-                availableTags={availableFilterOptions.tags}
-                availableParentTasks={availableFilterOptions.parentTasks}
+                availableStatuses={filterOptions.statuses}
+                availablePriorities={filterOptions.priorities}
+                availableProjects={filterOptions.projects}
+                availableAssignees={filterOptions.assignees}
+                availableTags={filterOptions.tags}
               />
-          </div>
+            </div>
 
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">Task Overview</CardTitle>
-                    <p className="text-sm text-muted-foreground">All tasks across your projects</p>
+                    <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
+                    <p className="text-sm !text-gray-900">All tasks across your projects</p>
                   </div>
                   <Button onClick={() => setCreating(true)}>Create Task</Button>
                 </div>
               </CardHeader>
               <CardContent>
                 {error && (
-                  <div className="text-sm text-destructive mb-3">
+                  <div className="text-sm text-red-600 mb-3">
                     {/* was: Failed to load tasks: {error} */}
                     Couldn't load your tasks
                   </div>
                 )}
                 {loading ? (
-                  <div className="text-sm text-muted-foreground p-4">Loading tasks…</div>
+                  <div className="text-sm text-gray-700 p-4">Loading tasks…</div>
                 ) : (
                   <TaskTable
                     tasks={tasks}

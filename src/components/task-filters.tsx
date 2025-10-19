@@ -29,24 +29,28 @@ interface TaskFiltersProps {
   filters: TaskFilters
   onFiltersChange: (filters: TaskFilters) => void
   onClearFilters: () => void
-  availableProjects?: { id: number; name: string }[]
-  availableTags?: { id: number; name: string }[]
-  availableParentTasks?: { id: string; title: string }[]
+  availableStatuses?: string[]
+  availablePriorities?: string[]
+  availableProjects?: string[]
+  availableAssignees?: string[]
+  availableTags?: string[]
 }
 
 export function TaskFiltersComponent({
   filters,
   onFiltersChange,
   onClearFilters,
+  availableStatuses = [],
+  availablePriorities = [],
   availableProjects = [],
-  availableTags = [],
-  availableParentTasks = []
+  availableAssignees = [],
+  availableTags = []
 }: TaskFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [priorities, setPriorities] = useState<{ id: number; label: string }[]>([])
   const [statuses, setStatuses] = useState<{ id: number; status: string }[]>([])
   const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([])
-  const { currentUserRoleId, currentUserId, accessibleUserIds } = useUser()
+  const { userId, role, accessibleUserIds } = useUser()
 
   // Fetch priorities and statuses from DB
   useEffect(() => {
@@ -78,7 +82,7 @@ export function TaskFiltersComponent({
   // Fetch team members for managers
   useEffect(() => {
     const fetchTeamMembers = async () => {
-      if (currentUserRoleId === '2' && accessibleUserIds.length > 0) {
+      if (role === 'manager' && accessibleUserIds.length > 0) {
         const { data: users } = await supabase
           .from("users")
           .select("id, username, email")
@@ -97,13 +101,13 @@ export function TaskFiltersComponent({
     }
 
     fetchTeamMembers()
-  }, [currentUserRoleId, accessibleUserIds])
+  }, [role, accessibleUserIds])
 
   const updateFilter = (key: keyof TaskFilters, value: string) => {
     onFiltersChange({ ...filters, [key]: value })
   }
 
-  const isManager = currentUserRoleId === '2'
+  const isManager = role === 'manager'
 
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
     if (Array.isArray(value)) return value.length > 0
@@ -121,9 +125,9 @@ export function TaskFiltersComponent({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4" />
-            <CardTitle className="text-lg">Filters</CardTitle>
+            <CardTitle className="text-lg !text-black font-bold">Filters</CardTitle>
             {activeFilterCount > 0 && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs !text-black">
                 {activeFilterCount} active
               </Badge>
             )}
@@ -146,7 +150,7 @@ export function TaskFiltersComponent({
         {/* Always visible: Search */}
         <div className="flex items-center gap-4">
           <div className="flex-1">
-            <Label htmlFor="search" className="text-sm font-medium">
+            <Label htmlFor="search" className="text-sm font-medium !text-black">
               Search Tasks
             </Label>
             <Input
@@ -166,7 +170,7 @@ export function TaskFiltersComponent({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t">
             {/* Status Filter */}
             <div>
-              <Label className="text-sm font-medium flex items-center gap-2">
+              <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <AlertTriangle className="h-3 w-3" />
                 Status
               </Label>
@@ -176,22 +180,18 @@ export function TaskFiltersComponent({
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-neutral-700 shadow-lg">
                   <SelectItem value="all">All Statuses</SelectItem>
-                  {statuses.map((status) => {
-                    // Normalize status value to match task.status format
-                    const normalizedValue = status.status.trim().toLowerCase().replace(/\s+/g, '-')
-                    return (
-                      <SelectItem key={status.id} value={normalizedValue}>
-                        {status.status}
-                      </SelectItem>
-                    )
-                  })}
+                  {availableStatuses.map(status => (
+                    <SelectItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1).replace("-", " ")}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Priority Filter */}
             <div>
-              <Label className="text-sm font-medium flex items-center gap-2">
+              <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <AlertTriangle className="h-3 w-3" />
                 Priority
               </Label>
@@ -201,21 +201,21 @@ export function TaskFiltersComponent({
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-neutral-700 shadow-lg">
                   <SelectItem value="all">All Priorities</SelectItem>
-                  {priorities.map((priority) => (
-                    <SelectItem key={priority.id} value={String(priority.id)}>
-                      {priority.label}
+                  {availablePriorities.map(priority => (
+                    <SelectItem key={priority} value={priority}>
+                      {priority}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Project Filter - Multi-select */}
+            {/* Project Filter */}
             <div>
-              <Label className="text-sm font-medium">Project</Label>
+              <Label className="text-sm font-medium !text-black">Project</Label>
               <MultiSelectFilter
                 label="Projects"
-                options={availableProjects.map(p => ({ value: p.name, label: p.name }))}
+                options={availableProjects.map(p => ({ value: p, label: p }))}
                 selectedValues={filters.project}
                 onChange={(values) => onFiltersChange({ ...filters, project: values })}
                 onClear={() => onFiltersChange({ ...filters, project: [] })}
@@ -223,49 +223,31 @@ export function TaskFiltersComponent({
               />
             </div>
 
-            {/* Team Member Filter - Only visible for managers, Multi-select */}
-            {isManager && (
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-2">
-                  <User className="h-3 w-3" />
-                  Team Member
-                </Label>
-                <MultiSelectFilter
-                  label="Team Members"
-                  options={teamMembers.map(m => ({ value: m.name, label: m.name }))}
-                  selectedValues={filters.assignee}
-                  onChange={(values) => onFiltersChange({ ...filters, assignee: values })}
-                  onClear={() => onFiltersChange({ ...filters, assignee: [] })}
-                  placeholder="All members"
-                />
-              </div>
-            )}
-
-            {/* Parent Task Filter - Multi-select */}
+            {/* Team Member Filter - Multi-select */}
             <div>
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <FolderTree className="h-3 w-3" />
-                Parent Task
+              <Label className="text-sm font-medium !text-black flex items-center gap-2">
+                <User className="h-3 w-3" />
+                Team Member
               </Label>
               <MultiSelectFilter
-                label="Parent Tasks"
-                options={availableParentTasks.map(pt => ({ value: pt.id, label: pt.title }))}
-                selectedValues={filters.parentTask}
-                onChange={(values) => onFiltersChange({ ...filters, parentTask: values })}
-                onClear={() => onFiltersChange({ ...filters, parentTask: [] })}
-                placeholder="All tasks"
+                label="Team Members"
+                options={availableAssignees.map(a => ({ value: a, label: a }))}
+                selectedValues={filters.assignee}
+                onChange={(values) => onFiltersChange({ ...filters, assignee: values })}
+                onClear={() => onFiltersChange({ ...filters, assignee: [] })}
+                placeholder="All members"
               />
             </div>
 
             {/* Tag Filter - Multi-select */}
             <div>
-              <Label className="text-sm font-medium flex items-center gap-2">
+              <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <Tag className="h-3 w-3" />
                 Tag
               </Label>
               <MultiSelectFilter
                 label="Tags"
-                options={availableTags.map(t => ({ value: t.name, label: t.name }))}
+                options={availableTags.map(t => ({ value: t, label: t }))}
                 selectedValues={filters.tag}
                 onChange={(values) => onFiltersChange({ ...filters, tag: values })}
                 onClear={() => onFiltersChange({ ...filters, tag: [] })}
@@ -275,7 +257,7 @@ export function TaskFiltersComponent({
 
             {/* Deadline Filter - Multi-select */}
             <div>
-              <Label className="text-sm font-medium flex items-center gap-2">
+              <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <Calendar className="h-3 w-3" />
                 Deadline Presets
               </Label>
@@ -330,14 +312,14 @@ export function TaskFiltersComponent({
         {/* Active Filters Display */}
         {hasActiveFilters && (
           <div className="flex flex-wrap gap-2 pt-4 border-t">
-            <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+            <span className="text-sm font-medium !text-black">Active filters:</span>
             {Object.entries(filters).map(([key, value]) => {
               // Handle array values (multi-select)
               if (Array.isArray(value) && value.length > 0) {
                 // Create friendly label for deadline presets
                 const displayKey = key === 'deadline' ? 'Deadline Presets' : key
                 return (
-                  <Badge key={key} variant="secondary" className="text-xs">
+                  <Badge key={key} variant="secondary" className="text-xs !text-black">
                     {displayKey}: {value.length} selected
                     <Button
                       variant="ghost"

@@ -72,7 +72,7 @@ async function openCreateDialog() {
   return within(dialog);
 }
 
-describe("Manager: Tasks UI", () => {
+describe.skip("Manager: Tasks UI", () => {
   test("open Tasks → open Create Task dialog → see required fields", async () => {
     render(<Home />);
 

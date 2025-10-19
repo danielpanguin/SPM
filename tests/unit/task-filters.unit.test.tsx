@@ -6,8 +6,8 @@ import { TaskFiltersComponent, TaskFilters } from '@/components/task-filters';
 // Mock useAuth hook
 jest.mock('@/hooks/useAuth', () => ({
   useUser: () => ({
-    currentUserRoleId: '1',
-    currentUserId: 'user-1',
+    userId: 'user-1',
+    role: 'staff',
     accessibleUserIds: ['user-1'],
   }),
 }));
@@ -153,7 +153,8 @@ describe('TaskFilters - Unit Tests', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /expand/i }));
 
-      expect(screen.getByText('Deadline', { selector: 'label' })).toBeInTheDocument();
+      // Deadline filter exists (look for "Deadline Presets" text)
+      expect(screen.getByText(/deadline/i)).toBeInTheDocument();
     });
   });
 
@@ -322,8 +323,8 @@ describe('TaskFilters - Unit Tests', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /expand/i }));
 
-      // Deadline filter exists
-      expect(screen.getByText('Deadline', { selector: 'label' })).toBeInTheDocument();
+      // Deadline filter exists (look for "Deadline Presets" label with icon)
+      expect(screen.getByText(/deadline/i)).toBeInTheDocument();
     });
 
     it('should have tag filter', () => {
@@ -351,7 +352,8 @@ describe('TaskFilters - Unit Tests', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /expand/i }));
 
-      expect(screen.getByText('Team Member', { selector: 'label' })).toBeInTheDocument();
+      // Team Member filter exists
+      expect(screen.getByText(/team member/i)).toBeInTheDocument();
     });
 
     it('should have project filter', () => {
@@ -468,10 +470,7 @@ describe('TaskFilters - Unit Tests', () => {
           filters={{ ...defaultFilters, project: ['Project Alpha', 'Project Beta'] }}
           onFiltersChange={mockOnFiltersChange}
           onClearFilters={mockOnClearFilters}
-          availableProjects={[
-            { id: 1, name: 'Project Alpha' },
-            { id: 2, name: 'Project Beta' },
-          ]}
+          availableProjects={['Project Alpha', 'Project Beta']}
         />
       );
 
@@ -498,10 +497,7 @@ describe('TaskFilters - Unit Tests', () => {
           filters={{ ...defaultFilters, tag: ['backend', 'urgent'] }}
           onFiltersChange={mockOnFiltersChange}
           onClearFilters={mockOnClearFilters}
-          availableTags={[
-            { id: 1, name: 'backend' },
-            { id: 2, name: 'urgent' },
-          ]}
+          availableTags={['backend', 'urgent']}
         />
       );
 
@@ -552,8 +548,8 @@ describe('TaskFilters - Unit Tests', () => {
           }}
           onFiltersChange={mockOnFiltersChange}
           onClearFilters={mockOnClearFilters}
-          availableProjects={[{ id: 1, name: 'Project Alpha' }]}
-          availableTags={[{ id: 1, name: 'backend' }]}
+          availableProjects={['Project Alpha']}
+          availableTags={['backend']}
         />
       );
 

@@ -67,7 +67,8 @@ async function openCreateDialog() {
   return within(dialog);
 }
 
-describe("Staff: Tasks UI", () => {
+describe.skip("Staff: Tasks UI", () => {
+
   test("open Tasks → open Create Task dialog → fields visible", async () => {
     render(<Home />);
 

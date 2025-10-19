@@ -1,12 +1,15 @@
 // task-table.tsx
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-import { User } from "lucide-react"
+import { User, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import type { Task } from "@/types/task"
 import type { TaskFilters } from "./task-filters"
+
+type SortField = 'taskId' | 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
+type SortDirection = 'asc' | 'desc'
 
 type Props = {
   tasks: Task[]
@@ -18,7 +21,26 @@ type Props = {
   priorityByTaskId?: Map<string, number>
 }
 
-export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById, priorityByTaskId }: Props) {
+export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Toggle direction or clear sort
+      if (sortDirection === 'asc') {
+        setSortDirection('desc')
+      } else {
+        setSortField(null)
+        setSortDirection('asc')
+      }
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+
   const filteredTasks = useMemo(() => {
     const q = filters.search?.toLowerCase() ?? ""
 
@@ -31,17 +53,18 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
         if (!titleMatch && !idMatch && !formattedIdMatch) return false
       }
 
-      // Status
+      // Status (case-insensitive)
       if (filters.status && filters.status !== "all") {
-        if (t.status !== filters.status) {
-          return false
-        }
+        const filterStatus = filters.status.toLowerCase()
+        const taskStatus = (t.status ?? "").toLowerCase()
+        if (taskStatus !== filterStatus) return false
       }
 
-      // Priority (compare with priority_id from map)
+      // Priority (case-insensitive)
       if (filters.priority && filters.priority !== "all") {
-        const taskPriorityId = priorityByTaskId?.get(t.id)
-        if (taskPriorityId !== Number(filters.priority)) return false
+        const filterPriority = filters.priority.toLowerCase()
+        const taskPriority = (t.priority ?? "").toLowerCase()
+        if (taskPriority !== filterPriority) return false
       }
 
       // Project (multi-select, lookup from map)
@@ -59,9 +82,11 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
         if (!hasMatch) return false
       }
 
-      // Tag (multi-select)
+      // Tag (multi-select, case-insensitive)
       if (filters.tag && filters.tag.length > 0) {
-        if (!t.tag || !filters.tag.includes(t.tag)) return false
+        const taskTag = (t.tag ?? "").toLowerCase()
+        const hasMatch = filters.tag.some(filterTag => taskTag === filterTag.toLowerCase())
+        if (!hasMatch) return false
       }
 
       // Parent Task (multi-select)
@@ -126,24 +151,78 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
 
       return true
     })
-  }, [tasks, filters, projectByTaskId, priorityByTaskId, titleById])
+  }, [tasks, filters, projectByTaskId, titleById])
+
+  const sortedTasks = useMemo(() => {
+    if (!sortField) return filteredTasks
+
+    const sorted = [...filteredTasks].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (sortField) {
+        case 'taskId':
+          aValue = Number(a.id) || 0
+          bValue = Number(b.id) || 0
+          break
+        case 'status':
+          aValue = a.status?.toLowerCase() || ''
+          bValue = b.status?.toLowerCase() || ''
+          break
+        case 'priority':
+          // Priority order: P10 > P9 > ... > P1
+          // Extract number from P format (e.g., "P10" -> 10)
+          const extractPriority = (p?: string) => {
+            if (!p) return 0
+            const match = p.match(/P(\d+)/i)
+            return match ? parseInt(match[1], 10) : 0
+          }
+          aValue = extractPriority(a.priority)
+          bValue = extractPriority(b.priority)
+          break
+        case 'project':
+          aValue = (projectByTaskId?.get(a.id) || '').toLowerCase()
+          bValue = (projectByTaskId?.get(b.id) || '').toLowerCase()
+          break
+        case 'deadline':
+          aValue = a.endDate ? new Date(a.endDate).getTime() : 0
+          bValue = b.endDate ? new Date(b.endDate).getTime() : 0
+          break
+        case 'tag':
+          aValue = (a.tag || '').toLowerCase()
+          bValue = (b.tag || '').toLowerCase()
+          break
+        case 'title':
+          aValue = a.title.toLowerCase()
+          bValue = b.title.toLowerCase()
+          break
+        case 'createdAt':
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          break
+        default:
+          return 0
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return sorted
+  }, [filteredTasks, sortField, sortDirection, projectByTaskId])
 
   const getPriorityClass = (p: Task["priority"]) => {
-    // Extract priority number from P1-P10
-    const priorityNum = parseInt(p.replace('P', ''))
+    // Extract priority number from P format (e.g., "P10" -> 10)
+    const match = p?.match(/P(\d+)/i)
+    const priorityNum = match ? parseInt(match[1], 10) : 0
 
-    // P1-P3: High priority (red)
-    if (priorityNum >= 1 && priorityNum <= 3) {
-      return "bg-red-100 text-red-800 border-red-200"
-    }
-    // P4-P7: Medium priority (yellow)
-    if (priorityNum >= 4 && priorityNum <= 7) {
-      return "bg-yellow-100 text-yellow-800 border-yellow-200"
-    }
-    // P8-P10: Low priority (green)
-    if (priorityNum >= 8 && priorityNum <= 10) {
-      return "bg-green-100 text-green-800 border-green-200"
-    }
+    // P8-P10 = High (red)
+    if (priorityNum >= 8) return "bg-red-100 text-red-800 border-red-200"
+    // P4-P7 = Medium (yellow)
+    if (priorityNum >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    // P1-P3 = Low (green)
+    if (priorityNum >= 1) return "bg-green-100 text-green-800 border-green-200"
 
     return "bg-gray-100 text-gray-800 border-gray-200"
   }
@@ -164,31 +243,116 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
   const niceDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—"
 
+  const SortIcon = ({ field, type = 'string' }: { field: SortField; type?: 'string' | 'number' | 'date' }) => {
+    const isActive = sortField === field
+    
+    if (!isActive) {
+      return type === 'string' 
+        ? <span className="ml-2 text-xs text-gray-600 inline">A-Z</span>
+        : <ArrowUpDown className="ml-2 h-4 w-4 inline text-gray-600" />
+    }
+    
+    if (type === 'string') {
+      return sortDirection === 'asc'
+        ? <span className="ml-2 text-xs font-semibold inline">A→Z</span>
+        : <span className="ml-2 text-xs font-semibold inline">Z→A</span>
+    }
+    
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="ml-2 h-4 w-4 inline" />
+      : <ArrowDown className="ml-2 h-4 w-4 inline" />
+  }
+
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[120px]">Task ID</TableHead>
-            <TableHead>Task Title</TableHead>
-            <TableHead className="w-[140px]">Task Priority</TableHead>
-            <TableHead className="w-[160px]">Project</TableHead>
-            <TableHead className="w-[180px]">Task Tag</TableHead>
-            <TableHead className="w-[140px]">Task Status</TableHead>
-            <TableHead className="w-[140px]">Task Deadline</TableHead>
-            <TableHead className="w-[240px]">Parent Task</TableHead>
+            <TableHead 
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('taskId')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                ID
+                <SortIcon field="taskId" type="number" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('title')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Task Title
+                <SortIcon field="title" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[110px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('priority')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Priority
+                <SortIcon field="priority" type="number" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('project')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Project
+                <SortIcon field="project" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('tag')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Tag
+                <SortIcon field="tag" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('status')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Status
+                <SortIcon field="status" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('deadline')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Deadline
+                <SortIcon field="deadline" type="date" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('createdAt')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Created
+                <SortIcon field="createdAt" type="date" />
+              </div>
+            </TableHead>
+            <TableHead className="w-[180px]">Parent Task</TableHead>
           </TableRow>
         </TableHeader>
 
         <TableBody>
-          {filteredTasks.length === 0 ? (
+          {sortedTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-8 text-gray-700">
                 No tasks found matching your filters
               </TableCell>
             </TableRow>
           ) : (
-            filteredTasks.map((t) => {
+            sortedTasks.map((t) => {
               const project = projectByTaskId?.get(t.id) ?? null
               const parentTitle = t.parentTaskId ? titleById?.get(t.parentTaskId) : null
 
@@ -203,41 +367,43 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   }`}
                   onClick={() => onTaskClick(t)}
                 >
-                  <TableCell className="font-mono text-sm">
-                    {Number.isFinite(Number(t.id)) ? `TSK-${t.id}` : t.id}
+                  <TableCell className="font-mono text-sm text-black">
+                    {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
                   </TableCell>
 
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{t.title}</span>
+                      <span className="font-medium text-black">{t.title}</span>
                       <div className="flex items-center gap-1 mt-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{t.ownedBy?.name ?? "Unassigned"}</span>
+                        <User className="h-3 w-3 text-gray-600" />
+                        <span className="text-xs text-gray-700">{t.ownedBy?.name ?? "Unassigned"}</span>
                       </div>
                     </div>
                   </TableCell>
 
-                  <TableCell>
-                    <Badge variant="outline" className={`${getPriorityClass(t.priority)} capitalize`}>
+                  <TableCell className="whitespace-nowrap overflow-hidden">
+                    <Badge variant="outline" className={`${getPriorityClass(t.priority)} text-xs`}>
                       {t.priority}
                     </Badge>
                   </TableCell>
 
                   <TableCell>
-                    <span className="text-sm font-medium">{project ?? "—"}</span>
+                    <span className="text-sm font-medium text-black">{project ?? "—"}</span>
                   </TableCell>
 
                   <TableCell>
-                    {t.tag ? <Badge variant="secondary" className="text-xs">{t.tag}</Badge> : "—"}
+                    {t.tag ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{t.tag}</Badge> : "—"}
                   </TableCell>
 
-                  <TableCell>
-                    <Badge variant="outline" className={`${getStatusClass(t.status)} capitalize`}>
+                  <TableCell className="whitespace-nowrap overflow-hidden">
+                    <Badge variant="outline" className={`${getStatusClass(t.status)} capitalize text-xs`}>
                       {String(t.status).replace("-", " ")}
                     </Badge>
                   </TableCell>
 
                   <TableCell>{niceDate(t.endDate)}</TableCell>
+
+                  <TableCell>{niceDate(t.createdAt)}</TableCell>
 
                   <TableCell>
                     {t.parentTaskId ? (
