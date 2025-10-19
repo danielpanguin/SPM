@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft, FileText } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft } from "lucide-react"
 import { useUser } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
 import type { Task } from "@/types/task"
@@ -44,7 +44,6 @@ export function TaskCompletionReport() {
   const [users, setUsers] = useState<Array<{ id: string; name: string; department_id?: number }>>([])
   const [loading, setLoading] = useState(true)
   const [userDepartmentId, setUserDepartmentId] = useState<number | null>(null)
-  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map())
 
   // Calculate date range based on view type and current date
   const dateRange = useMemo((): DateRange => {
@@ -125,10 +124,6 @@ export function TaskCompletionReport() {
         
         if (data) {
           setProjects(data)
-          // Build project name to ID mapping
-          const nameToId = new Map<string, number>()
-          data.forEach(proj => nameToId.set(proj.name, proj.id))
-          setProjectNameToId(nameToId)
         }
       } else if (role === 'manager') {
         // Manager can only see projects they're involved in
@@ -147,10 +142,6 @@ export function TaskCompletionReport() {
           
           if (projectsData) {
             setProjects(projectsData)
-            // Build project name to ID mapping
-            const nameToId = new Map<string, number>()
-            projectsData.forEach(proj => nameToId.set(proj.name, proj.id))
-            setProjectNameToId(nameToId)
           }
         }
       }
@@ -700,25 +691,7 @@ export function TaskCompletionReport() {
               {/* Project Filter (Admin & Manager) */}
               {(role === 'admin' || role === 'manager') && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-medium text-gray-600 block">Project</label>
-                    {projectFilter !== "all" && projectFilter !== "my-projects" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const selectedProject = projects.find(p => String(p.id) === projectFilter)
-                          if (selectedProject) {
-                            router.push(`/reports/project/${selectedProject.id}`)
-                          }
-                        }}
-                        className="h-6 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
-                      >
-                        <FileText className="h-3 w-3 mr-1" />
-                        View Report
-                      </Button>
-                    )}
-                  </div>
+                  <label className="text-sm font-medium text-gray-600 block">Project</label>
                   <Select value={projectFilter} onValueChange={setProjectFilter}>
                     <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
                       <SelectValue />
