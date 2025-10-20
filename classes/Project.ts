@@ -190,20 +190,7 @@ export class Project {
 
   // Helper method to load tasks from database
   private async loadTasks(): Promise<void> {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('project_id', this.project_id)
-      .order('id', { ascending: false });
-
-    if (error || !data) {
-      console.error('Error fetching project tasks:', error);
-      return;
-    }
-
-    // Convert to Task objects - this will need proper hydration
-    // TODO: Implement after Task class is updated with DB methods
-    this.tasks = [];
+    this.tasks = await Task.loadByProjectId(this.project_id);
   }
 
   // Setters - update in database and in-memory
