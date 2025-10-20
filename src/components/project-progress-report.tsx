@@ -200,10 +200,9 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
               </Button>
-              <div className="h-8 w-px bg-gray-300"></div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Project Progress Report</h1>
-                <p className="text-sm text-gray-600 mt-1">{projectName}</p>
+                <h1 className="text-2xl font-bold text-gray-800">Project Progress Report</h1>
+                <p className="text-gray-600">{projectName}</p>
               </div>
             </div>
           </div>
@@ -211,16 +210,16 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-6">
         {/* Status Report Chart */}
-        <Card className="mb-6 shadow-md">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+        <Card className="mb-6 shadow-sm border-gray-200">
+          <CardHeader>
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-100 rounded-lg">
                 <BarChart3 className="h-5 w-5 text-indigo-600" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-gray-900">Status Report</CardTitle>
+                <CardTitle className="text-lg font-semibold text-gray-800">Status Report</CardTitle>
                 <p className="text-sm text-gray-600 mt-1">Number of tasks under each status</p>
               </div>
             </div>
@@ -270,15 +269,15 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
         </Card>
 
         {/* Task List */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+        <Card className="shadow-sm border-gray-200">
+          <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-100 rounded-lg">
                   <ListTodo className="h-5 w-5 text-indigo-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-bold text-gray-900">Task List</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-gray-800">Task List</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
                 </div>
               </div>
