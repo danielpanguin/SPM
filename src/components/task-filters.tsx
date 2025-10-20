@@ -279,7 +279,7 @@ export function TaskFiltersComponent({
 
             {/* Custom Date Filter - Due By */}
             <div>
-              <Label htmlFor="deadline-due-by" className="text-sm font-medium flex items-center gap-2">
+              <Label htmlFor="deadline-due-by" className="text-sm font-medium !text-black flex items-center gap-2">
                 <Calendar className="h-3 w-3" />
                 Tasks Due By
               </Label>
@@ -294,7 +294,7 @@ export function TaskFiltersComponent({
 
             {/* Custom Date Filter - Due After */}
             <div>
-              <Label htmlFor="deadline-due-after" className="text-sm font-medium flex items-center gap-2">
+              <Label htmlFor="deadline-due-after" className="text-sm font-medium !text-black flex items-center gap-2">
                 <Calendar className="h-3 w-3" />
                 Tasks Due After
               </Label>
@@ -346,7 +346,7 @@ export function TaskFiltersComponent({
                 }
 
                 return (
-                  <Badge key={key} variant="secondary" className="text-xs">
+                  <Badge key={key} variant="secondary" className="text-xs !text-black">
                     {displayKey}: {displayValue}
                     <Button
                       variant="ghost"

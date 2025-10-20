@@ -46,6 +46,8 @@ export type TaskHydrated = TaskRow & {
   owned_by_email?: string | null;
 };
 
+const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
+
 /* ---------- READ ---------- */
 
 export async function listTasks(params?: {
@@ -117,8 +119,19 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
   const task = data as TaskRow;
 
   try {
-    if (input.assignee_ids?.length) {
-      const collabRows = input.assignee_ids.map((uid) => ({
+    // --- Collaborators: include owner automatically; cap total at 5 (AC-232, AC-233) ---
+    const assigneesSet = new Set<UUID>();
+    if (input.owned_by) assigneesSet.add(input.owned_by);
+    (input.assignee_ids ?? []).forEach((uid) => uid && assigneesSet.add(uid));
+
+    if (assigneesSet.size > MAX_TOTAL_ASSIGNEES) {
+      throw new Error(
+        `A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned (including the owner).`
+      );
+    }
+
+    if (assigneesSet.size) {
+      const collabRows = Array.from(assigneesSet).map((uid) => ({
         task_id: task.id,
         user_id: uid,
       }));
@@ -137,6 +150,7 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
       }
     }
   } catch (err) {
+    // rollback
     await supabase.from("task_collaborator").delete().eq("task_id", task.id);
     await supabase.from("task_tasktag").delete().eq("task_id", task.id);
     await supabase.from("tasks").delete().eq("id", task.id);
@@ -173,15 +187,38 @@ export async function updateTask(
   }
 
   if (patch.assignee_ids !== undefined) {
+    // Always rewrite the collaborator list from scratch for determinism
     const { error: delErr } = await supabase
       .from("task_collaborator")
       .delete()
       .eq("task_id", id);
     if (delErr) throw new Error(`Error clearing collaborators: ${delErr.message}`);
 
-    if (patch.assignee_ids.length) {
-      const collabs = patch.assignee_ids.map((uid) => ({ task_id: id, user_id: uid }));
-      const { error: insErr } = await supabase.from("task_collaborator").insert(collabs);
+    // Determine the effective owner (patched or current row)
+    let ownerId: UUID | null = patch.owned_by ?? null;
+    if (!ownerId) {
+      const { data: tRow, error: tErr } = await supabase
+        .from("tasks")
+        .select("owned_by")
+        .eq("id", id)
+        .single();
+      if (tErr) throw new Error(`Error fetching task owner: ${tErr.message}`);
+      ownerId = (tRow as any)?.owned_by ?? null;
+    }
+
+    const set = new Set<UUID>();
+    if (ownerId) set.add(ownerId);
+    (patch.assignee_ids ?? []).forEach((uid) => uid && set.add(uid));
+
+    if (set.size > MAX_TOTAL_ASSIGNEES) {
+      throw new Error(
+        `A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned (including the owner).`
+      );
+    }
+
+    if (set.size) {
+      const rows = Array.from(set).map((uid) => ({ task_id: id, user_id: uid }));
+      const { error: insErr } = await supabase.from("task_collaborator").insert(rows);
       if (insErr) throw new Error(`Error inserting collaborators: ${insErr.message}`);
     }
   }

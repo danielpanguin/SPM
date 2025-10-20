@@ -7,6 +7,9 @@ import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
 import { notifyTaskSync } from "@/lib/notifyTaskSync";
 
+const MAX_TOTAL_ASSIGNEES = 5;      // owner + collaborators
+const MAX_COLLABORATORS = 4;        // collaborators only (excludes owner)
+
 type Mode = "create" | "edit";
 
 interface Props {
@@ -114,21 +117,12 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
       // Fetch user's assigned projects
       if (currentUserId) {
-        console.log("[TaskForm] Fetching projects for currentUserId:", currentUserId);
         fetch(`/api/projects/user/${currentUserId}`)
           .then((res) => res.json())
           .then((result) => {
-            console.log("[TaskForm] Projects API response:", result);
-            if (alive && result.ok) {
-              console.log("[TaskForm] Setting projects state:", result.data);
-              setProjects(result.data ?? []);
-            } else {
-              console.error("[TaskForm] Projects API returned not ok:", result);
-            }
+            if (alive && result.ok) setProjects(result.data ?? []);
           })
           .catch((err) => console.error("[TaskForm] Failed to fetch projects:", err));
-      } else {
-        console.log("[TaskForm] No currentUserId, skipping project fetch");
       }
 
       // Fetch available parent tasks (tasks without a parent task)
@@ -161,10 +155,6 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
   /**
    * Always hydrate latest DB values when editing.
-   * This pulls:
-   * - tasks row (for core fields)
-   * - task_collaborator (user_ids)
-   * - task_tasktag -> task_tag (single tag name)
    */
   useEffect(() => {
     if (mode !== "edit") return;
@@ -250,7 +240,18 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initial?.id]);
 
-  const allowedUsers = useMemo(() => users, [users]);
+  // Owner dropdown should list all users; collaborators should exclude the owner.
+  const ownerOptions = users;
+  const collabOptions = useMemo(
+    () => users.filter((u) => u.id !== ownedById),
+    [users, ownedById]
+  );
+
+  // If owner changes, auto-remove owner from collaborators (AC-231 guard)
+  useEffect(() => {
+    if (!ownedById) return;
+    setCollaboratorIds((prev) => prev.filter((id) => id !== ownedById));
+  }, [ownedById]);
 
   function validate(): string | null {
     if (!title.trim()) return "Title is required.";
@@ -305,6 +306,13 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         return isValid;
       });
 
+      // ***** 1d) TOTAL ASSIGNEES CHECK (owner + collaborators <= 5) *****
+      if ((validCollaboratorIds.length + 1) > MAX_TOTAL_ASSIGNEES) {
+        setError(`A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned, including the owner.`);
+        setBusy(false);
+        return;
+      }
+
       const payload = {
         title,
         description,
@@ -342,7 +350,15 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   }
 
   function toggleCollaborator(x: string) {
-    setCollaboratorIds((prev) => (prev.includes(x) ? prev.filter((i) => i !== x) : [...prev, x]));
+    setCollaboratorIds((prev) => {
+      const exists = prev.includes(x);
+      if (exists) return prev.filter((i) => i !== x);
+      if (prev.length >= MAX_COLLABORATORS) {
+        setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+        return prev;
+      }
+      return [...prev, x];
+    });
   }
 
   return (
@@ -470,7 +486,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
           <option value="" disabled>
             Select user
           </option>
-          {allowedUsers.map((u) => (
+          {ownerOptions.map((u) => (
             <option key={u.id} value={u.id}>
               {u.email || u.id}
             </option>
@@ -481,7 +497,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
       <div>
         <label className="block text-sm font-medium">Collaborators</label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {allowedUsers.map((u) => (
+          {collabOptions.map((u) => (
             <label
               key={u.id}
               className={`flex items-center gap-2 rounded border p-2 ${
