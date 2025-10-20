@@ -52,6 +52,7 @@ interface Props {
   task: UITask | DetailsTask | null;
   onClose(): void;
   onEdit(): void;
+  onCreateSubtask?: () => void;
   projectByTaskId?: Map<string, string | null>
   titleById?: Map<string | number, string>
 }
@@ -59,10 +60,11 @@ interface Props {
 type UserMap = Record<string, string>; // id -> label (email or id)
 
 /* ---------- Component ---------- */
-export default function TaskDetailsModal({ 
+export default function TaskDetailsModal({
     task,
     onClose,
     onEdit,
+    onCreateSubtask,
     projectByTaskId,
     titleById,
   }: Props) {
@@ -253,7 +255,7 @@ export default function TaskDetailsModal({
         {/* RIGHT SECTION */}
         <div className="w-80 p-6 overflow-y-auto flex flex-col">
           <div className="justify-end flex items-center gap-2">
-              {/* ACTION BUTTONS (Edit / Close) */}
+              {/* ACTION BUTTONS (Edit / Create Subtask / Close) */}
               <button
                 onClick={onEdit}
                 title="Edit Task"
@@ -261,6 +263,15 @@ export default function TaskDetailsModal({
               >
                 <Pencil className="w-4 h-4" />
               </button>
+              {onCreateSubtask && !task.parentTaskId && (
+                <button
+                  onClick={onCreateSubtask}
+                  title="Create Subtask"
+                  className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Create Subtask
+                </button>
+              )}
               <button
                 onClick={onClose}
                 title="Close"

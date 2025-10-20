@@ -309,14 +309,14 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
                       <button
                         onClick={saveEdit}
                         disabled={savingEdit || !editText.trim()}
-                        className="text-xs rounded bg-black text-white px-2 py-1 disabled:opacity-50"
+                        className="text-xs rounded bg-black text-white font-medium px-2 py-1 disabled:opacity-50 hover:bg-gray-800 transition-colors"
                       >
                         {savingEdit ? "Saving…" : "Save"}
                       </button>
                       <button
                         onClick={cancelEdit}
                         disabled={savingEdit}
-                        className="text-xs rounded border px-2 py-1"
+                        className="text-xs rounded border px-2 py-1 hover:bg-gray-50 transition-colors"
                       >
                         Cancel
                       </button>
@@ -357,8 +357,8 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
           <button
             type="submit"
             hidden={!canComment}
-            disabled={disabled}
-            className="rounded-sm text-sm  px-4 py-2 disabled:opacity-50 border-1 hover:cursor-pointer hover:bg-gray-100 disabled:cursor-default disabled:bg-transparent"
+            disabled={composerDisabled}
+            className="rounded-xl text-sm bg-black px-4 py-2 text-white font-medium disabled:opacity-50 hover:bg-gray-800 transition-colors"
           >
             {submitting ? "Posting…" : "Comment"}
           </button>

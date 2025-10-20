@@ -1,22 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
 import { Label } from "@/components/ui/ViewTaskUi/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
-import { X, Filter, Calendar, User, Tag, AlertTriangle } from "lucide-react"
+import { X, Filter, Calendar, User, Tag, AlertTriangle, FolderTree } from "lucide-react"
+import { supabase } from "@/lib/supabaseClient"
+import { useUser } from "@/hooks/useAuth"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 
 export interface TaskFilters {
   search: string
   status: string
   priority: string
-  project: string
-  assignee: string
-  tag: string
-  deadline: string
+  project: string[]       // Multi-select
+  assignee: string[]      // Multi-select
+  tag: string[]           // Multi-select
+  parentTask: string[]    // Multi-select
+  deadline: string[]      // Multi-select - presets like "overdue", "today", etc.
+  deadlineDueBy: string   // Custom date for "due by" filter (YYYY-MM-DD)
+  deadlineDueAfter: string // Custom date for "due after" filter (YYYY-MM-DD)
 }
 
 interface TaskFiltersProps {
@@ -30,9 +36,9 @@ interface TaskFiltersProps {
   availableTags?: string[]
 }
 
-export function TaskFiltersComponent({ 
-  filters, 
-  onFiltersChange, 
+export function TaskFiltersComponent({
+  filters,
+  onFiltersChange,
   onClearFilters,
   availableStatuses = [],
   availablePriorities = [],
@@ -41,14 +47,77 @@ export function TaskFiltersComponent({
   availableTags = []
 }: TaskFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [priorities, setPriorities] = useState<{ id: number; label: string }[]>([])
+  const [statuses, setStatuses] = useState<{ id: number; status: string }[]>([])
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([])
+  const { userId, role, accessibleUserIds } = useUser()
+
+  // Fetch priorities and statuses from DB
+  useEffect(() => {
+    const fetchFilters = async () => {
+      // Fetch priorities
+      const { data: priorityData } = await supabase
+        .from("priority")
+        .select("id")
+        .order("id", { ascending: true })
+
+      if (priorityData) {
+        setPriorities(priorityData.map(p => ({ id: p.id, label: `P${p.id}` })))
+      }
+
+      // Fetch statuses
+      const { data: statusData } = await supabase
+        .from("status")
+        .select("id, status")
+        .order("id", { ascending: true })
+
+      if (statusData) {
+        setStatuses(statusData)
+      }
+    }
+
+    fetchFilters()
+  }, [])
+
+  // Fetch team members for managers
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (role === 'manager' && accessibleUserIds.length > 0) {
+        const { data: users } = await supabase
+          .from("users")
+          .select("id, username, email")
+          .in("id", accessibleUserIds)
+          .order("username", { ascending: true })
+
+        if (users) {
+          setTeamMembers(
+            users.map(u => ({
+              id: u.id,
+              name: u.username || u.email || u.id
+            }))
+          )
+        }
+      }
+    }
+
+    fetchTeamMembers()
+  }, [role, accessibleUserIds])
 
   const updateFilter = (key: keyof TaskFilters, value: string) => {
     onFiltersChange({ ...filters, [key]: value })
   }
 
-  const hasActiveFilters = Object.values(filters).some((value) => value !== "" && value !== "all")
+  const isManager = role === 'manager'
 
-  const activeFilterCount = Object.values(filters).filter((value) => value !== "" && value !== "all").length
+  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+    if (Array.isArray(value)) return value.length > 0
+    return value !== "" && value !== "all"
+  })
+
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => {
+    if (Array.isArray(value)) return value.length > 0
+    return value !== "" && value !== "all"
+  }).length
 
   return (
     <Card className="mb-6">
@@ -86,7 +155,7 @@ export function TaskFiltersComponent({
             </Label>
             <Input
               id="search"
-              placeholder="Search by task title..."
+              placeholder="Search by task title or ID..."
               value={filters.search}
               onChange={(e) => updateFilter("search", e.target.value)}
               className="mt-1"
@@ -144,82 +213,98 @@ export function TaskFiltersComponent({
             {/* Project Filter */}
             <div>
               <Label className="text-sm font-medium !text-black">Project</Label>
-              <Select value={filters.project} onValueChange={(value) => updateFilter("project", value)}>
-                <SelectTrigger className="mt-1 hover:bg-gray-100">
-                  <SelectValue placeholder="All projects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Projects</SelectItem>
-                  {availableProjects.map(project => (
-                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={project} value={project}>
-                      {project}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Projects"
+                options={availableProjects.map(p => ({ value: p, label: p }))}
+                selectedValues={filters.project}
+                onChange={(values) => onFiltersChange({ ...filters, project: values })}
+                onClear={() => onFiltersChange({ ...filters, project: [] })}
+                placeholder="All projects"
+              />
             </div>
 
-            {/* Assignee Filter */}
+            {/* Team Member Filter - Multi-select */}
             <div>
               <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <User className="h-3 w-3" />
                 Team Member
               </Label>
-              <Select value={filters.assignee} onValueChange={(value) => updateFilter("assignee", value)}>
-                <SelectTrigger className="mt-1 hover:bg-gray-100">
-                  <SelectValue placeholder="All members" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Members</SelectItem>
-                  {availableAssignees.map(assignee => (
-                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={assignee} value={assignee}>
-                      {assignee}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Team Members"
+                options={availableAssignees.map(a => ({ value: a, label: a }))}
+                selectedValues={filters.assignee}
+                onChange={(values) => onFiltersChange({ ...filters, assignee: values })}
+                onClear={() => onFiltersChange({ ...filters, assignee: [] })}
+                placeholder="All members"
+              />
             </div>
 
-            {/* Tag Filter */}
+            {/* Tag Filter - Multi-select */}
             <div>
               <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <Tag className="h-3 w-3" />
                 Tag
               </Label>
-              <Select value={filters.tag} onValueChange={(value) => updateFilter("tag", value)}>
-                <SelectTrigger className="mt-1 hover:bg-gray-100">
-                  <SelectValue placeholder="All tags" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Tags</SelectItem>
-                  {availableTags.map(tag => (
-                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Tags"
+                options={availableTags.map(t => ({ value: t, label: t }))}
+                selectedValues={filters.tag}
+                onChange={(values) => onFiltersChange({ ...filters, tag: values })}
+                onClear={() => onFiltersChange({ ...filters, tag: [] })}
+                placeholder="All tags"
+              />
             </div>
 
-            {/* Deadline Filter */}
+            {/* Deadline Filter - Multi-select */}
             <div>
               <Label className="text-sm font-medium !text-black flex items-center gap-2">
                 <Calendar className="h-3 w-3" />
-                Deadline
+                Deadline Presets
               </Label>
-              <Select value={filters.deadline} onValueChange={(value) => updateFilter("deadline", value)}>
-                <SelectTrigger className="mt-1 hover:bg-gray-100">
-                  <SelectValue placeholder="All deadlines" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Deadlines</SelectItem>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="overdue">Overdue</SelectItem>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="today">Due Today</SelectItem>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="this-week">This Week</SelectItem>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="next-week">Next Week</SelectItem>
-                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="this-month">This Month</SelectItem>
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Deadline Presets"
+                options={[
+                  { value: "overdue", label: "Overdue" },
+                  { value: "today", label: "Due Today" },
+                  { value: "this-week", label: "This Week" },
+                  { value: "next-week", label: "Next Week" },
+                  { value: "this-month", label: "This Month" }
+                ]}
+                selectedValues={filters.deadline}
+                onChange={(values) => onFiltersChange({ ...filters, deadline: values })}
+                onClear={() => onFiltersChange({ ...filters, deadline: [] })}
+                placeholder="Select presets"
+              />
+            </div>
+
+            {/* Custom Date Filter - Due By */}
+            <div>
+              <Label htmlFor="deadline-due-by" className="text-sm font-medium !text-black flex items-center gap-2">
+                <Calendar className="h-3 w-3" />
+                Tasks Due By
+              </Label>
+              <Input
+                id="deadline-due-by"
+                type="date"
+                value={filters.deadlineDueBy}
+                onChange={(e) => onFiltersChange({ ...filters, deadlineDueBy: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Custom Date Filter - Due After */}
+            <div>
+              <Label htmlFor="deadline-due-after" className="text-sm font-medium !text-black flex items-center gap-2">
+                <Calendar className="h-3 w-3" />
+                Tasks Due After
+              </Label>
+              <Input
+                id="deadline-due-after"
+                type="date"
+                value={filters.deadlineDueAfter}
+                onChange={(e) => onFiltersChange({ ...filters, deadlineDueAfter: e.target.value })}
+                className="mt-1"
+              />
             </div>
           </div>
         )}
@@ -229,13 +314,48 @@ export function TaskFiltersComponent({
           <div className="flex flex-wrap gap-2 pt-4 border-t">
             <span className="text-sm font-medium !text-black">Active filters:</span>
             {Object.entries(filters).map(([key, value]) => {
-              if (value && value !== "all") {
+              // Handle array values (multi-select)
+              if (Array.isArray(value) && value.length > 0) {
+                // Create friendly label for deadline presets
+                const displayKey = key === 'deadline' ? 'Deadline Presets' : key
                 return (
-                  <Badge key={key} variant="outline" className="text-xs !text-black flex hover:bg-gray-100 hover:cursor-pointer" onClick={() => updateFilter(key as keyof TaskFilters, "")}>
-                    <span className="py-auto">
-                      {key}: {value}
-                    </span>
-                    <X className="my-auto h-3 w-3" />
+                  <Badge key={key} variant="secondary" className="text-xs !text-black">
+                    {displayKey}: {value.length} selected
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 ml-1 hover:bg-transparent"
+                      onClick={() => onFiltersChange({ ...filters, [key]: [] })}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                )
+              }
+              // Handle string values (including date filters)
+              if (value && value !== "all") {
+                // Create friendly labels for date filters
+                let displayKey = key
+                let displayValue = value
+                if (key === 'deadlineDueBy') {
+                  displayKey = 'Due By'
+                  displayValue = new Date(value as string).toLocaleDateString()
+                } else if (key === 'deadlineDueAfter') {
+                  displayKey = 'Due After'
+                  displayValue = new Date(value as string).toLocaleDateString()
+                }
+
+                return (
+                  <Badge key={key} variant="secondary" className="text-xs !text-black">
+                    {displayKey}: {displayValue}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 ml-1 hover:bg-transparent"
+                      onClick={() => onFiltersChange({ ...filters, [key]: "" })}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </Badge>
                 )
               }

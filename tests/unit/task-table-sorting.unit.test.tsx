@@ -60,10 +60,13 @@ describe('TaskTable - Sorting Tests', () => {
     search: '',
     status: 'all' as const,
     priority: 'all' as const,
-    project: 'all' as const,
-    assignee: 'all' as const,
-    tag: 'all' as const,
-    deadline: 'all' as const,
+    project: [] as string[],        // Changed to array for multi-select
+    assignee: [] as string[],       // Changed to array for multi-select
+    tag: [] as string[],            // Changed to array for multi-select
+    parentTask: [] as string[],     // Added missing field
+    deadline: [] as string[],       // Changed to array for multi-select
+    deadlineDueBy: '',              // Added missing field
+    deadlineDueAfter: '',           // Added missing field
   };
 
   const mockOnTaskClick = jest.fn();

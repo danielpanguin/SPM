@@ -17,20 +17,21 @@ interface Props {
   initial?: Partial<UITask>;
   onSaved(taskFromApi: any): void; // we map in parent
   onCancel?(): void;
+  accessibleUserIds?: string[]; // User IDs that are accessible based on role
 }
 
 type DbRoleUser = { id: string; email?: string | null; roles?: { name?: string | null } | null };
 type Option = { id: number; label: string };
 type Project = { id: number; name: string };
 
-export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
+export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleUserIds }: Props) {
   const { userId: currentUserId } = useUser();
-  const isManager = true; // set from your auth/role if you have it
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
   const [prioOpts, setPrioOpts] = useState<Option[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [availableParentTasks, setAvailableParentTasks] = useState<{ id: number; title: string; start_date: string; end_date: string }[]>([]);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -43,12 +44,35 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
-  const [parentTaskId, setParentTaskId] = useState<number | "">(
-    (initial?.parentTaskId as number) ?? ""
-  );
+  const [parentTaskId, setParentTaskId] = useState<number | "">(() => {
+    // Convert string or number parentTaskId to number, or empty string if not present
+    if (initial?.parentTaskId) {
+      const parsed = typeof initial.parentTaskId === 'string'
+        ? parseInt(initial.parentTaskId, 10)
+        : initial.parentTaskId;
+      return isNaN(parsed) ? "" : parsed;
+    }
+    return "";
+  });
   const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
-  const [priorityId, setPriorityId] = useState<number | "">("");
-  const [statusId, setStatusId] = useState<number | "">("");
+  const [priorityId, setPriorityId] = useState<number | "">(() => {
+    // Extract priority ID from P1-P10 format or use priority_id directly
+    const priority = (initial as any)?.priority;
+    if (typeof priority === 'string' && priority.startsWith('P')) {
+      return Number(priority.substring(1));
+    }
+    if (typeof (initial as any)?.priority_id === 'number') {
+      return (initial as any).priority_id;
+    }
+    return "";
+  });
+  const [statusId, setStatusId] = useState<number | "">(() => {
+    const statusId = (initial as any)?.status_id;
+    if (typeof statusId === 'number') {
+      return statusId;
+    }
+    return "";
+  });
   const [projectId, setProjectId] = useState<number | "">(
     (initial?.project_id as number) ?? ""
   );
@@ -100,13 +124,34 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           })
           .catch((err) => console.error("[TaskForm] Failed to fetch projects:", err));
       }
+
+      // Fetch available parent tasks (tasks without a parent task)
+      // Filter by accessible user IDs to match dashboard visibility
+      let tasksQuery = supabase
+        .from("tasks")
+        .select("id, title, parent_task_id, start_date, end_date, owned_by")
+        .is("parent_task_id", null);
+
+      // Apply permission filtering if accessibleUserIds is provided
+      if (accessibleUserIds && accessibleUserIds.length > 0) {
+        tasksQuery = tasksQuery.in("owned_by", accessibleUserIds);
+      }
+
+      const tasksRes = await tasksQuery.order("title", { ascending: true });
+
+      if (alive && tasksRes.data) {
+        // Filter out the current task if editing (can't be its own parent)
+        const currentTaskId = initial?.id ? Number(initial.id) : null;
+        const filtered = tasksRes.data.filter((t: any) => t.id !== currentTaskId);
+        setAvailableParentTasks(filtered);
+      }
     }
     run();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, [currentUserId, accessibleUserIds]);
 
   /**
    * Always hydrate latest DB values when editing.
@@ -215,6 +260,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     if (!ownedById) return "Assignee (Owned By) is required.";
     if (!statusId) return "Status is required.";
     if (!priorityId) return "Priority is required.";
+
+    // Validate subtask dates if this task has a parent
+    if (typeof parentTaskId === "number") {
+      const parentTask = availableParentTasks.find(t => t.id === parentTaskId);
+      if (parentTask) {
+        const taskStart = new Date(startDate);
+        const taskEnd = new Date(endDate);
+        const parentStart = new Date(parentTask.start_date);
+        const parentEnd = new Date(parentTask.end_date);
+
+        if (taskStart < parentStart) {
+          return "Subtask start date cannot be earlier than parent task start date.";
+        }
+        if (taskEnd > parentEnd) {
+          return "Subtask end date cannot be later than parent task end date.";
+        }
+      }
+    }
+
     return null;
   }
 
@@ -300,9 +364,13 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {(error || hydrating) && (
-        <p className="text-sm">
-          {hydrating ? "Loading latest task data…" : <span className="text-red-600">{error}</span>}
-        </p>
+        <div className={`p-3 rounded-md ${hydrating ? 'bg-blue-50 border border-blue-200' : 'bg-red-50 border border-red-300'}`}>
+          {hydrating ? (
+            <p className="text-sm text-blue-700">Loading latest task data…</p>
+          ) : (
+            <p className="text-sm font-semibold text-red-700">{error}</p>
+          )}
+        </div>
       )}
 
       <div>
@@ -452,16 +520,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           <label htmlFor={id.parent} className="block text-sm font-medium">
             Parent Task
           </label>
-          <input
+          <select
             id={id.parent}
             className="mt-1 w-full rounded border p-2"
-            placeholder="Optional task id"
             value={parentTaskId}
             onChange={(e) => {
               const v = e.target.value;
               setParentTaskId(v === "" ? "" : Number(v));
             }}
-          />
+          >
+            <option value="">None (No Parent Task)</option>
+            {availableParentTasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.title} (ID: {task.id})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            Only tasks without a parent can be selected as parent tasks
+          </p>
         </div>
         <div>
           <label htmlFor={id.tag} className="block text-sm font-medium">
@@ -491,9 +568,14 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={busy} className="rounded border-1 hover:bg-gray-100 hover:cursor-pointer px-4 py-2">
+        <button type="submit" disabled={busy} className="rounded bg-black px-4 py-2 text-white font-medium hover:bg-gray-800 transition-colors">
           {busy ? "Saving..." : mode === "create" ? "Create Task" : "Save Changes"}
         </button>
+        {onCancel && (
+          <button type="button" className="rounded border px-4 py-2 hover:bg-gray-50 transition-colors" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
       </div>
     </form>
   );
