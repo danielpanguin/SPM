@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTa
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
+import { FileText } from "lucide-react"
 
 import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
@@ -119,6 +121,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const [showArchive, setShowArchive] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
+  const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("")
 
   const [filters, setFilters] = useState<TaskFilters>({
     search: "",
@@ -430,6 +433,25 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const handleShowArchive = () => setShowArchive(true)
   const handleCloseArchive = () => setShowArchive(false)
 
+  const handleViewProjectReport = () => {
+    if (selectedProjectForReport) {
+      const projectId = projectNameToId.get(selectedProjectForReport)
+      if (projectId) {
+        router.push(`/reports/project/${projectId}`)
+      }
+    }
+  }
+
+  // Get unique projects for the dropdown
+  const availableProjects = useMemo(() => {
+    const projects = new Set<string>()
+    tasks.forEach(task => {
+      const proj = projectByTaskId?.get(task.id)
+      if (proj) projects.add(proj)
+    })
+    return Array.from(projects).sort()
+  }, [tasks, projectByTaskId])
+
   // Stats derived from canonical Task[]
   const stats = useMemo(() => {
     const total = tasks.length
@@ -592,6 +614,32 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                     Task Completion Report
                   </Button>
                 )}
+                
+                {/* View Project Report */}
+                <div className="space-y-2">
+                  <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a project..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableProjects.map((project) => (
+                        <SelectItem key={project} value={project}>
+                          {project}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start bg-transparent"
+                    onClick={handleViewProjectReport}
+                    disabled={!selectedProjectForReport}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Project Report
+                  </Button>
+                </div>
+
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
                 </Button>
