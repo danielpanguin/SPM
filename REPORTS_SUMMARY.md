@@ -72,11 +72,20 @@
 
 ## Navigation
 
-### Dashboard Quick Actions (Managers & Admins)
+### Dashboard Quick Actions
 Located in the right sidebar of the dashboard:
-- ✅ **Task Completion Report** button
+- ✅ **Task Completion Report** button (Managers & Admins only)
+- ✅ **Project Selector Dropdown** (All users)
+- ✅ **View Project Report** button (All users)
 - Team Overview button
 - Archive Tasks button (for managers/admins)
+
+### How to Access Project Report from Dashboard
+1. Go to Dashboard
+2. Look at the **Quick Actions** sidebar on the right
+3. Select a project from the dropdown menu
+4. Click **"View Project Report"** button
+5. You'll be redirected to the project progress report
 
 ### Direct URLs
 - Task Completion Report: `http://localhost:3000/reports/completion`
