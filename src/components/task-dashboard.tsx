@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
 
@@ -596,7 +597,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                     <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
                     <p className="text-sm !text-gray-900">All tasks across your projects</p>
                   </div>
-                  <Button onClick={() => setCreating(true)}>Create Task</Button>
+                  <Button className="border-1 hover:bg-gray-200" onClick={() => setCreating(true)}>Create Task</Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -729,8 +730,15 @@ function Modal({
       <div role="dialog" aria-labelledby="modal-title" className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between">
           <h3 id="modal-title" className="text-xl font-semibold">{title}</h3>
-          <button className="text-sm text-gray-500" onClick={onClose}>
+          {/* <button className="text-sm text-gray-500" onClick={onClose}>
             Close
+          </button> */}
+          <button
+            onClick={onClose}
+            title="Close Task"
+            className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
         <div className="mt-4">{children}</div>

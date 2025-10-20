@@ -65,12 +65,12 @@ export function TaskFiltersComponent({
           </div>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={onClearFilters} className="text-xs bg-transparent">
+              <Button variant="outline" size="sm" onClick={onClearFilters} className="text-xs bg-transparent hover:bg-gray-200 hover:cursor-pointer">
                 <X className="h-3 w-3 mr-1" />
                 Clear All
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs">
+            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs border-1 hover:bg-gray-200 hover:cursor-pointer">
               {isExpanded ? "Collapse" : "Expand"}
             </Button>
           </div>
@@ -106,13 +106,13 @@ export function TaskFiltersComponent({
                 Status
               </Label>
               <Select value={filters.status} onValueChange={(value) => updateFilter("status", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Statuses</SelectItem>
                   {availableStatuses.map(status => (
-                    <SelectItem key={status} value={status}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={status} value={status}>
                       {status.charAt(0).toUpperCase() + status.slice(1).replace("-", " ")}
                     </SelectItem>
                   ))}
@@ -127,13 +127,13 @@ export function TaskFiltersComponent({
                 Priority
               </Label>
               <Select value={filters.priority} onValueChange={(value) => updateFilter("priority", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All priorities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Priorities</SelectItem>
                   {availablePriorities.map(priority => (
-                    <SelectItem key={priority} value={priority}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={priority} value={priority}>
                       {priority}
                     </SelectItem>
                   ))}
@@ -145,13 +145,13 @@ export function TaskFiltersComponent({
             <div>
               <Label className="text-sm font-medium !text-black">Project</Label>
               <Select value={filters.project} onValueChange={(value) => updateFilter("project", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All projects" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Projects</SelectItem>
                   {availableProjects.map(project => (
-                    <SelectItem key={project} value={project}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={project} value={project}>
                       {project}
                     </SelectItem>
                   ))}
@@ -166,13 +166,13 @@ export function TaskFiltersComponent({
                 Team Member
               </Label>
               <Select value={filters.assignee} onValueChange={(value) => updateFilter("assignee", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All members" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Members</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Members</SelectItem>
                   {availableAssignees.map(assignee => (
-                    <SelectItem key={assignee} value={assignee}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={assignee} value={assignee}>
                       {assignee}
                     </SelectItem>
                   ))}
@@ -187,13 +187,13 @@ export function TaskFiltersComponent({
                 Tag
               </Label>
               <Select value={filters.tag} onValueChange={(value) => updateFilter("tag", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All tags" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Tags</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Tags</SelectItem>
                   {availableTags.map(tag => (
-                    <SelectItem key={tag} value={tag}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={tag} value={tag}>
                       {tag}
                     </SelectItem>
                   ))}
@@ -208,16 +208,16 @@ export function TaskFiltersComponent({
                 Deadline
               </Label>
               <Select value={filters.deadline} onValueChange={(value) => updateFilter("deadline", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All deadlines" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Deadlines</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                  <SelectItem value="today">Due Today</SelectItem>
-                  <SelectItem value="this-week">This Week</SelectItem>
-                  <SelectItem value="next-week">Next Week</SelectItem>
-                  <SelectItem value="this-month">This Month</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Deadlines</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="overdue">Overdue</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="today">Due Today</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="this-week">This Week</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="next-week">Next Week</SelectItem>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="this-month">This Month</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -231,16 +231,11 @@ export function TaskFiltersComponent({
             {Object.entries(filters).map(([key, value]) => {
               if (value && value !== "all") {
                 return (
-                  <Badge key={key} variant="secondary" className="text-xs !text-black">
-                    {key}: {value}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 ml-1 hover:bg-transparent"
-                      onClick={() => updateFilter(key as keyof TaskFilters, "")}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                  <Badge key={key} variant="outline" className="text-xs !text-black flex hover:bg-gray-100 hover:cursor-pointer" onClick={() => updateFilter(key as keyof TaskFilters, "")}>
+                    <span className="py-auto">
+                      {key}: {value}
+                    </span>
+                    <X className="my-auto h-3 w-3" />
                   </Badge>
                 )
               }
