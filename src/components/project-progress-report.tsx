@@ -285,26 +285,38 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
           </CardHeader>
           <CardContent className="p-0">
             {tasks.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="font-semibold text-gray-700">ID</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Title</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Priority</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Assignee</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Deadline</TableHead>
+                    <TableRow>
+                      <TableHead className="w-[100px]">
+                        <div className="flex items-center whitespace-nowrap">ID</div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center whitespace-nowrap">Title</div>
+                      </TableHead>
+                      <TableHead className="w-[120px]">
+                        <div className="flex items-center whitespace-nowrap">Status</div>
+                      </TableHead>
+                      <TableHead className="w-[110px]">
+                        <div className="flex items-center whitespace-nowrap">Priority</div>
+                      </TableHead>
+                      <TableHead className="w-[140px]">
+                        <div className="flex items-center whitespace-nowrap">Assignee</div>
+                      </TableHead>
+                      <TableHead className="w-[120px]">
+                        <div className="flex items-center whitespace-nowrap">Deadline</div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {tasks.map((task) => (
-                      <TableRow key={task.id} className="hover:bg-gray-50 transition-colors">
-                        <TableCell className="font-medium text-gray-900">
+                      <TableRow key={task.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-mono text-sm text-black">
                           TSK-{String(task.id).padStart(3, '0')}
                         </TableCell>
                         <TableCell className="max-w-md">
-                          <div className="font-medium text-gray-900 truncate">{task.title}</div>
+                          <div className="font-medium text-black truncate">{task.title}</div>
                         </TableCell>
                         <TableCell>
                           <Badge className={getStatusBadgeClass(task.status)}>
@@ -316,7 +328,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                             P{task.priority}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-gray-700">
+                        <TableCell className="text-black">
                           {task.owned_by_user.username}
                         </TableCell>
                         <TableCell className="text-gray-600">
