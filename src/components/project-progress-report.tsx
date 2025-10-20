@@ -283,7 +283,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-6">
             {tasks.length > 0 ? (
               <div className="rounded-md border">
                 <Table>
