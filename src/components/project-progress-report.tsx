@@ -81,7 +81,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
           created_at,
           is_archived,
           status:statuses(id, status),
-          owned_by_user:users!tasks_owned_by_fkey(username)
+          owned_by_user:users!owned_by(username)
         `)
         .eq('project_id', projectId)
         .order('created_at', { ascending: false })
