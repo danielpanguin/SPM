@@ -80,7 +80,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
           end_date,
           created_at,
           is_archived,
-          status:statuses(id, status),
+          status:status(id, status),
           owned_by_user:users!owned_by(username)
         `)
         .eq('project_id', projectId)
