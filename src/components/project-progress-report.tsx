@@ -48,18 +48,27 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
     try {
       setLoading(true)
 
+      console.log('[Project Report] Loading data for project ID:', projectId)
+
       // Fetch project details
-      const { data: project } = await supabase
+      const { data: project, error: projectError } = await supabase
         .from('projects')
         .select('name')
         .eq('id', projectId)
         .single()
 
-      if (project) {
-        setProjectName(project.name)
+      if (projectError) {
+        console.error('[Project Report] Error fetching project:', projectError)
       }
 
-      // Fetch tasks for the project
+      if (project) {
+        setProjectName(project.name)
+        console.log('[Project Report] Project name:', project.name)
+      } else {
+        console.warn('[Project Report] No project found with ID:', projectId)
+      }
+
+      // Fetch tasks for the project (including archived to see if any exist)
       const { data: tasksData, error } = await supabase
         .from('tasks')
         .select(`
@@ -75,15 +84,21 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
           owned_by_user:users!tasks_owned_by_fkey(username)
         `)
         .eq('project_id', projectId)
-        .eq('is_archived', false)
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching tasks:', error)
+        console.error('[Project Report] Error fetching tasks:', error)
         return
       }
 
-      const formattedTasks: Task[] = (tasksData || []).map((task: any) => ({
+      console.log('[Project Report] Total tasks found:', tasksData?.length || 0)
+      console.log('[Project Report] Tasks data:', tasksData)
+
+      // Filter out archived tasks
+      const nonArchivedTasks = (tasksData || []).filter((task: any) => !task.is_archived)
+      console.log('[Project Report] Non-archived tasks:', nonArchivedTasks.length)
+
+      const formattedTasks: Task[] = nonArchivedTasks.map((task: any) => ({
         id: task.id,
         title: task.title,
         status: task.status?.status || 'Unknown',
@@ -94,6 +109,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
         created_at: task.created_at,
       }))
 
+      console.log('[Project Report] Formatted tasks:', formattedTasks)
       setTasks(formattedTasks)
 
       // Calculate status distribution
