@@ -134,12 +134,12 @@ export function TaskFiltersComponent({
           </div>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={onClearFilters} className="text-xs bg-transparent">
+              <Button variant="outline" size="sm" onClick={onClearFilters} className="text-xs bg-transparent hover:bg-gray-200 hover:cursor-pointer">
                 <X className="h-3 w-3 mr-1" />
                 Clear All
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs">
+            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs border-1 hover:bg-gray-200 hover:cursor-pointer">
               {isExpanded ? "Collapse" : "Expand"}
             </Button>
           </div>
@@ -175,13 +175,13 @@ export function TaskFiltersComponent({
                 Status
               </Label>
               <Select value={filters.status} onValueChange={(value) => updateFilter("status", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-neutral-700 shadow-lg">
-                  <SelectItem value="all">All Statuses</SelectItem>
+                <SelectContent>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Statuses</SelectItem>
                   {availableStatuses.map(status => (
-                    <SelectItem key={status} value={status}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={status} value={status}>
                       {status.charAt(0).toUpperCase() + status.slice(1).replace("-", " ")}
                     </SelectItem>
                   ))}
@@ -196,13 +196,13 @@ export function TaskFiltersComponent({
                 Priority
               </Label>
               <Select value={filters.priority} onValueChange={(value) => updateFilter("priority", value)}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 hover:bg-gray-100">
                   <SelectValue placeholder="All priorities" />
                 </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-neutral-700 shadow-lg">
-                  <SelectItem value="all">All Priorities</SelectItem>
+                <SelectContent>
+                  <SelectItem className="hover:cursor-pointer hover:bg-gray-100" value="all">All Priorities</SelectItem>
                   {availablePriorities.map(priority => (
-                    <SelectItem key={priority} value={priority}>
+                    <SelectItem className="hover:cursor-pointer hover:bg-gray-100" key={priority} value={priority}>
                       {priority}
                     </SelectItem>
                   ))}

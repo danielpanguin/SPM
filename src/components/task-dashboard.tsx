@@ -164,8 +164,10 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       setError(null)
 
       try {
-        // For staff: fetch tasks where they are collaborators
-        // For managers/admins: fetch all tasks for accessible user IDs
+        // Comprehensive task fetching for different scenarios:
+        // 1. Tasks owned by accessible users (manager sees team's tasks, staff sees own)
+        // 2. Tasks where user is a collaborator (assigned to multiple people)
+        // 3. Tasks from projects the user is a member of
         const allTasks: any[] = []
 
         console.log("📥 Fetching owned tasks...")
@@ -212,8 +214,8 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           console.log("✅ Adding", ownedTasks.length, "owned tasks")
           allTasks.push(...ownedTasks)
         }
-        
-        // Also fetch tasks where user is a collaborator (for staff users)
+
+        // Fetch tasks where user is a collaborator (tasks assigned to multiple people)
         console.log("📥 Fetching collaborator tasks...")
         const { data: collaboratorTaskIds } = await supabase
           .from("task_collaborator")
@@ -221,7 +223,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           .in("user_id", accessibleUserIds)
 
         console.log("📊 Collaborator task IDs result:", { count: collaboratorTaskIds?.length })
-        
+
         if (collaboratorTaskIds && collaboratorTaskIds.length > 0) {
           const taskIds = collaboratorTaskIds.map(c => c.task_id)
           const { data: collabTasks, error: collabError } = await supabase
@@ -259,7 +261,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             )
           `)
           .in("id", taskIds)
-          
+
           console.log("📊 Collaborator tasks result:", { count: collabTasks?.length, error: collabError })
           if (collabError) throw collabError
           if (collabTasks) {
@@ -267,6 +269,64 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             const existingIds = new Set(allTasks.map(t => t.id))
             const newTasks = collabTasks.filter(task => !existingIds.has(task.id))
             console.log("✅ Adding", newTasks.length, "new collaborator tasks")
+            allTasks.push(...newTasks)
+          }
+        }
+
+        // Fetch tasks from projects the user is a member of
+        console.log("📥 Fetching project member tasks...")
+        const { data: projectMemberships } = await supabase
+          .from("project_member")
+          .select("project_id")
+          .in("user_id", accessibleUserIds)
+
+        console.log("📊 Project memberships result:", { count: projectMemberships?.length })
+
+        if (projectMemberships && projectMemberships.length > 0) {
+          const projectIds = projectMemberships.map(pm => pm.project_id)
+          const { data: projectTasks, error: projectError } = await supabase
+            .from("tasks")
+            .select(`
+            id,
+            title,
+            description,
+            created_by,
+            owned_by,
+            parent_task_id,
+            start_date,
+            end_date,
+            created_at,
+            priority_id,
+            status_id,
+            project_id,
+            created_by_user:created_by (
+              id,
+              username,
+              roles ( id, name )
+            ),
+            owned_by_user:owned_by (
+              id,
+              username,
+              roles ( id, name )
+            ),
+            status:status_id ( id, status ),
+            project:project_id ( id, name ),
+            task_tasktag (
+              task_tag ( id, name )
+            ),
+            task_collaborator (
+              users ( id, username )
+            )
+          `)
+          .in("project_id", projectIds)
+
+          console.log("📊 Project tasks result:", { count: projectTasks?.length, error: projectError })
+          if (projectError) throw projectError
+          if (projectTasks) {
+            // Merge and deduplicate by task ID
+            const existingIds = new Set(allTasks.map(t => t.id))
+            const newTasks = projectTasks.filter(task => !existingIds.has(task.id))
+            console.log("✅ Adding", newTasks.length, "new project-based tasks")
             allTasks.push(...newTasks)
           }
         }
@@ -714,6 +774,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           <TaskForm
             mode="edit"
             initial={editing}
+            accessibleUserIds={accessibleUserIds}
             onSaved={async (apiResponse) => {
               console.log("EDIT onSaved called with:", apiResponse)
               // Map API response to Task type and update the task in the list
@@ -749,6 +810,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <Modal title="Create Task" onClose={() => setCreating(false)}>
           <TaskForm
             mode="create"
+            accessibleUserIds={accessibleUserIds}
             onSaved={async (apiResponse) => {
               console.log("CREATE onSaved called with:", apiResponse)
               // Map API response to Task type and add the new task to the list
@@ -791,6 +853,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <Modal title={`Create Subtask for: ${creatingSubtask.title}`} onClose={() => setCreatingSubtask(null)}>
           <TaskForm
             mode="create"
+            accessibleUserIds={accessibleUserIds}
             initial={{
               parentTaskId: creatingSubtask.id,
               startDate: creatingSubtask.startDate,

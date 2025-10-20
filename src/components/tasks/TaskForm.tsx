@@ -14,15 +14,15 @@ interface Props {
   initial?: Partial<UITask>;
   onSaved(taskFromApi: any): void; // we map in parent
   onCancel?(): void;
+  accessibleUserIds?: string[]; // User IDs that are accessible based on role
 }
 
 type DbRoleUser = { id: string; email?: string | null; roles?: { name?: string | null } | null };
 type Option = { id: number; label: string };
 type Project = { id: number; name: string };
 
-export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
+export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleUserIds }: Props) {
   const { userId: currentUserId } = useUser();
-  const isManager = true; // set from your auth/role if you have it
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
@@ -132,11 +132,18 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       }
 
       // Fetch available parent tasks (tasks without a parent task)
-      const tasksRes = await supabase
+      // Filter by accessible user IDs to match dashboard visibility
+      let tasksQuery = supabase
         .from("tasks")
-        .select("id, title, parent_task_id, start_date, end_date")
-        .is("parent_task_id", null)
-        .order("title", { ascending: true });
+        .select("id, title, parent_task_id, start_date, end_date, owned_by")
+        .is("parent_task_id", null);
+
+      // Apply permission filtering if accessibleUserIds is provided
+      if (accessibleUserIds && accessibleUserIds.length > 0) {
+        tasksQuery = tasksQuery.in("owned_by", accessibleUserIds);
+      }
+
+      const tasksRes = await tasksQuery.order("title", { ascending: true });
 
       if (alive && tasksRes.data) {
         // Filter out the current task if editing (can't be its own parent)
@@ -150,7 +157,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, [currentUserId, accessibleUserIds]);
 
   /**
    * Always hydrate latest DB values when editing.
@@ -545,11 +552,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={busy} className="rounded bg-black text-white px-4 py-2">
+        <button type="submit" disabled={busy} className="rounded bg-black px-4 py-2 text-white font-medium hover:bg-gray-800 transition-colors">
           {busy ? "Saving..." : mode === "create" ? "Create Task" : "Save Changes"}
         </button>
         {onCancel && (
-          <button type="button" className="rounded border px-4 py-2" onClick={onCancel}>
+          <button type="button" className="rounded border px-4 py-2 hover:bg-gray-50 transition-colors" onClick={onCancel}>
             Cancel
           </button>
         )}
