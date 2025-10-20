@@ -80,6 +80,17 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 🔁 Recurrence (frontend-only; backend can ignore if unsupported)
+  const [isRecurring, setIsRecurring] = useState<boolean>(
+    Boolean((initial as any)?.recurrence?.isRecurring) || false
+  );
+  const [recurrenceIntervalDays, setRecurrenceIntervalDays] = useState<number>(
+    Number((initial as any)?.recurrence?.intervalDays ?? 1)
+  );
+  const [recurrenceCount, setRecurrenceCount] = useState<number>(
+    Number((initial as any)?.recurrence?.count ?? 1)
+  );
+
   // field ids
   const uid = useId();
   const id = {
@@ -279,6 +290,15 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
       }
     }
 
+    // 🔁 Recurrence-specific validation
+    if (isRecurring && !endDate) return "End date is required when enabling recurrence.";
+    if (isRecurring) {
+      if (!recurrenceIntervalDays || recurrenceIntervalDays <= 0)
+        return "Recurrence interval (days) must be > 0.";
+      if (!recurrenceCount || recurrenceCount <= 0)
+        return "Repeat count must be > 0.";
+    }
+
     return null;
   }
 
@@ -313,7 +333,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         return;
       }
 
-      const payload = {
+      const payload: any = {
         title,
         description,
         status_id: Number(statusId),
@@ -327,6 +347,15 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         assignee_ids: validCollaboratorIds,
         tags: tag ? [tag] : [],
       };
+
+      // 🔁 Include recurrence in payload (non-breaking for backend)
+      payload.recurrence = isRecurring
+        ? {
+            isRecurring: true,
+            intervalDays: Number(recurrenceIntervalDays),
+            count: Number(recurrenceCount),
+          }
+        : { isRecurring: false };
 
       // save
       const data =
@@ -386,6 +415,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         />
       </div>
 
+      {/* Dates */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor={id.start} className="block text-sm font-medium">
@@ -413,6 +443,57 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
             required
           />
         </div>
+
+        {/* 🔁 Recurrence UI (appears when End Date is set) */}
+        {Boolean(endDate) && (
+          <div className="sm:col-span-2 border rounded p-3 mt-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                className="rounded border"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+              />
+              Recurring task
+            </label>
+
+            {isRecurring && (
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm">Repeat every (days) *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full rounded border p-2"
+                    value={recurrenceIntervalDays}
+                    onChange={(e) => setRecurrenceIntervalDays(Number(e.target.value))}
+                    placeholder="e.g., 7"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm">Number of occurrences *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full rounded border p-2"
+                    value={recurrenceCount}
+                    onChange={(e) => setRecurrenceCount(Number(e.target.value))}
+                    placeholder="e.g., 10"
+                  />
+                </div>
+                <div className="text-xs text-gray-500 self-end">
+                  New task is created only when the current one is completed. Overdue completion
+                  uses the previous due date to compute the next due date.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {!Boolean(endDate) && (
+          <div className="sm:col-span-2 text-xs text-gray-500">
+            Set an End Date to enable recurrence.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
