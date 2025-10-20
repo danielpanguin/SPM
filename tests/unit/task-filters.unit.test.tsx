@@ -299,12 +299,15 @@ describe('TaskFilters - Unit Tests', () => {
         />
       );
 
+      // Find the badge with status text and click its X button (child button)
       const statusBadgeText = screen.getByText(/status:\s*completed/i);
-      fireEvent.click(statusBadgeText);
+      const badge = statusBadgeText.closest('span'); // Badge component is a span
+      const removeButton = within(badge as HTMLElement).getByRole('button');
+      fireEvent.click(removeButton);
       expect(mockOnFiltersChange).toHaveBeenCalled();
 
     });
-    
+
     it('removes any badge that is clicked', () => {
       render(
         <TaskFiltersComponent
@@ -318,12 +321,12 @@ describe('TaskFilters - Unit Tests', () => {
         />
       );
 
-      // Grab all badges by their "key: value" texts
-      const badgeTexts = screen.getAllByText(/^(status|priority):\s*(completed|high)$/i);
+      // Find the first badge and click its remove button
+      const statusBadgeText = screen.getByText(/status:\s*completed/i);
+      const badge = statusBadgeText.closest('span');
+      const removeButton = within(badge as HTMLElement).getByRole('button');
 
-      badgeTexts.forEach((badgeTextEl) => {
-        fireEvent.click(badgeTextEl);
-      });
+      fireEvent.click(removeButton);
 
       expect(mockOnFiltersChange).toHaveBeenCalled();
     });
