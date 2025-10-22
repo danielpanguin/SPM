@@ -22,6 +22,7 @@ type Props = {
   /** Display-only lookups (not stored in Task) */
   projectByTaskId?: Map<string, string | null>
   titleById?: Map<string, string>
+  priorityByTaskId?: Map<string, number>
 }
 
 export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectByTaskId, titleById }: Props) {
@@ -141,12 +142,18 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
     }
   }
 
+
   const filteredTasks = useMemo(() => {
     const q = filters.search?.toLowerCase() ?? ""
 
     return (tasks ?? []).filter((t) => {
-      // Search (title)
-      if (q && !t.title.toLowerCase().includes(q)) return false
+      // Search (title or ID)
+      if (q) {
+        const titleMatch = t.title.toLowerCase().includes(q)
+        const idMatch = t.id.toLowerCase().includes(q)
+        const formattedIdMatch = Number.isFinite(Number(t.id)) && `tsk-${t.id}`.toLowerCase().includes(q)
+        if (!titleMatch && !idMatch && !formattedIdMatch) return false
+      }
 
       // Status (case-insensitive)
       if (filters.status && filters.status !== "all") {
@@ -162,66 +169,91 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
         if (taskPriority !== filterPriority) return false
       }
 
-      // Project (lookup from map)
-      if (filters.project && filters.project !== "all") {
+      // Project (multi-select, lookup from map)
+      if (filters.project && filters.project.length > 0) {
         const proj = projectByTaskId?.get(t.id) ?? null
-        if (proj !== filters.project) return false
+        if (!proj || !filters.project.includes(proj)) return false
       }
 
-      // Assignee (ownedBy + collaborators)
-      if (filters.assignee && filters.assignee !== "all") {
+      // Assignee (multi-select, ownedBy + collaborators)
+      if (filters.assignee && filters.assignee.length > 0) {
         const ownedName = t.ownedBy?.name ? [t.ownedBy.name] : []
         const collabNames = (t.collaborators ?? []).map((c) => c.name).filter(Boolean)
-        if (![...ownedName, ...collabNames].includes(filters.assignee)) return false
+        const taskAssignees = [...ownedName, ...collabNames]
+        const hasMatch = filters.assignee.some(name => taskAssignees.includes(name))
+        if (!hasMatch) return false
       }
 
-      // Tag (case-insensitive)
-      if (filters.tag && filters.tag !== "all") {
-        const filterTag = filters.tag.toLowerCase()
+      // Tag (multi-select, case-insensitive)
+      if (filters.tag && filters.tag.length > 0) {
         const taskTag = (t.tag ?? "").toLowerCase()
-        if (taskTag !== filterTag) return false
+        const hasMatch = filters.tag.some(filterTag => taskTag === filterTag.toLowerCase())
+        if (!hasMatch) return false
       }
 
-      // Deadline windows (based on endDate)
-      if (filters.deadline && filters.deadline !== "all" && t.endDate) {
+      // Parent Task (multi-select)
+      if (filters.parentTask && filters.parentTask.length > 0) {
+        if (!t.parentTaskId || !filters.parentTask.includes(t.parentTaskId)) return false
+      }
+
+      // Deadline preset filters (multi-select)
+      if (filters.deadline && filters.deadline.length > 0 && t.endDate) {
         const taskDeadline = new Date(t.endDate)
         const today = new Date()
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
         const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
 
-        switch (filters.deadline) {
-          case "overdue":
-            if (taskDeadline >= startOfToday || t.status === "completed") return false
-            break
-          case "today":
-            if (taskDeadline < startOfToday || taskDeadline > endOfToday) return false
-            break
-          case "this-week": {
-            const endOfWeek = new Date(today)
-            endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
-            if (taskDeadline < startOfToday || taskDeadline > endOfWeek) return false
-            break
+        // Check if task matches ANY of the selected preset filters
+        const matchesAnyPreset = filters.deadline.some((preset) => {
+          switch (preset) {
+            case "overdue":
+              return taskDeadline < startOfToday && t.status !== "completed"
+            case "today":
+              return taskDeadline >= startOfToday && taskDeadline <= endOfToday
+            case "this-week": {
+              const endOfWeek = new Date(today)
+              endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
+              return taskDeadline >= startOfToday && taskDeadline <= endOfWeek
+            }
+            case "next-week": {
+              const startOfNextWeek = new Date(today)
+              startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()) + 1)
+              const endOfNextWeek = new Date(startOfNextWeek)
+              endOfNextWeek.setDate(startOfNextWeek.getDate() + 6)
+              return taskDeadline >= startOfNextWeek && taskDeadline <= endOfNextWeek
+            }
+            case "this-month": {
+              const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+              const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+              return taskDeadline >= startOfMonth && taskDeadline <= endOfMonth
+            }
+            default:
+              return false
           }
-          case "next-week": {
-            const startOfNextWeek = new Date(today)
-            startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()) + 1)
-            const endOfNextWeek = new Date(startOfNextWeek)
-            endOfNextWeek.setDate(startOfNextWeek.getDate() + 6)
-            if (taskDeadline < startOfNextWeek || taskDeadline > endOfNextWeek) return false
-            break
-          }
-          case "this-month": {
-            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-            if (taskDeadline < startOfMonth || taskDeadline > endOfMonth) return false
-            break
-          }
-        }
+        })
+
+        if (!matchesAnyPreset) return false
+      }
+
+      // Custom date filter: Tasks due by (on or before)
+      if (filters.deadlineDueBy && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const dueByDate = new Date(filters.deadlineDueBy)
+        dueByDate.setHours(23, 59, 59, 999) // End of the selected day
+        if (taskDeadline > dueByDate) return false
+      }
+
+      // Custom date filter: Tasks due after
+      if (filters.deadlineDueAfter && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const dueAfterDate = new Date(filters.deadlineDueAfter)
+        dueAfterDate.setHours(0, 0, 0, 0) // Start of the selected day
+        if (taskDeadline <= dueAfterDate) return false
       }
 
       return true
     })
-  }, [tasks, filters, projectByTaskId])
+  }, [tasks, filters, projectByTaskId, titleById])
 
   const sortedTasks = useMemo(() => {
     if (!sortField) return filteredTasks
@@ -286,14 +318,14 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
     // Extract priority number from P format (e.g., "P10" -> 10)
     const match = p?.match(/P(\d+)/i)
     const priorityNum = match ? parseInt(match[1], 10) : 0
-    
+
     // P8-P10 = High (red)
     if (priorityNum >= 8) return "bg-red-100 text-red-800 border-red-200"
     // P4-P7 = Medium (yellow)
     if (priorityNum >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
     // P1-P3 = Low (green)
     if (priorityNum >= 1) return "bg-green-100 text-green-800 border-green-200"
-    
+
     return "bg-gray-100 text-gray-800 border-gray-200"
   }
 
@@ -442,10 +474,15 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
               const project = projectByTaskId?.get(t.id) ?? null
               const parentTitle = t.parentTaskId ? titleById?.get(t.parentTaskId) : null
 
+              // Check if task is overdue
+              const isOverdue = t.endDate && new Date(t.endDate) < new Date() && t.status !== "completed"
+
               return (
                 <TableRow
                   key={t.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  className={`cursor-pointer hover:bg-muted/50 transition-colors ${
+                    isOverdue ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30' : ''
+                  }`}
                   onClick={() => onTaskClick(t)}
                 >
                   <TableCell className="font-mono text-sm text-black">

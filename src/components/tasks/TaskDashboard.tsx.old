@@ -89,6 +89,7 @@ export default function TaskDashboard() {
   const [sortField, setSortField] = useState<'title' | 'status' | 'priority' | 'endDate' | 'tags' | 'createdAt'>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [creatingSubtaskFor, setCreatingSubtaskFor] = useState<UITask | null>(null);
   
   async function load() {
     try {
@@ -214,6 +215,11 @@ export default function TaskDashboard() {
 
   const toggleSortDirection = () => {
     setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+  };
+
+  const handleCreateSubtask = (parentTask: UITask) => {
+    setCreatingSubtaskFor(parentTask);
+    setDetailsTask(null);
   };
 
   return (
@@ -414,6 +420,7 @@ export default function TaskDashboard() {
             setEditing(detailsTask);
             setDetailsTask(null);
           }}
+          onCreateSubtask={() => handleCreateSubtask(detailsTask)}
         />
       )}
 
@@ -429,6 +436,22 @@ export default function TaskDashboard() {
               await load(); // Reload all tasks from API
             }}
             onCancel={() => setEditing(null)}
+          />
+        </Modal>
+      )}
+
+      {/* Create Subtask */}
+      {creatingSubtaskFor && (
+        <Modal title={`Create Subtask for "${creatingSubtaskFor.title}"`} onClose={() => setCreatingSubtaskFor(null)}>
+          <TaskForm
+            mode="create"
+            initial={{ parentTaskId: creatingSubtaskFor.id }}
+            onSaved={async () => {
+              console.log("Subtask created, reloading...");
+              setCreatingSubtaskFor(null);
+              await load(); // Reload all tasks from API
+            }}
+            onCancel={() => setCreatingSubtaskFor(null)}
           />
         </Modal>
       )}

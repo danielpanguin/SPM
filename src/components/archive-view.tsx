@@ -11,21 +11,45 @@ import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 
-interface ArchivedTask {
-  id: number
-  title: string
-  priority_id: number
-  project_id: number | null
-  status_id: number
-  end_date: string | null
-  created_at: string
-  owned_by: string
-  status?: { status: string }
-  project?: { name: string }
-  priority?: { id: number }
-  owned_by_user?: { username: string }
-  task_tasktag?: Array<{ task_tag: { id: number; name: string } }>
-}
+// Mock archived tasks data
+const mockArchivedTasks = [
+  {
+    id: "TSK-009",
+    title: "Old Website Migration",
+    priority: "P2",
+    project: "Website Redesign",
+    tags: ["migration", "legacy"],
+    status: "completed",
+    deadline: "2023-12-15",
+    assignees: ["Alice Developer"],
+    archivedDate: "2023-12-20",
+    archivedBy: "John Manager",
+  },
+  {
+    id: "TSK-010",
+    title: "Legacy API Cleanup",
+    priority: "P5",
+    project: "API Integration",
+    tags: ["cleanup", "api"],
+    status: "completed",
+    deadline: "2023-11-30",
+    assignees: ["David Backend"],
+    archivedDate: "2023-12-01",
+    archivedBy: "John Manager",
+  },
+  {
+    id: "TSK-011",
+    title: "Old Design System",
+    priority: "P2",
+    project: "Website Redesign",
+    tags: ["design", "deprecated"],
+    status: "cancelled",
+    deadline: "2023-10-15",
+    assignees: ["Bob Designer"],
+    archivedDate: "2023-10-20",
+    archivedBy: "John Manager",
+  },
+]
 
 interface ArchiveViewProps {
   onClose: () => void
@@ -89,39 +113,20 @@ export function ArchiveView({ onClose }: ArchiveViewProps) {
 
   const filteredTasks = archivedTasks.filter((task) => task.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  const getPriorityColor = (priorityId: number) => {
-    // P10 is highest priority, P1 is lowest
-    // P7-P10: Red (High)
-    // P4-P6: Yellow (Medium)
-    // P1-P3: Green (Low)
-    if (priorityId >= 7) return "bg-red-100 text-red-800 border-red-200"
-    if (priorityId >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
-    if (priorityId >= 1) return "bg-green-100 text-green-800 border-green-200"
+  const getPriorityColor = (priority: string) => {
+    // P1-P3: High priority (red)
+    if (priority === "P1" || priority === "P2" || priority === "P3") {
+      return "bg-red-100 text-red-800 border-red-200"
+    }
+    // P4-P6: Medium priority (yellow)
+    if (priority === "P4" || priority === "P5" || priority === "P6") {
+      return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    }
+    // P7-P10: Low priority (green)
+    if (priority === "P7" || priority === "P8" || priority === "P9" || priority === "P10") {
+      return "bg-green-100 text-green-800 border-green-200"
+    }
     return "bg-gray-100 text-gray-800 border-gray-200"
-  }
-
-  const getPriorityLabel = (priorityId: number | null | undefined) => {
-    if (!priorityId) {
-      console.warn('Priority ID is null/undefined:', priorityId)
-      return "Unknown"
-    }
-    // Return P1, P2, P3, etc. format
-    return `P${priorityId}`
-  }
-
-  const getOldPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "high":
-        return "bg-orange-100 text-orange-800 border-orange-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
   }
 
   const getStatusColor = (status: string) => {
