@@ -15,10 +15,9 @@ const nextConfig: NextConfig = {
   // Suppress source map warnings for Turbopack as well
   experimental: {
     turbo: {
-      rules: {
-        // Turbopack doesn't need specific configuration for ignoring warnings
-        // The 404s are harmless and related to source map resolution
-      }
+      resolveAlias: {
+        // Add any Turbopack-specific aliases if needed
+      },
     }
   }
 };
