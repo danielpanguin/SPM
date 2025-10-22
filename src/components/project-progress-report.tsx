@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/db'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ViewTaskUi/card'
+import { Button } from '@/components/ui/ViewTaskUi/button'
+import { Badge } from '@/components/ui/ViewTaskUi/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/ViewTaskUi/table'
 import { ArrowLeft, BarChart3, ListTodo } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
@@ -48,18 +48,27 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
     try {
       setLoading(true)
 
+      console.log('[Project Report] Loading data for project ID:', projectId)
+
       // Fetch project details
-      const { data: project } = await supabase
+      const { data: project, error: projectError } = await supabase
         .from('projects')
         .select('name')
         .eq('id', projectId)
         .single()
 
-      if (project) {
-        setProjectName(project.name)
+      if (projectError) {
+        console.error('[Project Report] Error fetching project:', projectError)
       }
 
-      // Fetch tasks for the project
+      if (project) {
+        setProjectName(project.name)
+        console.log('[Project Report] Project name:', project.name)
+      } else {
+        console.warn('[Project Report] No project found with ID:', projectId)
+      }
+
+      // Fetch tasks for the project (including archived to see if any exist)
       const { data: tasksData, error } = await supabase
         .from('tasks')
         .select(`
@@ -71,19 +80,25 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
           end_date,
           created_at,
           is_archived,
-          status:statuses(id, status),
-          owned_by_user:users!tasks_owned_by_fkey(username)
+          status:status(id, status),
+          owned_by_user:users!owned_by(username)
         `)
         .eq('project_id', projectId)
-        .eq('is_archived', false)
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching tasks:', error)
+        console.error('[Project Report] Error fetching tasks:', error)
         return
       }
 
-      const formattedTasks: Task[] = (tasksData || []).map((task: any) => ({
+      console.log('[Project Report] Total tasks found:', tasksData?.length || 0)
+      console.log('[Project Report] Tasks data:', tasksData)
+
+      // Filter out archived tasks
+      const nonArchivedTasks = (tasksData || []).filter((task: any) => !task.is_archived)
+      console.log('[Project Report] Non-archived tasks:', nonArchivedTasks.length)
+
+      const formattedTasks: Task[] = nonArchivedTasks.map((task: any) => ({
         id: task.id,
         title: task.title,
         status: task.status?.status || 'Unknown',
@@ -94,6 +109,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
         created_at: task.created_at,
       }))
 
+      console.log('[Project Report] Formatted tasks:', formattedTasks)
       setTasks(formattedTasks)
 
       // Calculate status distribution
@@ -184,10 +200,9 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
               </Button>
-              <div className="h-8 w-px bg-gray-300"></div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Project Progress Report</h1>
-                <p className="text-sm text-gray-600 mt-1">{projectName}</p>
+                <h1 className="text-2xl font-bold text-gray-800">Project Progress Report</h1>
+                <p className="text-gray-600">{projectName}</p>
               </div>
             </div>
           </div>
@@ -195,16 +210,16 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-6">
         {/* Status Report Chart */}
-        <Card className="mb-6 shadow-md">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+        <Card className="mb-6 shadow-sm border-gray-200">
+          <CardHeader>
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-100 rounded-lg">
                 <BarChart3 className="h-5 w-5 text-indigo-600" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-gray-900">Status Report</CardTitle>
+                <CardTitle className="text-lg font-semibold text-gray-800">Status Report</CardTitle>
                 <p className="text-sm text-gray-600 mt-1">Number of tasks under each status</p>
               </div>
             </div>
@@ -254,42 +269,54 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
         </Card>
 
         {/* Task List */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+        <Card className="shadow-sm border-gray-200">
+          <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-100 rounded-lg">
                   <ListTodo className="h-5 w-5 text-indigo-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-bold text-gray-900">Task List</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-gray-800">Task List</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
                 </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-6">
             {tasks.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="font-semibold text-gray-700">ID</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Title</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Priority</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Assignee</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Deadline</TableHead>
+                    <TableRow>
+                      <TableHead className="w-[100px]">
+                        <div className="flex items-center whitespace-nowrap">ID</div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center whitespace-nowrap">Title</div>
+                      </TableHead>
+                      <TableHead className="w-[120px]">
+                        <div className="flex items-center whitespace-nowrap">Status</div>
+                      </TableHead>
+                      <TableHead className="w-[110px]">
+                        <div className="flex items-center whitespace-nowrap">Priority</div>
+                      </TableHead>
+                      <TableHead className="w-[140px]">
+                        <div className="flex items-center whitespace-nowrap">Assignee</div>
+                      </TableHead>
+                      <TableHead className="w-[120px]">
+                        <div className="flex items-center whitespace-nowrap">Deadline</div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {tasks.map((task) => (
-                      <TableRow key={task.id} className="hover:bg-gray-50 transition-colors">
-                        <TableCell className="font-medium text-gray-900">
+                      <TableRow key={task.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-mono text-sm text-black">
                           TSK-{String(task.id).padStart(3, '0')}
                         </TableCell>
                         <TableCell className="max-w-md">
-                          <div className="font-medium text-gray-900 truncate">{task.title}</div>
+                          <div className="font-medium text-black truncate">{task.title}</div>
                         </TableCell>
                         <TableCell>
                           <Badge className={getStatusBadgeClass(task.status)}>
@@ -301,7 +328,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                             P{task.priority}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-gray-700">
+                        <TableCell className="text-black">
                           {task.owned_by_user.username}
                         </TableCell>
                         <TableCell className="text-gray-600">

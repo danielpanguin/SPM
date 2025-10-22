@@ -505,8 +505,13 @@ export function TaskCompletionReport() {
           project: row.project,
         }))
         
-        console.log('[Report] Mapped tasks:', mappedTasks)
-        setTasks(mappedTasks)
+        // Deduplicate tasks by ID (in case there are duplicates from different sources)
+        const uniqueTasks = mappedTasks.filter((task, index, self) => 
+          index === self.findIndex((t) => t.id === task.id)
+        )
+        
+        console.log('[Report] Mapped tasks:', mappedTasks.length, '-> Unique tasks:', uniqueTasks.length)
+        setTasks(uniqueTasks)
       } catch (error) {
         console.error('Error loading tasks:', error)
         setTasks([])
@@ -860,8 +865,8 @@ export function TaskCompletionReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tasks.map((task) => (
-                      <TableRow key={task.id}>
+                    {tasks.map((task, index) => (
+                      <TableRow key={`task-${task.id}-${index}`}>
                         <TableCell className="font-mono text-sm text-black">
                           TSK-{String(task.id).padStart(3, "0")}
                         </TableCell>
