@@ -2,11 +2,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
-import { X } from "lucide-react";
+import { X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 
 import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
@@ -110,7 +112,8 @@ function mapPriority(priorityId: number | null | undefined): string {
 }
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
-  const { accessibleUserIds } = useUser()
+  const { accessibleUserIds, role } = useUser()
+  const router = useRouter()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -134,6 +137,8 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
+  const [archivedCount, setArchivedCount] = useState<number>(0)
+  const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("")
 
   console.log("TaskDashboard render - tasks count:", tasks.length)
   const [loading, setLoading] = useState<boolean>(true)
@@ -142,6 +147,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   // project/task title lookups for display-only fields (Project & Parent Task)
   const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
+  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map())
   const [priorityByTaskId, setPriorityByTaskId] = useState<Map<string, number>>(new Map())
   const [tagsByTaskId, setTagsByTaskId] = useState<Map<string, string[]>>(new Map())
 
@@ -408,10 +414,29 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       const priorityMap = new Map<string, number>(
         (data ?? []).map((row: any) => [String(row.id), row.priority_id ?? 5])
       )
+      
+      // Build project name to ID mapping for reports
+      const projNameToId = new Map<string, number>()
+      data?.forEach((row: any) => {
+        if (row.project?.name && row.project?.id) {
+          projNameToId.set(row.project.name, row.project.id)
+        }
+      })
+      
+      // Count archived tasks for managers/admins
+      if (role === 'manager' || role === 'admin') {
+        const { count } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_archived', true)
+          .in('owned_by', accessibleUserIds)
+        setArchivedCount(count || 0)
+      }
 
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
+      setProjectNameToId(projNameToId)
       setPriorityByTaskId(priorityMap)
       setLoading(false)
       } catch (err) {
@@ -486,6 +511,15 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
 
   const handleShowArchive = () => setShowArchive(true)
   const handleCloseArchive = () => setShowArchive(false)
+  
+  const handleViewProjectReport = () => {
+    if (selectedProjectForReport) {
+      const projectId = projectNameToId.get(selectedProjectForReport)
+      if (projectId) {
+        router.push(`/reports/project/${projectId}`)
+      }
+    }
+  }
 
   // Extract unique filter options from current tasks
   const availableFilterOptions = useMemo(() => {
@@ -671,15 +705,49 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                 <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  View Reports
-                </Button>
+                {(role === 'manager' || role === 'admin') && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => router.push('/reports/completion')}
+                  >
+                    Task Completion Report
+                  </Button>
+                )}
+                
+                {/* View Project Report */}
+                <div className="space-y-2">
+                  <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a project..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filterOptions.projects.map((project) => (
+                        <SelectItem key={project} value={project}>
+                          {project}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start bg-transparent"
+                    onClick={handleViewProjectReport}
+                    disabled={!selectedProjectForReport}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Project Report
+                  </Button>
+                </div>
+
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
                 </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
-                  Archived Tasks
-                </Button>
+                {(role === 'manager' || role === 'admin') && (
+                  <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
+                    Archived Tasks
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
