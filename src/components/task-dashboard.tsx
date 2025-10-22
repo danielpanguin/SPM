@@ -905,8 +905,8 @@ function Modal({
   onClose(): void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
-      <div role="dialog" aria-labelledby="modal-title" className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+      <div role="dialog" aria-labelledby="modal-title" className="w-full max-w-2xl max-h-[90vh] rounded-2xl bg-white p-6 shadow-xl overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-2xl [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300">
         <div className="flex items-start justify-between">
           <h3 id="modal-title" className="text-xl font-semibold">{title}</h3>
           {/* <button className="text-sm text-gray-500" onClick={onClose}>

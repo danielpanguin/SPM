@@ -37,7 +37,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [ownedById, setOwnedById] = useState<string | undefined>((initial?.ownedBy as any)?.id);
+  const [ownedById, setOwnedById] = useState<string | undefined>(
+    (initial?.ownedBy as any)?.id ?? (mode === "create" ? currentUserId : undefined)
+  );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
     return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
