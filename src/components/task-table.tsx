@@ -150,34 +150,36 @@ export function TaskTable({ tasks, filters, onTaskClick, onTaskUpdate, projectBy
 
       // Status (case-insensitive)
       if (filters.status && filters.status !== "all") {
-        const filterStatus = filters.status.toLowerCase()
+        const filterStatus = typeof filters.status === 'string' ? filters.status.toLowerCase() : String(filters.status).toLowerCase()
         const taskStatus = (t.status ?? "").toLowerCase()
         if (taskStatus !== filterStatus) return false
       }
 
       // Priority (case-insensitive)
       if (filters.priority && filters.priority !== "all") {
-        const filterPriority = filters.priority.toLowerCase()
+        const filterPriority = typeof filters.priority === 'string' ? filters.priority.toLowerCase() : String(filters.priority).toLowerCase()
         const taskPriority = (t.priority ?? "").toLowerCase()
         if (taskPriority !== filterPriority) return false
       }
 
       // Project (lookup from map)
       if (filters.project && filters.project !== "all") {
+        const filterProject = typeof filters.project === 'string' ? filters.project : String(filters.project)
         const proj = projectByTaskId?.get(t.id) ?? null
-        if (proj !== filters.project) return false
+        if (proj !== filterProject) return false
       }
 
       // Assignee (ownedBy + collaborators)
       if (filters.assignee && filters.assignee !== "all") {
+        const filterAssignee = typeof filters.assignee === 'string' ? filters.assignee : String(filters.assignee)
         const ownedName = t.ownedBy?.name ? [t.ownedBy.name] : []
         const collabNames = (t.collaborators ?? []).map((c) => c.name).filter(Boolean)
-        if (![...ownedName, ...collabNames].includes(filters.assignee)) return false
+        if (![...ownedName, ...collabNames].includes(filterAssignee)) return false
       }
 
       // Tag (case-insensitive)
       if (filters.tag && filters.tag !== "all") {
-        const filterTag = filters.tag.toLowerCase()
+        const filterTag = typeof filters.tag === 'string' ? filters.tag.toLowerCase() : String(filters.tag).toLowerCase()
         const taskTag = (t.tag ?? "").toLowerCase()
         if (taskTag !== filterTag) return false
       }
