@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 
 export type UUID = string;
 
+/** DB row as returned by Supabase (tasks table) */
 export type TaskRow = {
   id: number;
   title: string;
@@ -16,8 +17,14 @@ export type TaskRow = {
   owned_by: UUID | null;
   parent_task_id: number | null;
   is_overdue: boolean | null;
+
+  // --- NEW recurrence columns in DB ---
+  is_recurring: boolean | null;
+  interval_days: number | null;  // int8 in DB
+  num_of_recur: number | null;   // int8 in DB
 };
 
+/** Input accepted by create() */
 export type TaskCreateInput = {
   title: string;
   description?: string | null;
@@ -31,10 +38,23 @@ export type TaskCreateInput = {
   parent_task_id?: number | null;
   assignee_ids?: UUID[];
   tags?: string[];
+
+  // --- NEW: preferred nested payload from UI ---
+  recurrence?: {
+    isRecurring?: boolean;   // default false
+    intervalDays?: number;   // default 1
+    count?: number;          // default 1
+  } | null;
+
+  // --- Also allow flat fields (tests/legacy) ---
+  is_recurring?: boolean;
+  interval_days?: number;
+  num_of_recur?: number;
 };
 
 export type TaskUpdateInput = Partial<TaskCreateInput>;
 
+/** Hydrated shape we return to the UI */
 export type TaskHydrated = TaskRow & {
   assignees: UUID[];
   assignee_emails?: string[];
@@ -44,11 +64,18 @@ export type TaskHydrated = TaskRow & {
   priority?: { id: number } | null;
   created_by_email?: string | null;
   owned_by_email?: string | null;
+
+  // --- Convenience echo back to UI ---
+  recurrence?: {
+    isRecurring: boolean;
+    intervalDays: number;
+    count: number;
+  } | null;
 };
 
 const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
 
-/* ---------- READ ---------- */
+/* -------------------------------- READ -------------------------------- */
 
 export async function listTasks(params?: {
   project_id?: number;
@@ -95,9 +122,11 @@ export async function getTask(id: number): Promise<TaskHydrated | null> {
   return hydrated;
 }
 
-/* ---------- CREATE ---------- */
+/* ------------------------------ CREATE -------------------------------- */
 
 export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> {
+  const recurrenceCols = pickRecurrenceColumns(input);
+
   const { data, error } = await supabase
     .from("tasks")
     .insert({
@@ -111,6 +140,9 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
       created_by: input.created_by ?? null,
       owned_by: input.owned_by ?? null,
       parent_task_id: input.parent_task_id ?? null,
+
+      // --- NEW recurrence fields persisted ---
+      ...recurrenceCols,
     })
     .select("*")
     .single();
@@ -160,13 +192,13 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
   return (await getTask(task.id))!;
 }
 
-/* ---------- UPDATE ---------- */
+/* ------------------------------ UPDATE -------------------------------- */
 
 export async function updateTask(
   id: number,
   patch: TaskUpdateInput
 ): Promise<TaskHydrated> {
-  const scalar = Object.fromEntries(
+  const scalar: Record<string, unknown> = Object.fromEntries(
     Object.entries({
       title: patch.title,
       description: patch.description,
@@ -178,8 +210,14 @@ export async function updateTask(
       created_by: patch.created_by,
       owned_by: patch.owned_by,
       parent_task_id: patch.parent_task_id,
-    }).filter(([_, v]) => v !== undefined)
+    }).filter(([, v]) => v !== undefined)
   );
+
+  // --- NEW: handle recurrence updates if present in payload ---
+  const recurrencePatch = pickRecurrenceColumnsFromPatch(patch);
+  if (recurrencePatch) {
+    Object.assign(scalar, recurrencePatch);
+  }
 
   if (Object.keys(scalar).length > 0) {
     const { error } = await supabase.from("tasks").update(scalar).eq("id", id);
@@ -230,8 +268,8 @@ export async function updateTask(
       .eq("task_id", id);
     if (delErr) throw new Error(`Error clearing tags: ${delErr.message}`);
 
-    if (patch.tags.length) {
-      const tagIds = await ensureTags(patch.tags);
+    if ((patch.tags ?? []).length) {
+      const tagIds = await ensureTags(patch.tags!);
       const rows = tagIds.map((tag_id) => ({ task_id: id, tag_id }));
       const { error: insErr } = await supabase.from("task_tasktag").insert(rows);
       if (insErr) throw new Error(`Error inserting tags: ${insErr.message}`);
@@ -241,7 +279,7 @@ export async function updateTask(
   return (await getTask(id))!;
 }
 
-/* ---------- DELETE ---------- */
+/* ------------------------------ DELETE -------------------------------- */
 
 export async function deleteTask(id: number): Promise<void> {
   await supabase.from("task_collaborator").delete().eq("task_id", id);
@@ -250,26 +288,78 @@ export async function deleteTask(id: number): Promise<void> {
   if (error) throw new Error(`Error deleting task: ${error.message}`);
 }
 
-/* ---------- HELPERS ---------- */
+/* ------------------------------ HELPERS -------------------------------- */
+
+function pickRecurrenceColumns(input: TaskCreateInput) {
+  // Preferred nested object (from your UI)
+  if (input.recurrence) {
+    const { isRecurring = false, intervalDays = 1, count = 1 } = input.recurrence;
+    return {
+      is_recurring: Boolean(isRecurring),
+      interval_days: isRecurring ? Number(intervalDays) : null,
+      num_of_recur: isRecurring ? Number(count) : null,
+    };
+  }
+  // Flat fields fallback
+  if (
+    typeof input.is_recurring !== "undefined" ||
+    typeof input.interval_days !== "undefined" ||
+    typeof input.num_of_recur !== "undefined"
+  ) {
+    const isRecurring = Boolean(input.is_recurring);
+    return {
+      is_recurring: isRecurring,
+      interval_days: isRecurring ? Number(input.interval_days ?? 1) : null,
+      num_of_recur: isRecurring ? Number(input.num_of_recur ?? 1) : null,
+    };
+  }
+  // Default: not recurring
+  return { is_recurring: false, interval_days: null, num_of_recur: null };
+}
+
+function pickRecurrenceColumnsFromPatch(patch: TaskUpdateInput) {
+  // Only include keys if caller attempted to change recurrence
+  if (typeof patch.recurrence !== "undefined") {
+    const { isRecurring = false, intervalDays = 1, count = 1 } = patch.recurrence ?? {};
+    return {
+      is_recurring: Boolean(isRecurring),
+      interval_days: isRecurring ? Number(intervalDays) : null,
+      num_of_recur: isRecurring ? Number(count) : null,
+    };
+  }
+  if (
+    typeof patch.is_recurring !== "undefined" ||
+    typeof patch.interval_days !== "undefined" ||
+    typeof patch.num_of_recur !== "undefined"
+  ) {
+    const isRecurring = Boolean(patch.is_recurring);
+    return {
+      is_recurring: isRecurring,
+      interval_days: isRecurring ? Number(patch.interval_days ?? 1) : null,
+      num_of_recur: isRecurring ? Number(patch.num_of_recur ?? 1) : null,
+    };
+  }
+  return null;
+}
 
 async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   if (!rows.length) return [];
 
   const taskIds = rows.map((r) => r.id);
 
-  const [collabData, tagData, projectData, statusData, prioData, userData] = await Promise.all([
-    supabase.from("task_collaborator").select("task_id,user_id").in("task_id", taskIds),
-    supabase
-      .from("task_tasktag")
-      .select("task_id,tag_id,task_tag(name)")
-      .in("task_id", taskIds),
-    supabase.from("projects").select("id,name"),
-    supabase.from("status").select("id,status"),
-    supabase.from("priority").select("id"),
-    supabase.from("users").select("id,email"),
-  ]);
+  const [collabData, tagData, projectData, statusData, prioData, userData] =
+    await Promise.all([
+      supabase.from("task_collaborator").select("task_id,user_id").in("task_id", taskIds),
+      supabase
+        .from("task_tasktag")
+        .select("task_id,tag_id,task_tag(name)")
+        .in("task_id", taskIds),
+      supabase.from("projects").select("id,name"),
+      supabase.from("status").select("id,status"),
+      supabase.from("priority").select("id"),
+      supabase.from("users").select("id,email"),
+    ]);
 
-  // Log any errors in tag retrieval
   if (tagData.error) {
     console.error("Error fetching tags:", tagData.error);
   }
@@ -284,9 +374,8 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   const tagMap = new Map<number, string[]>();
   (tagData.data ?? []).forEach((t: any) => {
     const list = tagMap.get(t.task_id) ?? [];
-    // Handle both task_tag.name and nested structure
     const tagName = t.task_tag?.name || (Array.isArray(t.task_tag) ? t.task_tag[0]?.name : null);
-    if (tagName && typeof tagName === 'string') list.push(tagName);
+    if (tagName && typeof tagName === "string") list.push(tagName);
     tagMap.set(t.task_id, list);
   });
 
@@ -306,6 +395,17 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
 
   return rows.map((r) => {
     const assignees = collabMap.get(r.id) ?? [];
+
+    // --- Build recurrence echo for UI convenience ---
+    const recurrence =
+      r.is_recurring
+        ? {
+            isRecurring: Boolean(r.is_recurring),
+            intervalDays: Number(r.interval_days ?? 1),
+            count: Number(r.num_of_recur ?? 1),
+          }
+        : null;
+
     return {
       ...r,
       assignees,
@@ -316,12 +416,13 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
       priority: r.priority_id ? prioMap.get(r.priority_id) ?? null : null,
       created_by_email: r.created_by ? userEmailMap.get(r.created_by) ?? null : null,
       owned_by_email: r.owned_by ? userEmailMap.get(r.owned_by) ?? null : null,
+      recurrence,
     };
   });
 }
 
 async function ensureTags(tagNames: string[]): Promise<number[]> {
-  const unique = Array.from(new Set(tagNames.map((n) => n.trim()))).filter(Boolean);
+  const unique = Array.from(new Set(tagNames.map((n) => (n ?? "").trim()))).filter(Boolean);
   if (!unique.length) return [];
 
   const { data: existing } = await supabase
