@@ -16,22 +16,22 @@ type Comment = {
 
 type CommentUI = Comment & {
   createdAtTs: number;
-  updatedAtTs?: number | null;
+  updatedAtTs: number | null;
 };
 
 type Props = {
-  taskId: string;
-  onCountChange?: (n: number) => void;
+  taskId: number | string;
   onPosted?: () => void;
+  onCountChange?: (count: number) => void;
 };
 
-export default function Comments({ taskId, onCountChange, onPosted }: Props) {
+export default function Comments({ taskId, onPosted, onCountChange }: Props) {
   const { userId } = useUser();
 
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [comments, setComments] = useState<CommentUI[]>([]);
-  const [canComment, setCanComment] = useState<boolean>(false); 
+  const [canComment, setCanComment] = useState<boolean>(false);
   const disabled = submitting || text.trim().length === 0 || !userId;
 
   // ✏️ edit state
@@ -51,13 +51,14 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       updated_at: r.updated_at ?? null,
       author: Array.isArray(r.author) ? r.author[0] ?? null : r.author ?? null,
       createdAtTs: new Date(r.created_at).getTime(),
-      updatedAtTs: r.updated_at ? new Date(r.updated_at).getTime() : null, 
+      updatedAtTs: r.updated_at ? new Date(r.updated_at).getTime() : null,
     })) as CommentUI[];
-    shaped.sort((a, b) => (a.createdAtTs - b.createdAtTs) || (a.id - b.id)); // oldest -> newest
+    // Keep conversation order stable (oldest -> newest) by creation time
+    shaped.sort((a, b) => (a.createdAtTs - b.createdAtTs) || (a.id - b.id));
     return shaped;
   };
 
-  // 🔐 Compute permission to comment
+  // Gate who can comment (owner/collaborators; staff restriction preserved)
   useEffect(() => {
     let alive = true;
 
@@ -104,12 +105,13 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       const isOwner = t.owned_by === userId;
       const isCollaborator = collaboratorIds.has(userId);
 
-      setCanComment(isOwner || isCollaborator); // true only if owner/collab
+      setCanComment(isOwner || isCollaborator);
     })();
 
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [userId, taskIdNum]);
-
 
   // auto-scroll to bottom when list changes
   useEffect(() => {
@@ -118,15 +120,12 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
     }
   }, [comments]);
 
-  // load comments for task
+  // initial load + whenever task changes
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!Number.isFinite(taskIdNum)) {
-        setComments([]);
-        onCountChange?.(0);
-        return;
-      }
+      if (!Number.isFinite(taskIdNum)) return;
+
       const { data, error } = await supabase
         .from("comments")
         .select(`
@@ -153,7 +152,9 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
       setComments(sorted);
       onCountChange?.(sorted.length);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [taskIdNum, onCountChange]);
 
   const composerDisabled = submitting || text.trim().length === 0 || !userId || !canComment;
@@ -180,7 +181,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
 
       if (error) throw error;
 
-      const merged = normalizeAndSort([...comments, data]);
+      const merged = normalizeAndSort([...(comments ?? []), data]);
       setComments(merged);
       onCountChange?.(merged.length);
       setText("");
@@ -218,9 +219,12 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
 
     setSavingEdit(true);
     try {
+      // Explicitly stamp updated_at so UI always reflects the latest edit time
+      const nowIso = new Date().toISOString();
+
       const { data, error } = await supabase
         .from("comments")
-        .update({ content: newMessage })
+        .update({ content: newMessage, updated_at: nowIso })
         .eq("id", id)
         .select(`
           id,
@@ -240,13 +244,16 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
           c.id === id
             ? {
                 ...c,
-                message: data.message as string,     
+                message: data.message as string,
                 updated_at: data.updated_at ?? c.updated_at,
-                updatedAtTs: data.updated_at ? new Date(data.updated_at).getTime() : c.updatedAtTs ?? null,
-                // keep createdAtTs same; created_at shouldn't change on update
+                updatedAtTs: data.updated_at
+                  ? new Date(data.updated_at).getTime()
+                  : c.updatedAtTs ?? null,
               }
             : c
         );
+        // Keep creation-order stable
+        next.sort((a, b) => (a.createdAtTs - b.createdAtTs) || (a.id - b.id));
         return next;
       });
 
@@ -262,7 +269,7 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
 
   // keyboard helpers inside edit box
   function onEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.key === "Enter" && (e.metaKey || e.ctrlKey))) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       saveEdit();
     } else if (e.key === "Escape") {
@@ -280,19 +287,30 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
         className="border border-gray-200 rounded-sm p-4 max-h-[24vh] overflow-y-auto"
       >
         <div className="space-y-3">
-          {comments.length === 0 && <div className="text-xs text-gray-500">No comments yet.</div>}
+          {comments.length === 0 && (
+            <div className="text-xs text-gray-500">No comments yet.</div>
+          )}
 
           {comments.map((c) => {
             const isEditing = editingId === c.id;
+            const showEdited = !!c.updatedAtTs && c.updatedAtTs !== c.createdAtTs;
+            const displayTs = new Date(c.updatedAtTs ?? c.createdAtTs).toLocaleString();
 
             return (
               <div key={c.id} className="rounded-sm border border-gray-400 p-3 bg-gray-50 text-sm">
                 <div className="mb-1 text-gray-600 flex items-center gap-2">
-                  <span className="font-medium">{c.author?.username ?? c.author?.id ?? "Unknown"}</span>
-                  <span className="text-xs text-gray-400">
-                    {/* Prefer edited time if present; else created time */}
-                    • {new Date((c.updatedAtTs ?? c.createdAtTs)).toLocaleString()}
-                    {c.updatedAtTs && c.updatedAtTs !== c.createdAtTs ? " (edited)" : ""}
+                  <span className="font-medium">
+                    {c.author?.username ?? c.author?.id ?? "Unknown"}
+                  </span>
+                  <span
+                    className="text-xs text-gray-400"
+                    title={
+                      showEdited
+                        ? `Edited ${displayTs} (original ${new Date(c.createdAtTs).toLocaleString()})`
+                        : `Created ${displayTs}`
+                    }
+                  >
+                    • {displayTs} {showEdited ? "(edited)" : ""}
                   </span>
 
                   {canEditComment(c) && !isEditing && (
@@ -308,15 +326,15 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
                     <div className="ml-auto flex items-center gap-2">
                       <button
                         onClick={saveEdit}
-                        disabled={savingEdit || !editText.trim()}
-                        className="text-xs rounded bg-black text-white font-medium px-2 py-1 disabled:opacity-50 hover:bg-gray-800 transition-colors"
+                        disabled={savingEdit || editText.trim().length === 0}
+                        className="text-xs rounded px-2 py-1 bg-black text-white disabled:opacity-50"
                       >
                         {savingEdit ? "Saving…" : "Save"}
                       </button>
                       <button
                         onClick={cancelEdit}
                         disabled={savingEdit}
-                        className="text-xs rounded border px-2 py-1 hover:bg-gray-50 transition-colors"
+                        className="text-xs underline text-gray-600 hover:text-gray-900"
                       >
                         Cancel
                       </button>
@@ -325,14 +343,14 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
                 </div>
 
                 {!isEditing ? (
-                  <p className="text-gray-800 whitespace-pre-wrap">{c.message}</p>
+                  <p className="whitespace-pre-wrap text-gray-800">{c.message}</p>
                 ) : (
                   <textarea
-                    className="w-full rounded border p-2 text-sm focus:outline-none focus:ring"
-                    rows={2}
+                    className="w-full text-sm border rounded p-2"
                     value={editText}
                     onChange={(e) => setEditText(e.target.value)}
                     onKeyDown={onEditKeyDown}
+                    rows={3}
                     autoFocus
                   />
                 )}
@@ -342,16 +360,14 @@ export default function Comments({ taskId, onCountChange, onPosted }: Props) {
         </div>
       </div>
 
-      {/* composer */}
-      <form onSubmit={handleSubmit} className="mt-2">
+      <form onSubmit={handleSubmit} className="mt-3 space-y-2">
         <textarea
-          className="w-full rounded-sm border border-gray-400 p-3 text-sm focus:outline-none focus:ring"
-          rows={2}
-          placeholder={userId ? "Write your comment…" : "Sign in to comment…"}
+          hidden={!canComment}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          hidden={!canComment}
-          disabled={!userId || !canComment}
+          placeholder={canComment ? "Add a comment…" : "You don't have permission to comment"}
+          rows={3}
+          className="w-full border rounded p-2 text-sm"
         />
         <div className="flex justify-end">
           <button

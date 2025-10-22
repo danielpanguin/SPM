@@ -344,18 +344,23 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
       };
 
       // 🔁 Include recurrence in payload
-      payload.recurrence = isRecurring
-        ? {
-            isRecurring: true,
-            intervalDays: Number(recurrenceIntervalDays),
-            count: Number(recurrenceCount),
-          }
-        : { isRecurring: false };
+      if (isRecurring) {
+        payload.recurrence = {
+          isRecurring: true,
+          intervalDays: Number(recurrenceIntervalDays),
+          count: Number(recurrenceCount),
+        };
+        payload.is_recurring = true;
 
-      // Optional: flat columns too (harmless if backend ignores)
-      payload.is_recurring = isRecurring;
-      payload.interval_days = isRecurring ? Number(recurrenceIntervalDays) : null;
-      payload.num_of_recur = isRecurring ? Number(recurrenceCount) : null;
+        // Only send numeric columns when recurrence is enabled
+        payload.interval_days = Number(recurrenceIntervalDays);
+        payload.num_of_recur = Number(recurrenceCount);
+      } else {
+        // Not recurring: don't send the numeric fields at all (prevents Zod "expected number, received null")
+        payload.recurrence = { isRecurring: false };
+        payload.is_recurring = false;
+        // NOTE: intentionally NOT setting interval_days / num_of_recur here
+      }
 
       const data =
         mode === "create"
