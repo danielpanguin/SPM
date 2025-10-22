@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft } from "lucide-react"
 import { useUser } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
-import type { Task } from "@/types/task"
+import type { Task, Priority, Role } from "@/types/task"
 import type { ReportViewType, TaskFrequencyFilter, DateRange } from "@/types/report"
 
 interface Department {
@@ -484,19 +484,19 @@ export function TaskCompletionReport() {
           createdBy: {
             id: String(row.created_by || ''),
             name: String(row.created_by || ''),
-            role: 'staff' as any,
+            role: 'staff' as Role,
           },
           ownedBy: {
             id: String(row.owned_by_user?.id || row.owned_by || ''),
             name: row.owned_by_user?.username || String(row.owned_by || ''),
-            role: (row.owned_by_user?.roles?.name || 'staff') as any,
+            role: (row.owned_by_user?.roles?.name || 'staff') as Role,
           },
           collaborators: [],
           startDate: row.start_date || '',
           endDate: row.end_date || '',
           parentTaskId: null,
           tag: row.task_tasktag?.[0]?.task_tag?.name,
-          priority: `P${row.priority_id || 1}`,
+          priority: `P${row.priority_id || 1}` as Priority,
           status: normalizeStatus(row.status?.status),
           comments: [],
           updatedAt: row.created_at || new Date().toISOString(),
