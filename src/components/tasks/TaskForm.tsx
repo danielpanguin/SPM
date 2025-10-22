@@ -25,7 +25,7 @@ type Option = { id: number; label: string };
 type Project = { id: number; name: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleUserIds }: Props) {
-  const { userId: currentUserId } = useUser();
+  const { userId: currentUserId, role } = useUser();
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
@@ -76,6 +76,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   const [busy, setBusy] = useState(false);
   const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Staff (role_id 3) cannot edit the owner field
+  const canEditOwner = role !== "staff";
 
   // 🔁 Recurrence — initialize from either the flat DB columns or nested object
   const [isRecurring, setIsRecurring] = useState<boolean>(
@@ -564,9 +567,10 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         </label>
         <select
           id={id.assignee}
-          className="mt-1 w-full rounded border p-2"
+          className={`mt-1 w-full rounded border p-2 ${!canEditOwner ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
           value={ownedById ?? ""}
           onChange={(e) => setOwnedById(e.target.value)}
+          disabled={!canEditOwner}
           required
         >
           <option value="" disabled>
@@ -578,6 +582,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
             </option>
           ))}
         </select>
+        {!canEditOwner && (
+          <p className="mt-1 text-xs text-gray-500">Only managers and admins can change the task owner.</p>
+        )}
       </div>
 
       <div>
