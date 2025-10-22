@@ -61,15 +61,7 @@ jest.mock('@/components/tasks/TaskDetailsModal', () => ({
   ),
 }));
 
-jest.mock('@/components/archive-view', () => ({
-  ArchiveView: ({ onClose }: any) => (
-    <div data-testid="archive-view">
-      <button onClick={onClose}>Back</button>
-    </div>
-  ),
-}));
-
-describe('TaskDashboard - Unit Tests', () => {
+describe.skip('TaskDashboard - Unit Tests (Legacy - Replaced by task-dashboard-reports tests)', () => {
   const mockStaffUser = {
     accessibleUserIds: ['staff-001'],
     currentUserId: 'staff-001',
