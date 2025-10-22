@@ -37,7 +37,7 @@ describe('Task Statistics Calculation - Unit Tests', () => {
     endDate: '2025-01-31',
     parentTaskId: null,
     tag: 'test',
-    priority: 'Medium',
+    priority: 'P5',
     status: 'pending',
     comments: [],
     updatedAt: '2025-01-01T00:00:00Z',

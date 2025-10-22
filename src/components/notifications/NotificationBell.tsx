@@ -113,7 +113,7 @@ export default function NotificationBell() {
   return (
     <div className="relative">
       <button
-        className="rounded border px-3 py-2 relative"
+        className="rounded-lg border border-gray-300 px-3 py-2 relative hover:cursor-pointer hover:bg-white"
         onClick={() => setOpen((v) => !v)}
         aria-label="Notifications"
       >

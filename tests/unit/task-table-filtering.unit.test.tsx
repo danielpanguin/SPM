@@ -20,7 +20,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
       endDate: '2025-01-31',
       parentTaskId: null,
       tag: 'backend',
-      priority: 'High',
+      priority: 'P8',
       status: 'in-progress',
       comments: [],
       updatedAt: '2025-01-15T00:00:00Z',
@@ -37,7 +37,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
       endDate: '2025-02-10',
       parentTaskId: null,
       tag: 'frontend',
-      priority: 'Medium',
+      priority: 'P5',
       status: 'pending',
       comments: [],
       updatedAt: '2025-01-10T00:00:00Z',
@@ -54,7 +54,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
       endDate: '2024-12-31',
       parentTaskId: '1',
       tag: 'documentation',
-      priority: 'Low',
+      priority: 'P2',
       status: 'completed',
       comments: [],
       updatedAt: '2024-12-31T00:00:00Z',
@@ -71,7 +71,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
       endDate: '2024-11-15',
       parentTaskId: null,
       tag: 'security',
-      priority: 'High',
+      priority: 'P8',
       status: 'blocked',
       comments: [],
       updatedAt: '2024-11-15T00:00:00Z',
@@ -93,14 +93,24 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     ['4', 'Security audit'],
   ]);
 
+  const priorityByTaskId = new Map([
+    ['1', 8],
+    ['2', 5],
+    ['3', 2],
+    ['4', 8],
+  ]);
+
   const defaultFilters: TaskFilters = {
     search: '',
     status: 'all',
     priority: 'all',
-    project: 'all',
-    assignee: 'all',
-    tag: 'all',
-    deadline: 'all',
+    project: [],
+    assignee: [],
+    tag: [],
+    parentTask: [],
+    deadline: [],
+    deadlineDueBy: '',
+    deadlineDueAfter: '',
   };
 
   beforeEach(() => {
@@ -118,6 +128,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -136,6 +147,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -152,6 +164,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -168,6 +181,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -176,6 +190,25 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
   });
 
   describe('TC-005: Filter by Status', () => {
+    it('should filter by pending status', () => {
+      const filters = { ...defaultFilters, status: 'pending' };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      expect(screen.getByText('Update dashboard UI')).toBeInTheDocument();
+      expect(screen.queryByText('Fix login bug')).not.toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
     it('should filter by in-progress status', () => {
       const filters = { ...defaultFilters, status: 'in-progress' };
 
@@ -186,6 +219,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -204,6 +238,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -221,6 +256,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -238,6 +274,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -250,7 +287,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
 
   describe('TC-006: Filter by Priority', () => {
     it('should filter by high priority', () => {
-      const filters = { ...defaultFilters, priority: 'High' };
+      const filters = { ...defaultFilters, priority: 'P8' };
 
       render(
         <TaskTable
@@ -259,6 +296,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -268,7 +306,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should filter by medium priority', () => {
-      const filters = { ...defaultFilters, priority: 'Medium' };
+      const filters = { ...defaultFilters, priority: 'P5' };
 
       render(
         <TaskTable
@@ -277,6 +315,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -285,7 +324,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should filter by low priority', () => {
-      const filters = { ...defaultFilters, priority: 'Low' };
+      const filters = { ...defaultFilters, priority: 'P2' };
 
       render(
         <TaskTable
@@ -294,6 +333,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -314,7 +354,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should filter overdue tasks', () => {
-      const filters = { ...defaultFilters, deadline: 'overdue' };
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
 
       render(
         <TaskTable
@@ -323,6 +363,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -333,7 +374,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should not show completed tasks as overdue', () => {
-      const filters = { ...defaultFilters, deadline: 'overdue' };
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
 
       render(
         <TaskTable
@@ -342,6 +383,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -357,7 +399,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         },
       ];
 
-      const filters = { ...defaultFilters, deadline: 'this-week' };
+      const filters = { ...defaultFilters, deadline: ['this-week'] };
 
       render(
         <TaskTable
@@ -386,7 +428,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         }
       ];
 
-      const filters = { ...defaultFilters, deadline: 'this-month' };
+      const filters = { ...defaultFilters, deadline: ['this-month'] };
 
       render(
         <TaskTable
@@ -413,7 +455,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should include tasks due today in "today" filter', () => {
-      const filters = { ...defaultFilters, deadline: 'today' };
+      const filters = { ...defaultFilters, deadline: ['today'] };
 
       render(
         <TaskTable
@@ -422,6 +464,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -429,7 +472,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should not include today tasks in overdue filter', () => {
-      const filters = { ...defaultFilters, deadline: 'overdue' };
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
 
       render(
         <TaskTable
@@ -438,6 +481,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -447,7 +491,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
 
   describe('Filter by Project', () => {
     it('should filter by project name', () => {
-      const filters = { ...defaultFilters, project: 'Project Alpha' };
+      const filters = { ...defaultFilters, project: ['Project Alpha'] };
 
       render(
         <TaskTable
@@ -456,6 +500,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -467,7 +512,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
 
   describe('Filter by Assignee', () => {
     it('should filter by owned_by user', () => {
-      const filters = { ...defaultFilters, assignee: 'Bob' };
+      const filters = { ...defaultFilters, assignee: ['Bob'] };
 
       render(
         <TaskTable
@@ -476,6 +521,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -486,7 +532,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
     });
 
     it('should filter by collaborator', () => {
-      const filters = { ...defaultFilters, assignee: 'Charlie' };
+      const filters = { ...defaultFilters, assignee: ['Charlie'] };
 
       render(
         <TaskTable
@@ -495,6 +541,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -505,7 +552,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
 
   describe('Filter by Tag', () => {
     it('should filter by specific tag', () => {
-      const filters = { ...defaultFilters, tag: 'backend' };
+      const filters = { ...defaultFilters, tag: ['backend'] };
 
       render(
         <TaskTable
@@ -514,6 +561,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -529,7 +577,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         },
       ];
 
-      const filters = { ...defaultFilters, tag: 'backend' };
+      const filters = { ...defaultFilters, tag: ['backend'] };
 
       render(
         <TaskTable
@@ -550,11 +598,14 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
       const filters: TaskFilters = {
         search: '',
         status: 'in-progress',
-        priority: 'High',
-        project: 'Project Alpha',
-        assignee: 'all',
-        tag: 'all',
-        deadline: 'all',
+        priority: 'P8',
+        project: ['Project Alpha'],
+        assignee: [],
+        tag: [],
+        parentTask: [],
+        deadline: [],
+        deadlineDueBy: '',
+        deadlineDueAfter: '',
       };
 
       render(
@@ -564,6 +615,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -577,10 +629,13 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         search: 'bug',
         status: 'in-progress',
         priority: 'all',
-        project: 'all',
-        assignee: 'all',
-        tag: 'all',
-        deadline: 'all',
+        project: [],
+        assignee: [],
+        tag: [],
+        parentTask: [],
+        deadline: [],
+        deadlineDueBy: '',
+        deadlineDueAfter: '',
       };
 
       render(
@@ -590,6 +645,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
           onTaskClick={mockOnTaskClick}
           projectByTaskId={projectByTaskId}
           titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
         />
       );
 
@@ -734,6 +790,148 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         fireEvent.click(taskRow);
         expect(mockOnTaskClick).toHaveBeenCalledWith(baseTasks[0]);
       }
+    });
+  });
+
+  describe('Acceptance Criteria: Filter Tasks and Update View', () => {
+    it('should filter by status and update task list view', () => {
+      const filters = { ...defaultFilters, status: 'pending' };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only pending task should be visible
+      expect(screen.getByText('Update dashboard UI')).toBeInTheDocument();
+      expect(screen.queryByText('Fix login bug')).not.toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
+    it('should filter by priority and update task list view', () => {
+      const filters = { ...defaultFilters, priority: 'P2' };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only P2 task should be visible
+      expect(screen.getByText('Write API documentation')).toBeInTheDocument();
+      expect(screen.queryByText('Fix login bug')).not.toBeInTheDocument();
+    });
+
+    it('should filter by project and update task list view', () => {
+      const filters = { ...defaultFilters, project: ['Project Alpha'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only Project Alpha tasks should be visible
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      expect(screen.getByText('Write API documentation')).toBeInTheDocument();
+      expect(screen.queryByText('Update dashboard UI')).not.toBeInTheDocument();
+    });
+
+    it('should filter by deadline preset and update task list view', () => {
+      const filters = { ...defaultFilters, deadline: ['overdue'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Overdue tasks (past due date and status != completed) should be visible
+      // Security audit (2024-11-15, blocked) is overdue and should show
+      // Write API documentation (2024-12-31, completed) should NOT show (completed excluded from overdue)
+      expect(screen.getByText('Security audit')).toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
+    it('should filter by tags and update task list view', () => {
+      const filters = { ...defaultFilters, tag: ['backend'] };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only backend tagged task should be visible
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      expect(screen.queryByText('Update dashboard UI')).not.toBeInTheDocument();
+    });
+
+    it('should combine multiple filters and update task list view', () => {
+      const filters = {
+        ...defaultFilters,
+        status: 'in-progress',
+        project: ['Project Alpha'],
+      };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      // Only tasks matching both filters should be visible
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      expect(screen.queryByText('Update dashboard UI')).not.toBeInTheDocument();
+      expect(screen.queryByText('Write API documentation')).not.toBeInTheDocument();
+    });
+
+    it('should show no tasks message when filters match nothing', () => {
+      const filters = { ...defaultFilters, status: 'pending', tag: ['nonexistent'], deadlineDueBy: '', deadlineDueAfter: '' };
+
+      render(
+        <TaskTable
+          tasks={baseTasks}
+          filters={filters}
+          onTaskClick={mockOnTaskClick}
+          projectByTaskId={projectByTaskId}
+          titleById={titleById}
+          priorityByTaskId={priorityByTaskId}
+        />
+      );
+
+      expect(screen.getByText('No tasks found matching your filters')).toBeInTheDocument();
     });
   });
 });

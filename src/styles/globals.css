@@ -2,38 +2,63 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #000000;
-  --card: #ffffff;
-  --card-foreground: #000000;
-  --muted: #f3f4f6;
-  --muted-foreground: #000000;
-  --primary: #000000;
-  --primary-foreground: #ffffff;
-  --secondary: #f3f4f6;
-  --secondary-foreground: #000000;
-  --border: #e5e7eb;
+  --foreground: #171717;
+
+  /* Popover colors */
+  --popover: 0 0% 100%;                 /* white */
+  --popover-foreground: 222.2 84% 4.9%; /* near-black text */
+
+  /* Accent colors for hover/focus states */
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  /* Muted colors */
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  /* Border colors */
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+
+  /* Ring colors for focus states */
+  --ring: 222.2 84% 4.9%;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-card: var(--card);
+  /* --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
+  --color-border: var(--border); */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #ffffff;
-    --foreground: #000000;
-    --card: #ffffff;
-    --card-foreground: #000000;
-    --muted: #f3f4f6;
-    --muted-foreground: #000000;
+    --background: #0a0a0a;
+    --foreground: #ededed;
+
+    /* Popover colors */
+    --popover: 240 10% 3.9%;              /* near black */
+    --popover-foreground: 0 0% 98%;       /* near white */
+
+    /* Accent colors for hover/focus states */
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    /* Muted colors */
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    /* Border colors */
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+
+    /* Ring colors for focus states */
+    --ring: 240 4.9% 83.9%;
   }
 }
 
@@ -43,6 +68,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-* {
+/* * {
   color: inherit;
-}
+} */

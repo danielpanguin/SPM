@@ -29,6 +29,13 @@ export type UITask = {
   project_id?: number | null;
   project?: { id: number; name: string } | null;
   tag?: string | null; // For backward compatibility
+
+  // Optional recurrence shape if the backend echoes it
+  recurrence?: {
+    isRecurring?: boolean;
+    intervalDays?: number;
+    count?: number;
+  } | null;
 };
 
 type DetailsTask = {
@@ -47,12 +54,19 @@ type DetailsTask = {
   comments?: Array<unknown>;
   createdAt?: string;
   updatedAt?: string;
+
+  recurrence?: {
+    isRecurring?: boolean;
+    intervalDays?: number;
+    count?: number;
+  } | null;
 };
 
 interface Props {
   task: UITask | DetailsTask | null;
   onClose(): void;
   onEdit(): void;
+  onCreateSubtask?: () => void;
   projectByTaskId?: Map<string, string | null>
   titleById?: Map<string | number, string>
 }
@@ -60,10 +74,11 @@ interface Props {
 type UserMap = Record<string, string>; // id -> label (email or id)
 
 /* ---------- Component ---------- */
-export default function TaskDetailsModal({ 
+export default function TaskDetailsModal({
     task,
     onClose,
     onEdit,
+    onCreateSubtask,
     projectByTaskId,
     titleById,
   }: Props) {
@@ -106,84 +121,59 @@ export default function TaskDetailsModal({
     };
   }, [task?.id]);
 
-  // const [commentCount, setCommentCount] = useState(task?.comments.length ?? 0);
-
   if (!task) return null;
 
-  // Handle both Task (with 'tag') and UITask (with 'tags')
-  // const tagsValue = 'tags' in task && task.tags
-  //   ? task.tags.join(", ")
-  //   : ('tag' in task && task.tag)
-  //     ? task.tag
-  //     : "—";
-
   const tagsValue =
-  "tags" in task && task.tags?.length
-    ? task.tags.map(tag => (
-        <Badge key={tag} variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">
-          {tag}
-        </Badge>
-      ))
-    : task.tag
-    ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{task.tag}</Badge>
-    : "—"
+    "tags" in task && task.tags?.length
+      ? task.tags.map(tag => (
+          <Badge key={tag} variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">
+            {tag}
+          </Badge>
+        ))
+      : (task as any).tag
+      ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{(task as any).tag}</Badge>
+      : "—";
 
-
-  // Helper function to get display value for users
+  // Helpers
   const getUserDisplay = (user: Person | undefined) => {
     if (!user?.id) return "—";
     return labels[String(user.id)] || user.name || user.email || String(user.id);
   };
-
-  // Helper function to get collaborators display
   const getCollaboratorsDisplay = () => {
     if (!task.collaborators || task.collaborators.length === 0) return "—";
     return task.collaborators
-      .map(c => labels[String(c.id)] || c.name || (c as any).email || String(c.id))
+      .map(c => labels[String(c.id)] || (c as any).name || (c as any).email || String(c.id))
       .join(", ");
   };
-
-
   const getParentTask = () => {
-    if (!task?.parentTaskId) return "—"
-    const key = String(task.parentTaskId)            // <-- normalize to string
-    // const title = titleById?.get(key)
+    if (!task?.parentTaskId) return "—";
+    const key = String(task.parentTaskId);
     const title = titleById?.get(task.parentTaskId!);
-    return title ? `${title} (${task.parentTaskId})` : key
-  }
-
+    return title ? `${title} (${task.parentTaskId})` : key;
+  };
   const getPriorityClass = (p: string | number | undefined | null) => {
-    if (p == null) return "bg-gray-100 text-gray-800 border-gray-200"
-
-    const raw = String(p).trim()
-    const lc = raw.toLowerCase()
-
-    // 1) P-format like "P10"
-    const match = lc.match(/^p(\d+)$/)
+    if (p == null) return "bg-gray-100 text-gray-800 border-gray-200";
+    const raw = String(p).trim();
+    const lc = raw.toLowerCase();
+    const match = lc.match(/^p(\d+)$/);
     if (match) {
-      const n = parseInt(match[1], 10)
-      if (n >= 8) return "bg-red-100 text-red-800 border-red-200"      // High
-      if (n >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200" // Medium
-      if (n >= 1) return "bg-green-100 text-green-800 border-green-200"    // Low
-      return "bg-gray-100 text-gray-800 border-gray-200"
+      const n = parseInt(match[1], 10);
+      if (n >= 8) return "bg-red-100 text-red-800 border-red-200";
+      if (n >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      if (n >= 1) return "bg-green-100 text-green-800 border-green-200";
+      return "bg-gray-100 text-gray-800 border-gray-200";
     }
-
-    // 2) Label format like "High" | "Medium" | "Low"
-    if (lc.includes("high")) return "bg-red-100 text-red-800 border-red-200"
-    if (lc.includes("medium")) return "bg-yellow-100 text-yellow-800 border-yellow-200"
-    if (lc.includes("low")) return "bg-green-100 text-green-800 border-green-200"
-
-    // 3) Numeric (1–10) just in case
-    const num = Number(raw)
+    if (lc.includes("high")) return "bg-red-100 text-red-800 border-red-200";
+    if (lc.includes("medium")) return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    if (lc.includes("low")) return "bg-green-100 text-green-800 border-green-200";
+    const num = Number(raw);
     if (!Number.isNaN(num)) {
-      if (num >= 8) return "bg-red-100 text-red-800 border-red-200"
-      if (num >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      if (num >= 1) return "bg-green-100 text-green-800 border-green-200"
+      if (num >= 8) return "bg-red-100 text-red-800 border-red-200";
+      if (num >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      if (num >= 1) return "bg-green-100 text-green-800 border-green-200";
     }
-
-    return "bg-gray-100 text-gray-800 border-gray-200"
-  }
-
+    return "bg-gray-100 text-gray-800 border-gray-200";
+  };
   const getStatusClass = (s?: string | null) => {
     const map: Record<string, string> = {
       completed: "bg-green-100 text-green-800 border-green-200",
@@ -196,16 +186,11 @@ export default function TaskDetailsModal({
       open: "bg-blue-100 text-blue-800 border-blue-200",
       doing: "bg-yellow-100 text-yellow-800 border-yellow-200",
       done: "bg-green-100 text-green-800 border-green-200",
-    }
-    const key = (s ?? "").toLowerCase()
-    return map[key] ?? "bg-gray-100 text-gray-800 border-gray-200"
-  }
-
-  // optional: a display helper to keep the label tidy
-  const niceStatus = (s?: string | null) =>
-    s ? String(s).replace("-", " ") : "—"
-
-
+    };
+    const key = (s ?? "").toLowerCase();
+    return map[key] ?? "bg-gray-100 text-gray-800 border-gray-200";
+  };
+  const niceStatus = (s?: string | null) => (s ? String(s).replace("-", " ") : "—");
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center ">
@@ -223,26 +208,30 @@ export default function TaskDetailsModal({
                   {String(task.priority)}
                 </Badge>
               )}
-
               {task.status && (
                 <Badge variant="outline" className={`${getStatusClass(task.status)} capitalize text-xs`}>
                   {niceStatus(task.status)}
                 </Badge>
               )}
             </div>
-        </div>
+          </div>
 
           {/* 🧾 Details Grid */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          
-          <Field label="Start Date" value={task.startDate || "—"} />
-          <Field label="End Date" value={task.endDate || "—"} />
-          <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
-          {/* <Field label="Parent Task" value={task.parentTaskId ? String(task.parentTaskId) : "—"} /> */}
-          {/* <Field label="Tags" value={tagsValue} />
-          <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
-          <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} /> */}
-        </div>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <Field label="Start Date" value={task.startDate || "—"} />
+            <Field label="End Date" value={task.endDate || "—"} />
+
+            {/* 🔁 Recurrence (display if present) */}
+            {Boolean((task as any)?.recurrence?.isRecurring) && (
+              <>
+                <Field label="Recurring" value="Yes" />
+                <Field label="Interval (days)" value={(task as any)?.recurrence?.intervalDays ?? "—"} />
+                <Field label="Occurrences" value={(task as any)?.recurrence?.count ?? "—"} />
+              </>
+            )}
+
+            <Field label="Description" value={task.description || "—"} className="sm:col-span-2" />
+          </div>
 
           {/* 💬 Comments */}
           <Comments
@@ -259,25 +248,35 @@ export default function TaskDetailsModal({
         {/* RIGHT SECTION */}
         <div className="w-80 p-6 overflow-y-auto flex flex-col">
           <div className="justify-end flex items-center gap-2">
-              {/* ACTION BUTTONS (Edit / Close) */}
+            {/* ACTION BUTTONS (Edit / Create Subtask / Close) */}
+            <button
+              onClick={onEdit}
+              title="Edit Task"
+              className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            {onCreateSubtask && !task.parentTaskId && (
               <button
-                onClick={onEdit}
-                title="Edit Task"
-                className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
+                onClick={onCreateSubtask}
+                title="Create Subtask"
+                className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
               >
-                <Pencil className="w-4 h-4" />
+                Create Subtask
               </button>
-              <button
-                onClick={onClose}
-                title="Close"
-                className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            )}
+            <button
+              onClick={onClose}
+              title="Close"
+              className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
           <div className="text-sm grid grid-cols-1 gap-4">
-            <Field label="Created by" value={labels[task.createdBy?.id || ""] || task.createdBy?.id || "—"} />
-            <Field label="Owned by" value={labels[task.ownedBy?.id || ""] || task.ownedBy?.id || "—"} />
+            <Field label="Created by" value={getUserDisplay(task.createdBy as any)} />
+            <Field label="Owned by" value={getUserDisplay(task.ownedBy as any)} />
             <Field label="Collaborators" value={getCollaboratorsDisplay()} />
             <Field label="Project" value={(task as any).project?.name || "—"} />
             <Field label="Tags" value={tagsValue} />
