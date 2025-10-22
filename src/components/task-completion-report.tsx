@@ -904,14 +904,13 @@ export function TaskCompletionReport() {
   )
 }
 
-function normalizeStatus(dbStatus: string | null | undefined): "pending" | "in-progress" | "completed" | "blocked" | "archived" {
+function normalizeStatus(dbStatus: string | null | undefined): "pending" | "in-progress" | "completed" | "blocked" {
   const s = (dbStatus ?? "").trim().toLowerCase()
   switch (s) {
     case "pending": return "pending"
     case "in progress": return "in-progress"
     case "completed": return "completed"
     case "blocked": return "blocked"
-    case "archived": return "archived"
     default: return "pending"
   }
 }
