@@ -226,8 +226,8 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
           </CardHeader>
           <CardContent className="pt-6">
             {statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={statusData}>
+              <ResponsiveContainer width="100%" height={300} debounce={50}>
+                <BarChart data={statusData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="status" 
@@ -241,19 +241,24 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                   />
                   <Tooltip 
                     cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
+                    animationDuration={200}
                     contentStyle={{ 
                       backgroundColor: '#fff', 
                       border: '1px solid #e5e7eb',
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
                     }}
-                    wrapperStyle={{ pointerEvents: 'none' }}
+                    wrapperStyle={{ 
+                      pointerEvents: 'none',
+                      transition: 'none'
+                    }}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ paddingTop: '10px' }} />
                   <Bar 
                     dataKey="count" 
                     name="Number of Tasks"
                     radius={[8, 8, 0, 0]}
+                    isAnimationActive={false}
                   >
                     {statusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
