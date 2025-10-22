@@ -4,6 +4,20 @@ import React from 'react';
 import { TaskDashboard } from '@/components/task-dashboard';
 import { supabase } from '@/lib/db';
 
+// Mock next/navigation
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    refresh: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    prefetch: jest.fn(),
+    pathname: '/',
+    query: {},
+  }),
+}));
+
 // Mock Supabase
 jest.mock('@/lib/db', () => ({
   supabase: {

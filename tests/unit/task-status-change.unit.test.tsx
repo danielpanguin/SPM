@@ -4,6 +4,20 @@ import React from 'react';
 import TaskDashboard from '@/components/tasks/TaskDashboard';
 import * as useTasks from '@/components/useTasks';
 
+// Mock next/navigation
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    refresh: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    prefetch: jest.fn(),
+    pathname: '/',
+    query: {},
+  }),
+}));
+
 // Mock the useTasks module
 jest.mock('@/components/useTasks', () => ({
   fetchTasks: jest.fn(),
