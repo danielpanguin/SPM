@@ -187,10 +187,11 @@ export default function TaskDetailsModal({
   const niceStatus = (s?: string | null) => (s ? String(s).replace("-", " ") : "—");
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center ">
-      <div className="w-full max-w-5xl h-5/6 bg-white rounded-2xl shadow-xl flex overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+      <div className="w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-xl overflow-y-auto">
+        <div className="flex">
         {/* LEFT SECTION */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-6">
           {/* 🟣 Header Row */}
           <div className="flex justify-between flex-wrap">
             <div className="flex flex-wrap items-center gap-3">
@@ -278,6 +279,7 @@ export default function TaskDetailsModal({
             <Field label="Last Updated" value={task.updatedAt ? new Date(task.updatedAt).toLocaleString() : "—"} />
             <Field label="Created" value={task.createdAt ? new Date(task.createdAt).toLocaleString() : "—"} />
           </div>
+        </div>
         </div>
       </div>
     </div>

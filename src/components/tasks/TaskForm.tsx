@@ -25,7 +25,7 @@ type Option = { id: number; label: string };
 type Project = { id: number; name: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleUserIds }: Props) {
-  const { userId: currentUserId } = useUser();
+  const { userId: currentUserId, role } = useUser();
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
@@ -37,8 +37,16 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [ownedById, setOwnedById] = useState<string | undefined>((initial?.ownedBy as any)?.id);
+  const [ownedById, setOwnedById] = useState<string | undefined>(
+    (initial?.ownedBy as any)?.id ?? (mode === "create" ? currentUserId : undefined)
+  );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
+    const collabs = initial?.collaborators ?? [];
+    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+  });
+
+  // Track initial collaborators to determine which can be removed
+  const [initialCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
     return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
   });
@@ -79,6 +87,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   const [busy, setBusy] = useState(false);
   const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Staff (role_id 3) cannot edit the owner field
+  const canEditOwner = role !== "staff";
+  // Staff cannot remove collaborators in edit mode (but can add in both modes)
+  const canRemoveCollaborators = role !== "staff";
 
   // 🔁 Recurrence — initialize from either the flat DB columns or nested object
   const [isRecurring, setIsRecurring] = useState<boolean>(
@@ -398,7 +411,19 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   function toggleCollaborator(x: string) {
     setCollaboratorIds((prev) => {
       const exists = prev.includes(x);
-      if (exists) return prev.filter((i) => i !== x);
+      const wasInitiallyAdded = initialCollaboratorIds.includes(x);
+
+      if (exists) {
+        // Trying to remove
+        // Staff cannot remove existing collaborators in edit mode
+        if (!canRemoveCollaborators && mode === "edit" && wasInitiallyAdded) {
+          setError("Only managers and admins can remove existing collaborators.");
+          return prev;
+        }
+        return prev.filter((i) => i !== x);
+      }
+
+      // Trying to add
       if (prev.length >= MAX_COLLABORATORS) {
         setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
         return prev;
@@ -578,9 +603,10 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         </label>
         <select
           id={id.assignee}
-          className="mt-1 w-full rounded border p-2"
+          className={`mt-1 w-full rounded border p-2 ${!canEditOwner ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
           value={ownedById ?? ""}
           onChange={(e) => setOwnedById(e.target.value)}
+          disabled={!canEditOwner}
           required
         >
           <option value="" disabled>
@@ -592,23 +618,45 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
             </option>
           ))}
         </select>
+        {!canEditOwner && (
+          <p className="mt-1 text-xs text-gray-500">Only managers and admins can change the task owner.</p>
+        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium">Collaborators</label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {collabOptions.map((u) => (
-            <label
-              key={u.id}
-              className={`flex items-center gap-2 rounded border p-2 ${
-                collaboratorIds.includes(u.id) ? "bg-gray-50" : ""
-              }`}
-            >
-              <input type="checkbox" checked={collaboratorIds.includes(u.id)} onChange={() => toggleCollaborator(u.id)} />
-              <span className="text-sm">{u.email || u.id}</span>
-            </label>
-          ))}
+          {collabOptions.map((u) => {
+            const isChecked = collaboratorIds.includes(u.id);
+            const wasInitiallyAdded = initialCollaboratorIds.includes(u.id);
+            // Staff cannot remove existing collaborators in edit mode, but can add/remove new ones
+            const isDisabledForRemoval = !canRemoveCollaborators && mode === "edit" && wasInitiallyAdded && isChecked;
+
+            return (
+              <label
+                key={u.id}
+                className={`flex items-center gap-2 rounded border p-2 ${
+                  isChecked ? "bg-gray-50" : ""
+                } ${isDisabledForRemoval ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                title={isDisabledForRemoval ? "Only managers and admins can remove existing collaborators" : ""}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleCollaborator(u.id)}
+                  disabled={isDisabledForRemoval}
+                  className={isDisabledForRemoval ? "cursor-not-allowed" : "cursor-pointer"}
+                />
+                <span className="text-sm">{u.email || u.id}</span>
+              </label>
+            );
+          })}
         </div>
+        {!canRemoveCollaborators && mode === "edit" && initialCollaboratorIds.length > 0 && (
+          <p className="mt-1 text-xs text-gray-500">
+            Only managers and admins can remove existing collaborators. You can still add new ones.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
