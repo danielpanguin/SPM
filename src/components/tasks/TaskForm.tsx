@@ -7,6 +7,9 @@ import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
 import { notifyTaskSync } from "@/lib/notifyTaskSync";
 
+const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
+const MAX_COLLABORATORS = 4;   // collaborators only (excludes owner)
+
 type Mode = "create" | "edit";
 
 interface Props {
@@ -14,61 +17,104 @@ interface Props {
   initial?: Partial<UITask>;
   onSaved(taskFromApi: any): void; // we map in parent
   onCancel?(): void;
+  accessibleUserIds?: string[]; // User IDs that are accessible based on role
 }
 
 type DbRoleUser = { id: string; email?: string | null; roles?: { name?: string | null } | null };
 type Option = { id: number; label: string };
 type Project = { id: number; name: string };
 
-export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
-  const { userId: currentUserId } = useUser();
-  const isManager = true; // set from your auth/role if you have it
+export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleUserIds }: Props) {
+  const { userId: currentUserId, role } = useUser();
 
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
   const [prioOpts, setPrioOpts] = useState<Option[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [availableParentTasks, setAvailableParentTasks] = useState<{ id: number; title: string; start_date: string; end_date: string }[]>([]);
+  const [availableParentTasks, setAvailableParentTasks] = useState<
+    { id: number; title: string; start_date: string; end_date: string }[]
+  >([]);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [ownedById, setOwnedById] = useState<string | undefined>(
-    (initial?.ownedBy as any)?.id
+    (initial?.ownedBy as any)?.id ?? (mode === "create" ? currentUserId : undefined)
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
     return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
   });
+
+  // Track initial collaborators to determine which can be removed
+  const [initialCollaboratorIds] = useState<string[]>(() => {
+    const collabs = initial?.collaborators ?? [];
+    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+  });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
-  const [parentTaskId, setParentTaskId] = useState<number | "">(
-    (initial?.parentTaskId as number) ?? ""
-  );
+  const [parentTaskId, setParentTaskId] = useState<number | "">(() => {
+    if (initial?.parentTaskId) {
+      const parsed =
+        typeof initial.parentTaskId === "string"
+          ? parseInt(initial.parentTaskId, 10)
+          : initial.parentTaskId;
+      return isNaN(parsed) ? "" : parsed;
+    }
+    return "";
+  });
+
+  // ▼▼ NEW: dropdown options for tags
+  const [tagOptions, setTagOptions] = useState<Array<{ id: number; name: string }>>([]);
+  // value remains the tag name (existing API expects names)
   const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
+
   const [priorityId, setPriorityId] = useState<number | "">(() => {
-    // Extract priority ID from P1-P10 format or use priority_id directly
     const priority = (initial as any)?.priority;
-    if (typeof priority === 'string' && priority.startsWith('P')) {
+    if (typeof priority === "string" && priority.startsWith("P")) {
       return Number(priority.substring(1));
     }
-    if (typeof (initial as any)?.priority_id === 'number') {
+    if (typeof (initial as any)?.priority_id === "number") {
       return (initial as any).priority_id;
     }
     return "";
   });
   const [statusId, setStatusId] = useState<number | "">(() => {
     const statusId = (initial as any)?.status_id;
-    if (typeof statusId === 'number') {
-      return statusId;
-    }
+    if (typeof statusId === "number") return statusId;
     return "";
   });
-  const [projectId, setProjectId] = useState<number | "">(
-    (initial?.project_id as number) ?? ""
-  );
+  const [projectId, setProjectId] = useState<number | "">((initial?.project_id as number) ?? "");
   const [busy, setBusy] = useState(false);
   const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Staff (role_id 3) cannot edit the owner field
+  const canEditOwner = role !== "staff";
+  // Staff cannot remove collaborators in edit mode (but can add in both modes)
+  const canRemoveCollaborators = role !== "staff";
+
+  // 🔁 Recurrence — initialize from either the flat DB columns or nested object
+  const [isRecurring, setIsRecurring] = useState<boolean>(
+    Boolean(
+      (initial as any)?.is_recurring ??
+        (initial as any)?.recurrence?.isRecurring ??
+        false
+    )
+  );
+  const [recurrenceIntervalDays, setRecurrenceIntervalDays] = useState<number>(
+    Number(
+      (initial as any)?.interval_days ??
+        (initial as any)?.recurrence?.intervalDays ??
+        1
+    )
+  );
+  const [recurrenceCount, setRecurrenceCount] = useState<number>(
+    Number(
+      (initial as any)?.num_of_recur ??
+        (initial as any)?.recurrence?.count ??
+        1
+    )
+  );
 
   // field ids
   const uid = useId();
@@ -107,35 +153,42 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
       // Fetch user's assigned projects
       if (currentUserId) {
-        console.log("[TaskForm] Fetching projects for currentUserId:", currentUserId);
         fetch(`/api/projects/user/${currentUserId}`)
           .then((res) => res.json())
           .then((result) => {
-            console.log("[TaskForm] Projects API response:", result);
-            if (alive && result.ok) {
-              console.log("[TaskForm] Setting projects state:", result.data);
-              setProjects(result.data ?? []);
-            } else {
-              console.error("[TaskForm] Projects API returned not ok:", result);
-            }
+            if (alive && result.ok) setProjects(result.data ?? []);
           })
           .catch((err) => console.error("[TaskForm] Failed to fetch projects:", err));
-      } else {
-        console.log("[TaskForm] No currentUserId, skipping project fetch");
       }
 
       // Fetch available parent tasks (tasks without a parent task)
-      const tasksRes = await supabase
+      // Filter by accessible user IDs to match dashboard visibility
+      let tasksQuery = supabase
         .from("tasks")
-        .select("id, title, parent_task_id, start_date, end_date")
-        .is("parent_task_id", null)
-        .order("title", { ascending: true });
+        .select("id, title, parent_task_id, start_date, end_date, owned_by")
+        .is("parent_task_id", null);
+
+      if (accessibleUserIds && accessibleUserIds.length > 0) {
+        tasksQuery = tasksQuery.in("owned_by", accessibleUserIds);
+      }
+
+      const tasksRes = await tasksQuery.order("title", { ascending: true });
 
       if (alive && tasksRes.data) {
-        // Filter out the current task if editing (can't be its own parent)
         const currentTaskId = initial?.id ? Number(initial.id) : null;
         const filtered = tasksRes.data.filter((t: any) => t.id !== currentTaskId);
         setAvailableParentTasks(filtered);
+      }
+
+      // ▼▼ NEW: fetch tag options from task_tag
+      const { data: tagRows, error: tagListErr } = await supabase
+        .from("task_tag")
+        .select("id,name")
+        .order("name", { ascending: true });
+      if (tagListErr) {
+        console.error("[TaskForm] Failed to fetch tag options:", tagListErr);
+      } else if (alive) {
+        setTagOptions(tagRows ?? []);
       }
     }
     run();
@@ -143,14 +196,10 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, [currentUserId, accessibleUserIds]);
 
   /**
-   * Always hydrate latest DB values when editing.
-   * This pulls:
-   * - tasks row (for core fields)
-   * - task_collaborator (user_ids)
-   * - task_tasktag -> task_tag (single tag name)
+   * Always hydrate latest DB values when editing (including recurrence columns).
    */
   useEffect(() => {
     if (mode !== "edit") return;
@@ -161,11 +210,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     async function hydrate() {
       setHydrating(true);
       try {
-        // 1) task core row
+        // 1) task core row + recurrence columns
         const { data: tRows, error: tErr } = await supabase
           .from("tasks")
           .select(
-            "id,title,description,start_date,end_date,priority_id,status_id,created_by,owned_by,parent_task_id,project_id"
+            "id,title,description,start_date,end_date,priority_id,status_id,created_by,owned_by,parent_task_id,project_id,is_recurring,interval_days,num_of_recur"
           )
           .eq("id", taskId)
           .limit(1);
@@ -179,7 +228,6 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           .from("task_collaborator")
           .select("user_id")
           .eq("task_id", taskId);
-
         if (cErr) throw cErr;
 
         // 3) tag id then name
@@ -189,8 +237,8 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
           .select("tag_id")
           .eq("task_id", taskId)
           .limit(1);
-
         if (ttErr) throw ttErr;
+
         if (tagJoin && tagJoin.length) {
           const tagId = tagJoin[0]?.tag_id;
           if (tagId != null) {
@@ -206,7 +254,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
 
         if (!alive) return;
 
-        // apply to form
+        // Populate core fields
         setTitle(t.title ?? "");
         setDescription(t.description ?? "");
         setStartDate(t.start_date ?? "");
@@ -218,6 +266,12 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         setProjectId(t.project_id ?? "");
         setCollaboratorIds((collabRows ?? []).map((r: any) => String(r.user_id)));
         setTag(tagName ?? "");
+
+        // ✅ Populate recurrence from DB columns
+        setIsRecurring(Boolean(t.is_recurring));
+        setRecurrenceIntervalDays(Number(t.interval_days ?? 1));
+        setRecurrenceCount(Number(t.num_of_recur ?? 1));
+
         setError(null);
       } catch (err: any) {
         console.error("[TaskForm] hydrate error:", err);
@@ -236,7 +290,15 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initial?.id]);
 
-  const allowedUsers = useMemo(() => users, [users]);
+  // Owner dropdown should list all users; collaborators should exclude the owner.
+  const ownerOptions = users;
+  const collabOptions = useMemo(() => users.filter((u) => u.id !== ownedById), [users, ownedById]);
+
+  // If owner changes, auto-remove owner from collaborators (AC-231 guard)
+  useEffect(() => {
+    if (!ownedById) return;
+    setCollaboratorIds((prev) => prev.filter((id) => id !== ownedById));
+  }, [ownedById]);
 
   function validate(): string | null {
     if (!title.trim()) return "Title is required.";
@@ -246,22 +308,24 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     if (!statusId) return "Status is required.";
     if (!priorityId) return "Priority is required.";
 
-    // Validate subtask dates if this task has a parent
     if (typeof parentTaskId === "number") {
-      const parentTask = availableParentTasks.find(t => t.id === parentTaskId);
+      const parentTask = availableParentTasks.find((t) => t.id === parentTaskId);
       if (parentTask) {
         const taskStart = new Date(startDate);
         const taskEnd = new Date(endDate);
         const parentStart = new Date(parentTask.start_date);
         const parentEnd = new Date(parentTask.end_date);
 
-        if (taskStart < parentStart) {
-          return "Subtask start date cannot be earlier than parent task start date.";
-        }
-        if (taskEnd > parentEnd) {
-          return "Subtask end date cannot be later than parent task end date.";
-        }
+        if (taskStart < parentStart) return "Subtask start date cannot be earlier than parent task start date.";
+        if (taskEnd > parentEnd) return "Subtask end date cannot be later than parent task end date.";
       }
+    }
+
+    // 🔁 Recurrence-specific validation
+    if (isRecurring && !endDate) return "End date is required when enabling recurrence.";
+    if (isRecurring) {
+      if (!recurrenceIntervalDays || recurrenceIntervalDays <= 0) return "Recurrence interval (days) must be > 0.";
+      if (!recurrenceCount || recurrenceCount <= 0) return "Repeat count must be > 0.";
     }
 
     return null;
@@ -278,20 +342,22 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
     setError(null);
 
     try {
-      // UUID regex pattern
       const uuidPattern =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-      // Filter out any invalid UUIDs from collaboratorIds
       const validCollaboratorIds = collaboratorIds.filter((id) => {
         const isValid = uuidPattern.test(id);
-        if (!isValid) {
-          console.warn("Invalid UUID in collaborators:", id);
-        }
+        if (!isValid) console.warn("Invalid UUID in collaborators:", id);
         return isValid;
       });
 
-      const payload = {
+      if (validCollaboratorIds.length + 1 > MAX_TOTAL_ASSIGNEES) {
+        setError(`A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned, including the owner.`);
+        setBusy(false);
+        return;
+      }
+
+      const payload: any = {
         title,
         description,
         status_id: Number(statusId),
@@ -306,17 +372,32 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         tags: tag ? [tag] : [],
       };
 
-      // save
+      // 🔁 Include recurrence in payload
+      if (isRecurring) {
+        payload.recurrence = {
+          isRecurring: true,
+          intervalDays: Number(recurrenceIntervalDays),
+          count: Number(recurrenceCount),
+        };
+        payload.is_recurring = true;
+
+        // Only send numeric columns when recurrence is enabled
+        payload.interval_days = Number(recurrenceIntervalDays);
+        payload.num_of_recur = Number(recurrenceCount);
+      } else {
+        // Not recurring: don't send the numeric fields at all (prevents Zod "expected number, received null")
+        payload.recurrence = { isRecurring: false };
+        payload.is_recurring = false;
+        // NOTE: intentionally NOT setting interval_days / num_of_recur here
+      }
+
       const data =
         mode === "create"
           ? await createTaskAPI(payload)
           : await updateTaskAPI(Number(initial?.id), payload);
 
-      // fire the sync notifier
       const savedTaskId = (Array.isArray(data) ? data[0]?.id : data?.id) ?? initial?.id;
-      if (savedTaskId) {
-        notifyTaskSync(savedTaskId as any);
-      }
+      if (savedTaskId) notifyTaskSync(savedTaskId as any);
 
       onSaved(data);
     } catch (err: any) {
@@ -328,15 +409,43 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
   }
 
   function toggleCollaborator(x: string) {
-    setCollaboratorIds((prev) => (prev.includes(x) ? prev.filter((i) => i !== x) : [...prev, x]));
+    setCollaboratorIds((prev) => {
+      const exists = prev.includes(x);
+      const wasInitiallyAdded = initialCollaboratorIds.includes(x);
+
+      if (exists) {
+        // Trying to remove
+        // Staff cannot remove existing collaborators in edit mode
+        if (!canRemoveCollaborators && mode === "edit" && wasInitiallyAdded) {
+          setError("Only managers and admins can remove existing collaborators.");
+          return prev;
+        }
+        return prev.filter((i) => i !== x);
+      }
+
+      // Trying to add
+      if (prev.length >= MAX_COLLABORATORS) {
+        setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+        return prev;
+      }
+      return [...prev, x];
+    });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {(error || hydrating) && (
-        <p className="text-sm">
-          {hydrating ? "Loading latest task data…" : <span className="text-red-600">{error}</span>}
-        </p>
+        <div
+          className={`p-3 rounded-md ${
+            hydrating ? "bg-blue-50 border border-blue-200" : "bg-red-50 border border-red-300"
+          }`}
+        >
+          {hydrating ? (
+            <p className="text-sm text-blue-700">Loading latest task data…</p>
+          ) : (
+            <p className="text-sm font-semibold text-red-700">{error}</p>
+          )}
+        </div>
       )}
 
       <div>
@@ -352,6 +461,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         />
       </div>
 
+      {/* Dates */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor={id.start} className="block text-sm font-medium">
@@ -379,6 +489,55 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
             required
           />
         </div>
+
+        {/* 🔁 Recurrence UI (appears when End Date is set) */}
+        {Boolean(endDate) && (
+          <div className="sm:col-span-2 border rounded p-3 mt-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                className="rounded border"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+              />
+              Recurring task
+            </label>
+
+            {isRecurring && (
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm">Repeat every (days) *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full rounded border p-2"
+                    value={recurrenceIntervalDays}
+                    onChange={(e) => setRecurrenceIntervalDays(Number(e.target.value))}
+                    placeholder="e.g., 7"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm">Number of occurrences *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full rounded border p-2"
+                    value={recurrenceCount}
+                    onChange={(e) => setRecurrenceCount(Number(e.target.value))}
+                    placeholder="e.g., 10"
+                  />
+                </div>
+                <div className="text-xs text-gray-500 self-end">
+                  New task is created only when the current one is completed. Overdue completion
+                  uses the previous due date to compute the next due date.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {!Boolean(endDate) && (
+          <div className="sm:col-span-2 text-xs text-gray-500">Set an End Date to enable recurrence.</div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -444,41 +603,60 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
         </label>
         <select
           id={id.assignee}
-          className="mt-1 w-full rounded border p-2"
+          className={`mt-1 w-full rounded border p-2 ${!canEditOwner ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
           value={ownedById ?? ""}
           onChange={(e) => setOwnedById(e.target.value)}
+          disabled={!canEditOwner}
           required
         >
           <option value="" disabled>
             Select user
           </option>
-          {allowedUsers.map((u) => (
+          {ownerOptions.map((u) => (
             <option key={u.id} value={u.id}>
               {u.email || u.id}
             </option>
           ))}
         </select>
+        {!canEditOwner && (
+          <p className="mt-1 text-xs text-gray-500">Only managers and admins can change the task owner.</p>
+        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium">Collaborators</label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {allowedUsers.map((u) => (
-            <label
-              key={u.id}
-              className={`flex items-center gap-2 rounded border p-2 ${
-                collaboratorIds.includes(u.id) ? "bg-gray-50" : ""
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={collaboratorIds.includes(u.id)}
-                onChange={() => toggleCollaborator(u.id)}
-              />
-              <span className="text-sm">{u.email || u.id}</span>
-            </label>
-          ))}
+          {collabOptions.map((u) => {
+            const isChecked = collaboratorIds.includes(u.id);
+            const wasInitiallyAdded = initialCollaboratorIds.includes(u.id);
+            // Staff cannot remove existing collaborators in edit mode, but can add/remove new ones
+            const isDisabledForRemoval = !canRemoveCollaborators && mode === "edit" && wasInitiallyAdded && isChecked;
+
+            return (
+              <label
+                key={u.id}
+                className={`flex items-center gap-2 rounded border p-2 ${
+                  isChecked ? "bg-gray-50" : ""
+                } ${isDisabledForRemoval ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                title={isDisabledForRemoval ? "Only managers and admins can remove existing collaborators" : ""}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleCollaborator(u.id)}
+                  disabled={isDisabledForRemoval}
+                  className={isDisabledForRemoval ? "cursor-not-allowed" : "cursor-pointer"}
+                />
+                <span className="text-sm">{u.email || u.id}</span>
+              </label>
+            );
+          })}
         </div>
+        {!canRemoveCollaborators && mode === "edit" && initialCollaboratorIds.length > 0 && (
+          <p className="mt-1 text-xs text-gray-500">
+            Only managers and admins can remove existing collaborators. You can still add new ones.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -502,21 +680,27 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-gray-500">
-            Only tasks without a parent can be selected as parent tasks
-          </p>
+          <p className="mt-1 text-xs text-gray-500">Only tasks without a parent can be selected as parent tasks</p>
         </div>
+
+        {/* ▼▼ UPDATED: Tag dropdown instead of free text input */}
         <div>
           <label htmlFor={id.tag} className="block text-sm font-medium">
             Tag (single)
           </label>
-          <input
+          <select
             id={id.tag}
-            className="mt-1 w-full rounded border p-2"
-            placeholder="e.g. frontend, urgent"
-            value={tag}
+            className="mt-1 w-full rounded border p-2 bg-white"
+            value={tag ?? ""}
             onChange={(e) => setTag(e.target.value)}
-          />
+          >
+            <option value="">— Select a tag —</option>
+            {tagOptions.map((t) => (
+              <option key={t.id} value={t.name}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -534,12 +718,20 @@ export default function TaskForm({ mode, initial, onSaved, onCancel }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={busy} className="rounded bg-black text-white px-4 py-2">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded bg-black px-4 py-2 text-white font-medium hover:bg-gray-800 transition-colors"
+        >
           {busy ? "Saving..." : mode === "create" ? "Create Task" : "Save Changes"}
         </button>
         {onCancel && (
-          <button type="button" className="rounded border px-4 py-2" onClick={onCancel}>
-            Cancel
+          <button
+            type="button"
+            className="rounded border px-4 py-2 hover:bg-gray-50 transition-colors"
+            onClick={onCancel}
+          >
+          Cancel
           </button>
         )}
       </div>

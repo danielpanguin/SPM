@@ -50,3 +50,21 @@ export async function deleteTaskAPI(id: number) {
   if (!res.ok) throw new Error(j.error || "Failed to delete task");
   return j;
 }
+
+export async function updateTaskStatusAPI(taskId: number, statusId: number, userId?: string) {
+  const res = await fetch(`/api/tasks/${taskId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status_id: statusId, user_id: userId }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error || "Failed to update task status");
+  return j.data;
+}
+
+export async function fetchStatuses() {
+  const res = await fetch("/api/statuses", { cache: "no-store" });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error || "Failed to fetch statuses");
+  return j.data as Array<{ id: number; status: string }>;
+}

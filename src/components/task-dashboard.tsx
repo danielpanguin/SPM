@@ -2,16 +2,18 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
+import { X, FileText } from "lucide-react"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 
 import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
 import  TaskDetailsModal from "./tasks/TaskDetailsModal"
 import TaskForm from "./tasks/TaskForm"
-import { ArchiveView } from "./archive-view"
 import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
 import type { Task, Priority } from "@/types/task"// bring in your canonical Task interface
@@ -110,11 +112,11 @@ function mapPriority(priorityId: number | null | undefined): string {
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const { accessibleUserIds } = useUser()
+  const router = useRouter()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [showArchive, setShowArchive] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
   const [creatingSubtask, setCreatingSubtask] = useState<Task | null>(null)
@@ -133,6 +135,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
+  const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("")
 
   console.log("TaskDashboard render - tasks count:", tasks.length)
   const [loading, setLoading] = useState<boolean>(true)
@@ -141,6 +144,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   // project/task title lookups for display-only fields (Project & Parent Task)
   const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
+  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map())
   const [priorityByTaskId, setPriorityByTaskId] = useState<Map<string, number>>(new Map())
   const [tagsByTaskId, setTagsByTaskId] = useState<Map<string, string[]>>(new Map())
 
@@ -164,8 +168,10 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       setError(null)
 
       try {
-        // For staff: fetch tasks where they are collaborators
-        // For managers/admins: fetch all tasks for accessible user IDs
+        // Comprehensive task fetching for different scenarios:
+        // 1. Tasks owned by accessible users (manager sees team's tasks, staff sees own)
+        // 2. Tasks where user is a collaborator (assigned to multiple people)
+        // 3. Tasks from projects the user is a member of
         const allTasks: any[] = []
 
         console.log("📥 Fetching owned tasks...")
@@ -212,8 +218,8 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           console.log("✅ Adding", ownedTasks.length, "owned tasks")
           allTasks.push(...ownedTasks)
         }
-        
-        // Also fetch tasks where user is a collaborator (for staff users)
+
+        // Fetch tasks where user is a collaborator (tasks assigned to multiple people)
         console.log("📥 Fetching collaborator tasks...")
         const { data: collaboratorTaskIds } = await supabase
           .from("task_collaborator")
@@ -221,7 +227,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           .in("user_id", accessibleUserIds)
 
         console.log("📊 Collaborator task IDs result:", { count: collaboratorTaskIds?.length })
-        
+
         if (collaboratorTaskIds && collaboratorTaskIds.length > 0) {
           const taskIds = collaboratorTaskIds.map(c => c.task_id)
           const { data: collabTasks, error: collabError } = await supabase
@@ -259,7 +265,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             )
           `)
           .in("id", taskIds)
-          
+
           console.log("📊 Collaborator tasks result:", { count: collabTasks?.length, error: collabError })
           if (collabError) throw collabError
           if (collabTasks) {
@@ -267,6 +273,64 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
             const existingIds = new Set(allTasks.map(t => t.id))
             const newTasks = collabTasks.filter(task => !existingIds.has(task.id))
             console.log("✅ Adding", newTasks.length, "new collaborator tasks")
+            allTasks.push(...newTasks)
+          }
+        }
+
+        // Fetch tasks from projects the user is a member of
+        console.log("📥 Fetching project member tasks...")
+        const { data: projectMemberships } = await supabase
+          .from("project_member")
+          .select("project_id")
+          .in("user_id", accessibleUserIds)
+
+        console.log("📊 Project memberships result:", { count: projectMemberships?.length })
+
+        if (projectMemberships && projectMemberships.length > 0) {
+          const projectIds = projectMemberships.map(pm => pm.project_id)
+          const { data: projectTasks, error: projectError } = await supabase
+            .from("tasks")
+            .select(`
+            id,
+            title,
+            description,
+            created_by,
+            owned_by,
+            parent_task_id,
+            start_date,
+            end_date,
+            created_at,
+            priority_id,
+            status_id,
+            project_id,
+            created_by_user:created_by (
+              id,
+              username,
+              roles ( id, name )
+            ),
+            owned_by_user:owned_by (
+              id,
+              username,
+              roles ( id, name )
+            ),
+            status:status_id ( id, status ),
+            project:project_id ( id, name ),
+            task_tasktag (
+              task_tag ( id, name )
+            ),
+            task_collaborator (
+              users ( id, username )
+            )
+          `)
+          .in("project_id", projectIds)
+
+          console.log("📊 Project tasks result:", { count: projectTasks?.length, error: projectError })
+          if (projectError) throw projectError
+          if (projectTasks) {
+            // Merge and deduplicate by task ID
+            const existingIds = new Set(allTasks.map(t => t.id))
+            const newTasks = projectTasks.filter(task => !existingIds.has(task.id))
+            console.log("✅ Adding", newTasks.length, "new project-based tasks")
             allTasks.push(...newTasks)
           }
         }
@@ -347,11 +411,20 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       const priorityMap = new Map<string, number>(
         (data ?? []).map((row: any) => [String(row.id), row.priority_id ?? 5])
       )
+      
+      // Build project name to ID mapping for reports
+      const projNameToId = new Map<string, number>()
+      data?.forEach((row: any) => {
+        if (row.project?.name && row.project?.id) {
+          projNameToId.set(row.project.name, row.project.id)
+        }
+      })
 
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
       setPriorityByTaskId(priorityMap)
+      setProjectNameToId(projNameToId)
       setLoading(false)
       } catch (err) {
         console.error("[Supabase] Unexpected error loading tasks:", err)
@@ -422,9 +495,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
     })
     setSearchQuery("")
   }
-
-  const handleShowArchive = () => setShowArchive(true)
-  const handleCloseArchive = () => setShowArchive(false)
 
   // Extract unique filter options from current tasks
   const availableFilterOptions = useMemo(() => {
@@ -530,13 +600,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   }, [tasks, projectByTaskId])
 
   // ✅ Early returns only AFTER all hooks are declared:
-  if (showArchive) {
-    return (
-      <div data-testid="archive-view">
-        <ArchiveView onClose={handleCloseArchive} />
-      </div>
-    );
-  }
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -557,9 +620,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                   className="pl-10 w-80"
                 />
               </div>
-              <Button variant="outline" size="sm" onClick={handleShowArchive}>
-                Archive
-              </Button>
             </div>
           </div>
         </div>
@@ -610,14 +670,49 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                 <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  View Reports
+                {/* Task Completion Report */}
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start bg-transparent"
+                  onClick={() => router.push('/reports/completion')}
+                >
+                  Task Completion Report
                 </Button>
+                
+                {/* Project Progress Report */}
+                <div className="space-y-2">
+                  <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(projectNameToId.keys()).map((projectName) => (
+                        <SelectItem key={projectName} value={projectName}>
+                          {projectName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => {
+                      if (selectedProjectForReport) {
+                        const projectId = projectNameToId.get(selectedProjectForReport)
+                        if (projectId) {
+                          router.push(`/reports/project/${projectId}`)
+                        }
+                      }
+                    }}
+                    disabled={!selectedProjectForReport}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Project Report
+                  </Button>
+                </div>
+                
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
-                </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
-                  Archived Tasks
                 </Button>
               </CardContent>
             </Card>
@@ -670,7 +765,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                     <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
                     <p className="text-sm !text-gray-900">All tasks across your projects</p>
                   </div>
-                  <Button onClick={() => setCreating(true)}>Create Task</Button>
+                  <Button className="border-1 hover:bg-gray-200" onClick={() => setCreating(true)}>Create Task</Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -714,6 +809,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           <TaskForm
             mode="edit"
             initial={editing}
+            accessibleUserIds={accessibleUserIds}
             onSaved={async (apiResponse) => {
               console.log("EDIT onSaved called with:", apiResponse)
               // Map API response to Task type and update the task in the list
@@ -749,6 +845,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <Modal title="Create Task" onClose={() => setCreating(false)}>
           <TaskForm
             mode="create"
+            accessibleUserIds={accessibleUserIds}
             onSaved={async (apiResponse) => {
               console.log("CREATE onSaved called with:", apiResponse)
               // Map API response to Task type and add the new task to the list
@@ -791,6 +888,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <Modal title={`Create Subtask for: ${creatingSubtask.title}`} onClose={() => setCreatingSubtask(null)}>
           <TaskForm
             mode="create"
+            accessibleUserIds={accessibleUserIds}
             initial={{
               parentTaskId: creatingSubtask.id,
               startDate: creatingSubtask.startDate,
@@ -841,12 +939,19 @@ function Modal({
   onClose(): void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6">
-      <div role="dialog" aria-labelledby="modal-title" className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+      <div role="dialog" aria-labelledby="modal-title" className="w-full max-w-2xl max-h-[90vh] rounded-2xl bg-white p-6 shadow-xl overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-2xl [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300">
         <div className="flex items-start justify-between">
           <h3 id="modal-title" className="text-xl font-semibold">{title}</h3>
-          <button className="text-sm text-gray-500" onClick={onClose}>
+          {/* <button className="text-sm text-gray-500" onClick={onClose}>
             Close
+          </button> */}
+          <button
+            onClick={onClose}
+            title="Close Task"
+            className="p-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
         <div className="mt-4">{children}</div>
