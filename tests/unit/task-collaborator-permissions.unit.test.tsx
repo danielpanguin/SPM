@@ -109,6 +109,16 @@ describe('TaskForm - Collaborator Management Permissions', () => {
           }),
         };
       }
+      if (table === 'task_tag') {
+        return {
+          select: jest.fn().mockReturnValue({
+            order: jest.fn().mockResolvedValue({
+              data: [],
+              error: null,
+            }),
+          }),
+        };
+      }
       return {
         select: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
