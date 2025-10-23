@@ -21,8 +21,41 @@ export async function PATCH(req: NextRequest, { params }: P) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const patch = TaskUpdateSchema.parse(body);
-    const updated = await updateTask(Number(id), patch);
+
+    // Parse with Zod first (this may include `null` for recurrence numbers)
+    const patch = TaskUpdateSchema.parse(body) as any;
+
+    // Normalize the payload so the repo receives only number | undefined
+    const normalized: any = { ...patch };
+
+    // Map nested `recurrence` (if provided) to flat columns
+    if (normalized.recurrence) {
+      const r = normalized.recurrence;
+      if (r.isRecurring === true) {
+        normalized.is_recurring = true;
+        if (r.intervalDays != null) normalized.interval_days = Number(r.intervalDays);
+        if (r.count != null) normalized.num_of_recur = Number(r.count);
+      } else if (r.isRecurring === false) {
+        normalized.is_recurring = false;
+        // Explicitly drop numeric columns when recurrence disabled
+        delete normalized.interval_days;
+        delete normalized.num_of_recur;
+      }
+      // Remove nested object before passing to repo
+      delete normalized.recurrence;
+    }
+
+    // Strip explicit nulls to satisfy repo typing (number | undefined)
+    if (normalized.interval_days == null) delete normalized.interval_days;
+    if (normalized.num_of_recur == null) delete normalized.num_of_recur;
+
+    // Safety: if caller set is_recurring false but still sent numbers, drop them
+    if (normalized.is_recurring === false) {
+      delete normalized.interval_days;
+      delete normalized.num_of_recur;
+    }
+
+    const updated = await updateTask(Number(id), normalized);
     return NextResponse.json({ ok: true, data: updated });
   } catch (e: any) {
     console.error(e);

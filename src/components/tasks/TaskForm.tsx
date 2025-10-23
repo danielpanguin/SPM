@@ -54,7 +54,12 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     }
     return "";
   });
+
+  // ▼▼ NEW: dropdown options for tags
+  const [tagOptions, setTagOptions] = useState<Array<{ id: number; name: string }>>([]);
+  // value remains the tag name (existing API expects names)
   const [tag, setTag] = useState((initial as any)?.tag ?? (initial?.tags?.[0] ?? ""));
+
   const [priorityId, setPriorityId] = useState<number | "">(() => {
     const priority = (initial as any)?.priority;
     if (typeof priority === "string" && priority.startsWith("P")) {
@@ -160,6 +165,17 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         const currentTaskId = initial?.id ? Number(initial.id) : null;
         const filtered = tasksRes.data.filter((t: any) => t.id !== currentTaskId);
         setAvailableParentTasks(filtered);
+      }
+
+      // ▼▼ NEW: fetch tag options from task_tag
+      const { data: tagRows, error: tagListErr } = await supabase
+        .from("task_tag")
+        .select("id,name")
+        .order("name", { ascending: true });
+      if (tagListErr) {
+        console.error("[TaskForm] Failed to fetch tag options:", tagListErr);
+      } else if (alive) {
+        setTagOptions(tagRows ?? []);
       }
     }
     run();
@@ -344,18 +360,23 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
       };
 
       // 🔁 Include recurrence in payload
-      payload.recurrence = isRecurring
-        ? {
-            isRecurring: true,
-            intervalDays: Number(recurrenceIntervalDays),
-            count: Number(recurrenceCount),
-          }
-        : { isRecurring: false };
+      if (isRecurring) {
+        payload.recurrence = {
+          isRecurring: true,
+          intervalDays: Number(recurrenceIntervalDays),
+          count: Number(recurrenceCount),
+        };
+        payload.is_recurring = true;
 
-      // Optional: flat columns too (harmless if backend ignores)
-      payload.is_recurring = isRecurring;
-      payload.interval_days = isRecurring ? Number(recurrenceIntervalDays) : null;
-      payload.num_of_recur = isRecurring ? Number(recurrenceCount) : null;
+        // Only send numeric columns when recurrence is enabled
+        payload.interval_days = Number(recurrenceIntervalDays);
+        payload.num_of_recur = Number(recurrenceCount);
+      } else {
+        // Not recurring: don't send the numeric fields at all (prevents Zod "expected number, received null")
+        payload.recurrence = { isRecurring: false };
+        payload.is_recurring = false;
+        // NOTE: intentionally NOT setting interval_days / num_of_recur here
+      }
 
       const data =
         mode === "create"
@@ -613,17 +634,25 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
           </select>
           <p className="mt-1 text-xs text-gray-500">Only tasks without a parent can be selected as parent tasks</p>
         </div>
+
+        {/* ▼▼ UPDATED: Tag dropdown instead of free text input */}
         <div>
           <label htmlFor={id.tag} className="block text-sm font-medium">
             Tag (single)
           </label>
-          <input
+          <select
             id={id.tag}
-            className="mt-1 w-full rounded border p-2"
-            placeholder="e.g. frontend, urgent"
-            value={tag}
+            className="mt-1 w-full rounded border p-2 bg-white"
+            value={tag ?? ""}
             onChange={(e) => setTag(e.target.value)}
-          />
+          >
+            <option value="">— Select a tag —</option>
+            {tagOptions.map((t) => (
+              <option key={t.id} value={t.name}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -654,7 +683,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
             className="rounded border px-4 py-2 hover:bg-gray-50 transition-colors"
             onClick={onCancel}
           >
-            Cancel
+          Cancel
           </button>
         )}
       </div>

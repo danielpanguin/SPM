@@ -29,8 +29,8 @@ export const TaskCreateSchema = z.object({
 
   // ...or flat columns (useful for programmatic calls/tests)
   is_recurring: z.boolean().optional(),
-  interval_days: z.number().int().positive().optional(),
-  num_of_recur: z.number().int().positive().optional(),
+  interval_days: z.number().int().positive().optional().nullable(), // ← allow null
+  num_of_recur: z.number().int().positive().optional().nullable(), // ← allow null
 });
 
 export const TaskUpdateSchema = TaskCreateSchema.partial();
