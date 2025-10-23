@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/ViewTaskUi/badge";
 
 /* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
+type PersonWithEmail = Person & { email?: string | null };
 
 export type UITask = {
   id: string | number;
@@ -82,6 +83,7 @@ export default function TaskDetailsModal({
     titleById,
   }: Props) {
   const [labels, setLabels] = useState<UserMap>({});
+  const [loading, setLoading] = useState(false);
   const [commentCount, setCommentCount] = useState<number>(0);
 
   useEffect(() => {
@@ -92,6 +94,7 @@ export default function TaskDetailsModal({
     let alive = true;
     async function hydrateUsers() {
       if (!task) return;
+      
       const ids = new Set<string>();
       if (task.createdBy?.id) ids.add(String(task.createdBy.id));
       if (task.ownedBy?.id) ids.add(String(task.ownedBy.id));
@@ -100,6 +103,8 @@ export default function TaskDetailsModal({
       });
       if (!ids.size) return;
 
+      // Use cached data if available, otherwise fetch
+      setLoading(true);
       const { data } = await supabase
         .from("users")
         .select("id,email")
@@ -108,6 +113,7 @@ export default function TaskDetailsModal({
       const map: UserMap = {};
       (data ?? []).forEach((u: any) => (map[u.id] = u.email || u.id));
       setLabels(map);
+      setLoading(false);
     }
     hydrateUsers();
     return () => {

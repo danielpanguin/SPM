@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import TaskDetailsModal from "./TaskDetailsModal";
 import TaskForm from "./TaskForm";
-import { fetchTasks } from "@/components/useTasks";
+import { fetchTasks, fetchStatuses, updateTaskStatusAPI } from "@/components/useTasks";
 import { useUser } from "@/hooks/useAuth";
 
 /** Minimal UI Task shape that matches what this screen renders */
@@ -83,6 +83,8 @@ export default function TaskDashboard() {
   const [detailsTask, setDetailsTask] = useState<UITask | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<UITask | null>(null);
+  const [statuses, setStatuses] = useState<Array<{ id: number; status: string }>>([]);
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
 
   const [sortField, setSortField] = useState<'title' | 'status' | 'priority' | 'endDate' | 'tags' | 'createdAt'>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -110,9 +112,35 @@ export default function TaskDashboard() {
     }
   }
 
+  async function loadStatuses() {
+    try {
+      const statusList = await fetchStatuses();
+      setStatuses(statusList);
+    } catch (e) {
+      console.error("Error loading statuses:", e);
+    }
+  }
+
+  async function handleStatusChange(taskId: number, newStatusId: number, e: React.MouseEvent) {
+    e.stopPropagation(); // Prevent opening task details modal
+    
+    try {
+      setUpdatingStatus(taskId);
+      await updateTaskStatusAPI(taskId, newStatusId, userId || undefined);
+      // Reload tasks to reflect the change
+      await load();
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      alert("Failed to update task status");
+    } finally {
+      setUpdatingStatus(null);
+    }
+  }
+
   useEffect(() => {
     if (userId) {
       load();
+      loadStatuses();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, role]);
@@ -343,9 +371,23 @@ export default function TaskDashboard() {
             <div className="mt-2 text-sm text-gray-600 line-clamp-2">
               {t.description || "No description"}
             </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-              <div>{t.status || "—"}</div>
-              <div>{t.endDate ? new Date(t.endDate).toLocaleDateString() : "—"}</div>
+            <div className="mt-3 flex items-center justify-between text-xs">
+              <div onClick={(e) => e.stopPropagation()} className="flex-1">
+                <select
+                  value={statuses.find(s => s.status === t.status)?.id || ""}
+                  onChange={(e) => handleStatusChange(t.id, Number(e.target.value), e as any)}
+                  disabled={updatingStatus === t.id}
+                  className="text-xs border border-gray-300 rounded px-2 py-1 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={`Change status for ${t.title}`}
+                >
+                  {statuses.map((status) => (
+                    <option key={status.id} value={status.id}>
+                      {status.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="text-gray-500">{t.endDate ? new Date(t.endDate).toLocaleDateString() : "—"}</div>
             </div>
           </div>
         ))}

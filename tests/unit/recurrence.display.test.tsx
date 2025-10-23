@@ -2,6 +2,20 @@
 import React from "react";
 import { render, screen, act } from "@testing-library/react";
 
+// Mock next/navigation
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    refresh: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    prefetch: jest.fn(),
+    pathname: '/',
+    query: {},
+  }),
+}));
+
 /* -------------------- Hard block TaskDashboard imports (any path) -------------------- */
 const Module = require("module");
 const _origLoad = Module._load;

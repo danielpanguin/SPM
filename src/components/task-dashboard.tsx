@@ -2,17 +2,18 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
-import { X } from "lucide-react";
+import { X, FileText } from "lucide-react"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 
 import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
 import  TaskDetailsModal from "./tasks/TaskDetailsModal"
 import TaskForm from "./tasks/TaskForm"
-import { ArchiveView } from "./archive-view"
 import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
 import type { Task, Priority } from "@/types/task"// bring in your canonical Task interface
@@ -111,11 +112,11 @@ function mapPriority(priorityId: number | null | undefined): string {
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const { accessibleUserIds } = useUser()
+  const router = useRouter()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [showArchive, setShowArchive] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
   const [creatingSubtask, setCreatingSubtask] = useState<Task | null>(null)
@@ -134,6 +135,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
+  const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("")
 
   console.log("TaskDashboard render - tasks count:", tasks.length)
   const [loading, setLoading] = useState<boolean>(true)
@@ -142,6 +144,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   // project/task title lookups for display-only fields (Project & Parent Task)
   const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
+  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map())
   const [priorityByTaskId, setPriorityByTaskId] = useState<Map<string, number>>(new Map())
   const [tagsByTaskId, setTagsByTaskId] = useState<Map<string, string[]>>(new Map())
 
@@ -408,11 +411,20 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       const priorityMap = new Map<string, number>(
         (data ?? []).map((row: any) => [String(row.id), row.priority_id ?? 5])
       )
+      
+      // Build project name to ID mapping for reports
+      const projNameToId = new Map<string, number>()
+      data?.forEach((row: any) => {
+        if (row.project?.name && row.project?.id) {
+          projNameToId.set(row.project.name, row.project.id)
+        }
+      })
 
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
       setPriorityByTaskId(priorityMap)
+      setProjectNameToId(projNameToId)
       setLoading(false)
       } catch (err) {
         console.error("[Supabase] Unexpected error loading tasks:", err)
@@ -483,9 +495,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
     })
     setSearchQuery("")
   }
-
-  const handleShowArchive = () => setShowArchive(true)
-  const handleCloseArchive = () => setShowArchive(false)
 
   // Extract unique filter options from current tasks
   const availableFilterOptions = useMemo(() => {
@@ -591,13 +600,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   }, [tasks, projectByTaskId])
 
   // ✅ Early returns only AFTER all hooks are declared:
-  if (showArchive) {
-    return (
-      <div data-testid="archive-view">
-        <ArchiveView onClose={handleCloseArchive} />
-      </div>
-    );
-  }
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -618,9 +620,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                   className="pl-10 w-80"
                 />
               </div>
-              <Button variant="outline" size="sm" onClick={handleShowArchive}>
-                Archive
-              </Button>
             </div>
           </div>
         </div>
@@ -671,14 +670,49 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                 <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  View Reports
+                {/* Task Completion Report */}
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start bg-transparent"
+                  onClick={() => router.push('/reports/completion')}
+                >
+                  Task Completion Report
                 </Button>
+                
+                {/* Project Progress Report */}
+                <div className="space-y-2">
+                  <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(projectNameToId.keys()).map((projectName) => (
+                        <SelectItem key={projectName} value={projectName}>
+                          {projectName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => {
+                      if (selectedProjectForReport) {
+                        const projectId = projectNameToId.get(selectedProjectForReport)
+                        if (projectId) {
+                          router.push(`/reports/project/${projectId}`)
+                        }
+                      }
+                    }}
+                    disabled={!selectedProjectForReport}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Project Report
+                  </Button>
+                </div>
+                
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
-                </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleShowArchive}>
-                  Archived Tasks
                 </Button>
               </CardContent>
             </Card>
