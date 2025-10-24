@@ -753,7 +753,7 @@ export function TaskCompletionReport() {
             <CardTitle className="text-lg font-semibold text-gray-800">Report Filters</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* View Type Toggle */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-600 block">View Type</label>
@@ -795,21 +795,6 @@ export function TaskCompletionReport() {
                     All
                   </Button>
                 </div>
-              </div>
-
-              {/* Task Frequency Filter */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-600 block">Task Type</label>
-                <Select value={taskFrequency} onValueChange={(value) => setTaskFrequency(value as TaskFrequencyFilter)}>
-                  <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Tasks</SelectItem>
-                    <SelectItem value="weekly">Weekly Tasks</SelectItem>
-                    <SelectItem value="monthly">Monthly Tasks</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               {/* Admin: Department Filter */}

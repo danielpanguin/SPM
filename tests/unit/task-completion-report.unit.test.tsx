@@ -167,41 +167,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
       });
     });
 
-    describe('3. Task Type Filter', () => {
-      it('should display All, Weekly, and Monthly task options', async () => {
-        mockUseUser.mockReturnValue({
-          userId: 'admin-1',
-          role: 'admin',
-          accessibleUserIds: ['admin-1'],
-          loading: false,
-          email: 'admin@test.com',
-          profile: null,
-          signOut: jest.fn(),
-          refresh: jest.fn(),
-        });
-
-        mockSupabase.from = jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({ data: { department_id: 1 }, error: null }),
-            }),
-            order: jest.fn().mockResolvedValue({ data: [], error: null }),
-            in: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-              order: jest.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        });
-
-        render(<TaskCompletionReport />);
-
-        await waitFor(() => {
-          expect(screen.getByText('Task Type')).toBeInTheDocument();
-        });
-      });
-    });
-
-    describe('4. Admin Filters', () => {
+    describe('3. Admin Filters', () => {
       it('should show Department filter for admin', async () => {
         mockUseUser.mockReturnValue({
           userId: 'admin-1',
@@ -299,7 +265,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
       });
     });
 
-    describe('5. Manager Filters', () => {
+    describe('4. Manager Filters', () => {
       it('should show Project filter for manager', async () => {
         mockUseUser.mockReturnValue({
           userId: 'manager-1',
@@ -540,7 +506,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
 
         await waitFor(() => {
           expect(screen.getByText('View Type')).toBeInTheDocument();
-          expect(screen.getByText('Task Type')).toBeInTheDocument();
+          expect(screen.getByText('Project')).toBeInTheDocument();
         });
       });
     });
