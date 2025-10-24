@@ -31,20 +31,6 @@ function DashboardContent() {
         <div className="flex h-16 items-center justify-between gap-4 p-3 sm:p-6">
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab("gantt")}
-              className={`px-4 py-2 rounded-lg ${
-                activeTab === "gantt"
-                  ? isDarkMode
-                    ? "bg-gray-700 text-white"
-                    : "bg-white text-gray-900 shadow"
-                  : isDarkMode
-                  ? "text-gray-400 hover:text-gray-200"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Gantt
-            </button>
-            <button
               onClick={() => setActiveTab("tasks")}
               className={`px-4 py-2 rounded-lg ${
                 activeTab === "tasks"
@@ -57,6 +43,20 @@ function DashboardContent() {
               }`}
             >
               Tasks
+            </button>
+            <button
+              onClick={() => setActiveTab("gantt")}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === "gantt"
+                  ? isDarkMode
+                    ? "bg-gray-700 text-white"
+                    : "bg-white text-gray-900 shadow"
+                  : isDarkMode
+                  ? "text-gray-400 hover:text-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Gantt
             </button>
           </div>
 

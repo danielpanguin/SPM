@@ -601,14 +601,18 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
 
   // ✅ Early returns only AFTER all hooks are declared:
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
+      <header className={`border-b transition-colors ${
+        isDarkMode
+          ? 'border-gray-700 bg-gray-800'
+          : 'border-gray-200 bg-white'
+      }`}>
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-black">Tasks</h1>
-              <p className="text-gray-700">Manage and track your team's tasks</p>
+              <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Tasks</h1>
+              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Manage and track your team's tasks</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -630,33 +634,33 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {/* y */}
 
-          <Card>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium !text-black">Active Tasks</CardTitle>
+              <CardTitle className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Active Tasks</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold !text-black">{stats.activeTasks}</div>
-              <p className="text-xs !text-gray-900">In progress</p>
+              <div className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{stats.activeTasks}</div>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>In progress</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium !text-black">Completed</CardTitle>
+              <CardTitle className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold !text-black">{stats.completedTasks}</div>
-              <p className="text-xs !text-gray-900">This month</p>
+              <div className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{stats.completedTasks}</div>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>This month</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium !text-black">Overdue</CardTitle>
+              <CardTitle className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Overdue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold !text-red-600">{stats.overdueTasks}</div>
-              <p className="text-xs !text-gray-900">Need attention</p>
+              <div className="text-2xl font-bold text-red-600">{stats.overdueTasks}</div>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Need attention</p>
             </CardContent>
           </Card>
         </div>
@@ -665,9 +669,9 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar - Quick Actions */}
           <div className="lg:col-span-1">
-            <Card>
+            <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
               <CardHeader>
-                <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
+                <CardTitle className={`text-lg font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {/* Report features - Only for managers and admins */}
@@ -739,14 +743,23 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
               />
             </div>
 
-            <Card>
+            <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
-                    <p className="text-sm !text-gray-900">All tasks across your projects</p>
+                    <CardTitle className={`text-lg font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Task Overview</CardTitle>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>All tasks across your projects</p>
                   </div>
-                  <Button className="border-1 hover:bg-gray-200" onClick={() => setCreating(true)}>Create Task</Button>
+                  <Button
+                    className={`border transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-700 hover:bg-gray-700 text-gray-200'
+                        : 'border-gray-200 hover:bg-gray-100 text-gray-800'
+                    }`}
+                    onClick={() => setCreating(true)}
+                  >
+                    Create Task
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -757,7 +770,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                   </div>
                 )}
                 {loading ? (
-                  <div className="text-sm text-gray-700 p-4">Loading tasks…</div>
+                  <div className={`text-sm p-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Loading tasks…</div>
                 ) : (
                   <TaskTable
                     tasks={tasks}

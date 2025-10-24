@@ -232,7 +232,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
       completed: "bg-green-100 text-green-800 border-green-200",
       "in-progress": "bg-blue-100 text-blue-800 border-blue-200",
       blocked: "bg-red-100 text-red-800 border-red-200",
-      archived: "bg-gray-200 text-gray-700 border-gray-300",
+      archived: "bg-gray-200 text-gray-700 border-gray-200",
       review: "bg-purple-100 text-purple-800 border-purple-200",
       "to-do": "bg-gray-100 text-gray-800 border-gray-200",
       todo: "bg-gray-100 text-gray-800 border-gray-200",
@@ -264,7 +264,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border border-gray-200 dark:border-gray-700">
       <Table>
         <TableHeader>
           <TableRow>

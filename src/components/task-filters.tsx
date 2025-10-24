@@ -119,27 +119,39 @@ export function TaskFiltersComponent({
     return value !== "" && value !== "all"
   }).length
 
+  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark')
+
   return (
-    <Card className="mb-6">
+    <Card className={`mb-6 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            <CardTitle className="text-lg !text-black font-bold">Filters</CardTitle>
+            <Filter className={`h-4 w-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} />
+            <CardTitle className={`text-lg font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Filters</CardTitle>
             {activeFilterCount > 0 && (
-              <Badge variant="secondary" className="text-xs !text-black">
+              <Badge variant="secondary" className={`text-xs ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
                 {activeFilterCount} active
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={onClearFilters} className="text-xs bg-transparent hover:bg-gray-200 hover:cursor-pointer">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onClearFilters}
+                className={`text-xs ${isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-200' : 'border-gray-200 hover:bg-gray-100 text-gray-800'}`}
+              >
                 <X className="h-3 w-3 mr-1" />
                 Clear All
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="text-xs border-1 hover:bg-gray-200 hover:cursor-pointer">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className={`border transition-colors ${isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-200' : 'border-gray-200 hover:bg-gray-100 text-gray-800'}`}
+            >
               {isExpanded ? "Collapse" : "Expand"}
             </Button>
           </div>
@@ -150,7 +162,7 @@ export function TaskFiltersComponent({
         {/* Always visible: Search */}
         <div className="flex items-center gap-4">
           <div className="flex-1">
-            <Label htmlFor="search" className="text-sm font-medium !text-black">
+            <Label htmlFor="search" className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
               Search Tasks
             </Label>
             <Input
@@ -167,10 +179,10 @@ export function TaskFiltersComponent({
 
         {/* Expandable filters */}
         {isExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             {/* Status Filter */}
             <div>
-              <Label className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <AlertTriangle className="h-3 w-3" />
                 Status
               </Label>
@@ -191,7 +203,7 @@ export function TaskFiltersComponent({
 
             {/* Priority Filter */}
             <div>
-              <Label className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <AlertTriangle className="h-3 w-3" />
                 Priority
               </Label>
@@ -212,7 +224,7 @@ export function TaskFiltersComponent({
 
             {/* Project Filter */}
             <div>
-              <Label className="text-sm font-medium !text-black">Project</Label>
+              <Label className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Project</Label>
               <MultiSelectFilter
                 label="Projects"
                 options={availableProjects.map(p => ({ value: p, label: p }))}
@@ -225,7 +237,7 @@ export function TaskFiltersComponent({
 
             {/* Team Member Filter - Multi-select */}
             <div>
-              <Label className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <User className="h-3 w-3" />
                 Team Member
               </Label>
@@ -241,7 +253,7 @@ export function TaskFiltersComponent({
 
             {/* Tag Filter - Multi-select */}
             <div>
-              <Label className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <Tag className="h-3 w-3" />
                 Tag
               </Label>
@@ -257,7 +269,7 @@ export function TaskFiltersComponent({
 
             {/* Deadline Filter - Multi-select */}
             <div>
-              <Label className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <Calendar className="h-3 w-3" />
                 Deadline Presets
               </Label>
@@ -279,7 +291,7 @@ export function TaskFiltersComponent({
 
             {/* Custom Date Filter - Due By */}
             <div>
-              <Label htmlFor="deadline-due-by" className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label htmlFor="deadline-due-by" className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <Calendar className="h-3 w-3" />
                 Tasks Due By
               </Label>
@@ -294,7 +306,7 @@ export function TaskFiltersComponent({
 
             {/* Custom Date Filter - Due After */}
             <div>
-              <Label htmlFor="deadline-due-after" className="text-sm font-medium !text-black flex items-center gap-2">
+              <Label htmlFor="deadline-due-after" className={`text-sm font-medium flex items-center gap-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                 <Calendar className="h-3 w-3" />
                 Tasks Due After
               </Label>
@@ -311,15 +323,15 @@ export function TaskFiltersComponent({
 
         {/* Active Filters Display */}
         {hasActiveFilters && (
-          <div className="flex flex-wrap gap-2 pt-4 border-t">
-            <span className="text-sm font-medium !text-black">Active filters:</span>
+          <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Active filters:</span>
             {Object.entries(filters).map(([key, value]) => {
               // Handle array values (multi-select)
               if (Array.isArray(value) && value.length > 0) {
                 // Create friendly label for deadline presets
                 const displayKey = key === 'deadline' ? 'Deadline Presets' : key
                 return (
-                  <Badge key={key} variant="secondary" className="text-xs !text-black">
+                  <Badge key={key} variant="secondary" className={`text-xs ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
                     {displayKey}: {value.length} selected
                     <Button
                       variant="ghost"
@@ -346,7 +358,7 @@ export function TaskFiltersComponent({
                 }
 
                 return (
-                  <Badge key={key} variant="secondary" className="text-xs !text-black">
+                  <Badge key={key} variant="secondary" className={`text-xs ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
                     {displayKey}: {displayValue}
                     <Button
                       variant="ghost"
