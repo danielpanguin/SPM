@@ -1,9 +1,9 @@
 // task-dashboard.tsx
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
-import { X } from "lucide-react"
+import { X, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
 
@@ -141,10 +141,11 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
   const [priorityByTaskId, setPriorityByTaskId] = useState<Map<string, number>>(new Map())
 
-  // Load tasks with nested relationships (filtered by accessibleUserIds)
-  useEffect(() => {
-    console.log("useEffect triggered, accessibleUserIds:", accessibleUserIds)
-    console.log("accessibleUserIds type:", typeof accessibleUserIds, "length:", accessibleUserIds?.length)
+  // Load tasks function - extracted so it can be called both on mount and refresh
+  const loadTasks = useCallback(async () => {
+    console.log("🔄 Loading tasks from database...")
+    console.log("🔑 accessibleUserIds for query:", accessibleUserIds)
+
     if (!accessibleUserIds || accessibleUserIds.length === 0) {
       console.log("⚠️ No accessibleUserIds, setting empty tasks")
       setTasks([])
@@ -154,13 +155,10 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       return
     }
 
-    const load = async () => {
-      console.log("🔄 Loading tasks from database...")
-      console.log("🔑 accessibleUserIds for query:", accessibleUserIds)
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      try {
+    try {
         // Comprehensive task fetching for different scenarios:
         // 1. Tasks owned by accessible users (manager sees team's tasks, staff sees own)
         // 2. Tasks where user is a collaborator (assigned to multiple people)
@@ -410,15 +408,17 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       setTitleById(titleMap)
       setPriorityByTaskId(priorityMap)
       setLoading(false)
-      } catch (err) {
-        console.error("[Supabase] Unexpected error loading tasks:", err)
-        setError("We couldn't load your tasks. Please try again.")
-        setLoading(false)
-      }
+    } catch (err) {
+      console.error("[Supabase] Unexpected error loading tasks:", err)
+      setError("We couldn't load your tasks. Please try again.")
+      setLoading(false)
     }
-
-    load()
   }, [accessibleUserIds])
+
+  // Load tasks on mount
+  useEffect(() => {
+    loadTasks()
+  }, [loadTasks])
 
   // Keep header search in sync with filters
   useEffect(() => {
@@ -658,16 +658,30 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                   <CardTitle className={`text-lg font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Task Overview</CardTitle>
                   <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>All tasks across your projects</p>
                 </div>
-                <Button
-                  className={`border transition-colors ${
-                    isDarkMode
-                      ? 'border-gray-700 hover:bg-gray-700 text-gray-200'
-                      : 'border-gray-200 hover:bg-gray-100 text-gray-800'
-                  }`}
-                  onClick={() => setCreating(true)}
-                >
-                  Create Task
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className={`border transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-700 hover:bg-gray-700 text-gray-200'
+                        : 'border-gray-200 hover:bg-gray-100 text-gray-800'
+                    }`}
+                    onClick={() => loadTasks()}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button
+                    className={`border transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-700 hover:bg-gray-700 text-gray-200'
+                        : 'border-gray-200 hover:bg-gray-100 text-gray-800'
+                    }`}
+                    onClick={() => setCreating(true)}
+                  >
+                    Create Task
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
