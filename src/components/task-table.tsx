@@ -268,8 +268,8 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead 
-              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
+            <TableHead
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none pl-6"
               onClick={() => handleSort('taskId')}
             >
               <div className="flex items-center whitespace-nowrap">
@@ -367,8 +367,8 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   }`}
                   onClick={() => onTaskClick(t)}
                 >
-                  <TableCell className="font-mono text-sm text-black">
-                    {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
+                  <TableCell className="font-mono text-sm text-black pl-6">
+                    {t.id}
                   </TableCell>
 
                   <TableCell>
