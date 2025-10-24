@@ -725,7 +725,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
   });
 
   describe('TC-029: Task ID Format', () => {
-    it('should format numeric IDs with TSK prefix', () => {
+    it('should display task IDs as-is', () => {
       render(
         <TaskTable
           tasks={baseTasks}
@@ -736,11 +736,11 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         />
       );
 
-      expect(screen.getByText('TSK-001')).toBeInTheDocument();
-      expect(screen.getByText('TSK-002')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
+      expect(screen.getByText('2')).toBeInTheDocument();
     });
 
-    it('should pad numeric IDs to 3 digits', () => {
+    it('should display numeric IDs without padding', () => {
       const task: Task[] = [{ ...baseTasks[0], id: '42' }];
 
       render(
@@ -753,7 +753,7 @@ describe('TaskTable Filtering Logic - Unit Tests', () => {
         />
       );
 
-      expect(screen.getByText('TSK-042')).toBeInTheDocument();
+      expect(screen.getByText('42')).toBeInTheDocument();
     });
 
     it('should display non-numeric IDs as-is', () => {
