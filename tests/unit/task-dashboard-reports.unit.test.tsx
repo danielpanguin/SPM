@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { TaskDashboard } from '@/components/task-dashboard';
 import { useUser } from '@/hooks/useAuth';
 import { supabase } from '@/lib/db';
@@ -14,12 +14,12 @@ const mockUseUser = useUser as jest.MockedFunction<typeof useUser>;
 const mockSupabase = supabase as jest.Mocked<typeof supabase>;
 const mockUseRouter = useRouter as jest.MockedFunction<typeof useRouter>;
 
-describe('TaskDashboard - Report Features Unit Tests', () => {
+describe('TaskDashboard - Core Features Unit Tests', () => {
   const mockRouterPush = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockUseRouter.mockReturnValue({
       push: mockRouterPush,
       replace: jest.fn(),
@@ -98,185 +98,70 @@ describe('TaskDashboard - Report Features Unit Tests', () => {
     }) as any;
   });
 
-  describe('Report Navigation', () => {
-    it('should render Task Completion Report button', async () => {
+  describe('Basic Rendering', () => {
+    it('should render task dashboard without Quick Actions', async () => {
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        const reportButton = screen.getByText('Task Completion Report');
-        expect(reportButton).toBeInTheDocument();
+        // Task Overview should be present
+        expect(screen.getByText('Task Overview')).toBeInTheDocument();
+      });
+
+      // Quick Actions should NOT be present (moved to Reports tab)
+      expect(screen.queryByText('Quick Actions')).not.toBeInTheDocument();
+      expect(screen.queryByText('Team Overview')).not.toBeInTheDocument();
+    });
+
+    it('should not render report buttons in task dashboard', async () => {
+      render(<TaskDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Task Overview')).toBeInTheDocument();
+      });
+
+      // Report features should NOT be in task dashboard (moved to Reports tab)
+      expect(screen.queryByText('Task Completion Report')).not.toBeInTheDocument();
+      expect(screen.queryByText('View Project Report')).not.toBeInTheDocument();
+      expect(screen.queryByText('Select a project')).not.toBeInTheDocument();
+    });
+
+    it('should render task filters', async () => {
+      render(<TaskDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('filters-panel')).toBeInTheDocument();
       });
     });
 
-    it('should navigate to task completion report when button is clicked', async () => {
+    it('should render stats overview cards', async () => {
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        const reportButton = screen.getByText('Task Completion Report');
-        fireEvent.click(reportButton);
+        expect(screen.getByText('Active Tasks')).toBeInTheDocument();
+        expect(screen.getByText('Completed')).toBeInTheDocument();
+        expect(screen.getByText('Overdue')).toBeInTheDocument();
       });
-
-      expect(mockRouterPush).toHaveBeenCalledWith('/reports/completion');
-    });
-
-    it('should render project selector for reports', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        const selector = screen.getByText('Select a project');
-        expect(selector).toBeInTheDocument();
-      });
-    });
-
-    it.skip('should populate project selector with available projects', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        // Wait for component to be ready
-        expect(screen.getByText('Select a project')).toBeInTheDocument();
-      });
-
-      // Click the select trigger to open the dropdown
-      const selectTrigger = screen.getByText('Select a project');
-      fireEvent.click(selectTrigger);
-
-      await waitFor(() => {
-        // Both projects should be available in the selector
-        expect(screen.getByText('Project Alpha')).toBeInTheDocument();
-        expect(screen.getByText('Project Beta')).toBeInTheDocument();
-      }, { timeout: 3000 });
-    });
-
-    it.skip('should enable View Project Report button when project is selected', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-      });
-
-      // Initially button should be disabled
-      const reportButton = screen.getByText('View Project Report');
-      expect(reportButton).toBeDisabled();
-
-      // Open the project selector
-      const selectTrigger = screen.getByText('Select a project');
-      fireEvent.click(selectTrigger);
-
-      await waitFor(() => {
-        const projectOption = screen.getByText('Project Alpha');
-        fireEvent.click(projectOption);
-      }, { timeout: 3000 });
-
-      await waitFor(() => {
-        const reportButton = screen.getByText('View Project Report');
-        expect(reportButton).not.toBeDisabled();
-      });
-    });
-
-    it.skip('should navigate to project report with correct project ID', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-      });
-
-      // Select a project
-      const selectTrigger = screen.getByText('Select a project');
-      fireEvent.click(selectTrigger);
-
-      await waitFor(() => {
-        const projectOption = screen.getByText('Project Alpha');
-        fireEvent.click(projectOption);
-      }, { timeout: 3000 });
-
-      // Click View Project Report
-      await waitFor(() => {
-        const reportButton = screen.getByText('View Project Report');
-        fireEvent.click(reportButton);
-      });
-
-      expect(mockRouterPush).toHaveBeenCalledWith('/reports/project/1');
-    });
-
-    it.skip('should navigate to correct project when Project Beta is selected', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-      });
-
-      // Select Project Beta
-      const selectTrigger = screen.getByText('Select a project');
-      fireEvent.click(selectTrigger);
-
-      await waitFor(() => {
-        const projectOption = screen.getByText('Project Beta');
-        fireEvent.click(projectOption);
-      }, { timeout: 3000 });
-
-      // Click View Project Report
-      await waitFor(() => {
-        const reportButton = screen.getByText('View Project Report');
-        fireEvent.click(reportButton);
-      });
-
-      expect(mockRouterPush).toHaveBeenCalledWith('/reports/project/2');
     });
   });
 
-  describe('Report UI Integration', () => {
-    it('should show FileText icon on View Project Report button', async () => {
+  describe('Task Loading', () => {
+    it('should handle empty task list gracefully', async () => {
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          in: jest.fn().mockReturnValue({
+            eq: jest.fn().mockResolvedValue({
+              data: [],
+              error: null,
+            }),
+          }),
+        }),
+      }) as any;
+
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        const reportButton = screen.getByText('View Project Report');
-        const icon = reportButton.querySelector('svg');
-        expect(icon).toBeInTheDocument();
+        expect(screen.getByText('Task Overview')).toBeInTheDocument();
       });
-    });
-
-    it('should display Quick Actions section with all report options', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-        expect(screen.getByText('Task Completion Report')).toBeInTheDocument();
-        expect(screen.getByText('Select a project')).toBeInTheDocument();
-        expect(screen.getByText('View Project Report')).toBeInTheDocument();
-        expect(screen.getByText('Team Overview')).toBeInTheDocument();
-      });
-    });
-
-    it('should not show archived tasks button (feature removed)', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-      });
-
-      // Archived Tasks button should NOT exist
-      expect(screen.queryByText('Archived Tasks')).not.toBeInTheDocument();
-      expect(screen.queryByText('Archive')).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Project Data Loading', () => {
-    it.skip('should build projectNameToId mapping from loaded tasks', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-      });
-
-      // Open selector to verify projects are mapped
-      const selectTrigger = screen.getByText('Select a project');
-      fireEvent.click(selectTrigger);
-
-      await waitFor(() => {
-        // Both projects should be available, proving the mapping works
-        expect(screen.getByText('Project Alpha')).toBeInTheDocument();
-        expect(screen.getByText('Project Beta')).toBeInTheDocument();
-      }, { timeout: 3000 });
     });
 
     it('should handle tasks with no project gracefully', async () => {
@@ -317,131 +202,22 @@ describe('TaskDashboard - Report Features Unit Tests', () => {
 
       await waitFor(() => {
         // Just check that the component renders without crashing
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
+        expect(screen.getByText('Task Overview')).toBeInTheDocument();
       });
-
-      // Project selector should still render but be empty
-      const selectTrigger = screen.getByText('Select a project');
-      expect(selectTrigger).toBeInTheDocument();
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should render report buttons even with loading state', async () => {
-      render(<TaskDashboard />);
-
-      // Report buttons should be available even during loading
-      await waitFor(() => {
-        expect(screen.getByText('Task Completion Report')).toBeInTheDocument();
-        expect(screen.getByText('View Project Report')).toBeInTheDocument();
-      });
-    });
-
-    it('should handle empty task list gracefully', async () => {
-      mockSupabase.from = jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          in: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({
-              data: [],
-              error: null,
-            }),
-          }),
-        }),
-      }) as any;
-
+  describe('Layout', () => {
+    it('should render full-width layout without sidebar', async () => {
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        const reportButton = screen.getByText('Task Completion Report');
-        expect(reportButton).toBeInTheDocument();
+        expect(screen.getByText('Task Overview')).toBeInTheDocument();
       });
 
-      // Project selector should still be present even with no tasks
-      expect(screen.getByText('Select a project')).toBeInTheDocument();
-    });
-
-    it('should not allow navigation without project selection', async () => {
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        const reportButton = screen.getByText('View Project Report');
-        expect(reportButton).toBeDisabled();
-      });
-
-      // Clicking disabled button should not navigate
-      const reportButton = screen.getByText('View Project Report');
-      fireEvent.click(reportButton);
-
-      expect(mockRouterPush).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('User Role Access', () => {
-    it('should show report features for manager role', async () => {
-      mockUseUser.mockReturnValue({
-        userId: 'manager-1',
-        role: 'manager',
-        accessibleUserIds: ['manager-1'],
-        loading: false,
-        email: 'manager@test.com',
-        profile: null,
-        signOut: jest.fn(),
-        refresh: jest.fn(),
-      });
-
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Task Completion Report')).toBeInTheDocument();
-        expect(screen.getByText('View Project Report')).toBeInTheDocument();
-      });
-    });
-
-    it('should show report features for admin role', async () => {
-      mockUseUser.mockReturnValue({
-        userId: 'admin-1',
-        role: 'admin',
-        accessibleUserIds: ['admin-1'],
-        loading: false,
-        email: 'admin@test.com',
-        profile: null,
-        signOut: jest.fn(),
-        refresh: jest.fn(),
-      });
-
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Task Completion Report')).toBeInTheDocument();
-        expect(screen.getByText('View Project Report')).toBeInTheDocument();
-      });
-    });
-
-    it('should hide report features for staff role', async () => {
-      mockUseUser.mockReturnValue({
-        userId: 'staff-1',
-        role: 'staff',
-        accessibleUserIds: ['staff-1'],
-        loading: false,
-        email: 'staff@test.com',
-        profile: null,
-        signOut: jest.fn(),
-        refresh: jest.fn(),
-      });
-
-      render(<TaskDashboard />);
-
-      await waitFor(() => {
-        // Quick Actions sidebar should still be visible
-        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
-        // Team Overview should be visible to all roles
-        expect(screen.getByText('Team Overview')).toBeInTheDocument();
-      });
-
-      // Report features should NOT be available to staff
-      expect(screen.queryByText('Task Completion Report')).not.toBeInTheDocument();
-      expect(screen.queryByText('View Project Report')).not.toBeInTheDocument();
-      expect(screen.queryByText('Select a project')).not.toBeInTheDocument();
+      // The main content should not be in a grid layout with Quick Actions
+      const container = screen.getByText('Task Overview').closest('.space-y-6');
+      expect(container).toBeInTheDocument();
     });
   });
 });

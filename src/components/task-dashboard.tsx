@@ -1,14 +1,11 @@
 // task-dashboard.tsx
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/ViewTaskUi/card"
-import { Badge } from "@/components/ui/ViewTaskUi/badge"
-import { X, FileText } from "lucide-react"
+import { X, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 
 import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task[]
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
@@ -111,8 +108,7 @@ function mapPriority(priorityId: number | null | undefined): string {
 }
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
-  const { accessibleUserIds, role } = useUser()
-  const router = useRouter()
+  const { accessibleUserIds } = useUser()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -135,7 +131,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   })
 
   const [tasks, setTasks] = useState<Task[]>([])
-  const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("")
 
   console.log("TaskDashboard render - tasks count:", tasks.length)
   const [loading, setLoading] = useState<boolean>(true)
@@ -144,14 +139,13 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
   // project/task title lookups for display-only fields (Project & Parent Task)
   const [projectByTaskId, setProjectByTaskId] = useState<Map<string, string | null>>(new Map())
   const [titleById, setTitleById] = useState<Map<string, string>>(new Map())
-  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map())
   const [priorityByTaskId, setPriorityByTaskId] = useState<Map<string, number>>(new Map())
-  const [tagsByTaskId, setTagsByTaskId] = useState<Map<string, string[]>>(new Map())
 
-  // Load tasks with nested relationships (filtered by accessibleUserIds)
-  useEffect(() => {
-    console.log("useEffect triggered, accessibleUserIds:", accessibleUserIds)
-    console.log("accessibleUserIds type:", typeof accessibleUserIds, "length:", accessibleUserIds?.length)
+  // Load tasks function - extracted so it can be called both on mount and refresh
+  const loadTasks = useCallback(async () => {
+    console.log("🔄 Loading tasks from database...")
+    console.log("🔑 accessibleUserIds for query:", accessibleUserIds)
+
     if (!accessibleUserIds || accessibleUserIds.length === 0) {
       console.log("⚠️ No accessibleUserIds, setting empty tasks")
       setTasks([])
@@ -161,13 +155,10 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       return
     }
 
-    const load = async () => {
-      console.log("🔄 Loading tasks from database...")
-      console.log("🔑 accessibleUserIds for query:", accessibleUserIds)
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      try {
+    try {
         // Comprehensive task fetching for different scenarios:
         // 1. Tasks owned by accessible users (manager sees team's tasks, staff sees own)
         // 2. Tasks where user is a collaborator (assigned to multiple people)
@@ -411,30 +402,23 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
       const priorityMap = new Map<string, number>(
         (data ?? []).map((row: any) => [String(row.id), row.priority_id ?? 5])
       )
-      
-      // Build project name to ID mapping for reports
-      const projNameToId = new Map<string, number>()
-      data?.forEach((row: any) => {
-        if (row.project?.name && row.project?.id) {
-          projNameToId.set(row.project.name, row.project.id)
-        }
-      })
 
       setTasks(mapped)
       setProjectByTaskId(projectMap)
       setTitleById(titleMap)
       setPriorityByTaskId(priorityMap)
-      setProjectNameToId(projNameToId)
       setLoading(false)
-      } catch (err) {
-        console.error("[Supabase] Unexpected error loading tasks:", err)
-        setError("We couldn't load your tasks. Please try again.")
-        setLoading(false)
-      }
+    } catch (err) {
+      console.error("[Supabase] Unexpected error loading tasks:", err)
+      setError("We couldn't load your tasks. Please try again.")
+      setLoading(false)
     }
-
-    load()
   }, [accessibleUserIds])
+
+  // Load tasks on mount
+  useEffect(() => {
+    loadTasks()
+  }, [loadTasks])
 
   // Keep header search in sync with filters
   useEffect(() => {
@@ -601,26 +585,17 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
 
   // ✅ Early returns only AFTER all hooks are declared:
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
+      <header className={`border-b transition-colors ${
+        isDarkMode
+          ? 'border-gray-700 bg-gray-800'
+          : 'border-gray-200 bg-white'
+      }`}>
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-black">Tasks</h1>
-              <p className="text-gray-700">Manage and track your team's tasks</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Input
-                  data-testid="dashboard-search"
-                  placeholder="Search by title or ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-80"
-                />
-              </div>
-            </div>
+          <div>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Tasks</h1>
+            <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Manage and track your team's tasks</p>
           </div>
         </div>
       </header>
@@ -630,147 +605,106 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {/* y */}
 
-          <Card>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium !text-black">Active Tasks</CardTitle>
+              <CardTitle className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Active Tasks</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold !text-black">{stats.activeTasks}</div>
-              <p className="text-xs !text-gray-900">In progress</p>
+              <div className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{stats.activeTasks}</div>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>In progress</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium !text-black">Completed</CardTitle>
+              <CardTitle className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold !text-black">{stats.completedTasks}</div>
-              <p className="text-xs !text-gray-900">This month</p>
+              <div className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{stats.completedTasks}</div>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>This month</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium !text-black">Overdue</CardTitle>
+              <CardTitle className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Overdue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold !text-red-600">{stats.overdueTasks}</div>
-              <p className="text-xs !text-gray-900">Need attention</p>
+              <div className="text-2xl font-bold text-red-600">{stats.overdueTasks}</div>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Need attention</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar - Quick Actions */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {/* Report features - Only for managers and admins */}
-                {role && role !== 'staff' && (
-                  <>
-                    {/* Task Completion Report */}
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start bg-transparent"
-                      onClick={() => router.push('/reports/completion')}
-                    >
-                      Task Completion Report
-                    </Button>
-                    
-                    {/* Project Progress Report */}
-                    <div className="space-y-2">
-                      <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a project" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from(projectNameToId.keys()).map((projectName) => (
-                            <SelectItem key={projectName} value={projectName}>
-                              {projectName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start bg-transparent"
-                        onClick={() => {
-                          if (selectedProjectForReport) {
-                            const projectId = projectNameToId.get(selectedProjectForReport)
-                            if (projectId) {
-                              router.push(`/reports/project/${projectId}`)
-                            }
-                          }
-                        }}
-                        disabled={!selectedProjectForReport}
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        View Project Report
-                      </Button>
-                    </div>
-                  </>
-                )}
-                
-                {/* Team Overview - Available to all users */}
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  Team Overview
-                </Button>
-              </CardContent>
-            </Card>
+        <div className="space-y-6">
+          <div data-testid="filters-panel">
+            <TaskFiltersComponent
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              onClearFilters={handleClearFilters}
+              availableStatuses={filterOptions.statuses}
+              availablePriorities={filterOptions.priorities}
+              availableProjects={filterOptions.projects}
+              availableAssignees={filterOptions.assignees}
+              availableTags={filterOptions.tags}
+            />
           </div>
 
-          {/* Main Task Area */}
-          <div className="lg:col-span-3">
-            <div data-testid="filters-panel">
-              <TaskFiltersComponent
-                filters={filters}
-                onFiltersChange={handleFiltersChange}
-                onClearFilters={handleClearFilters}
-                availableStatuses={filterOptions.statuses}
-                availablePriorities={filterOptions.priorities}
-                availableProjects={filterOptions.projects}
-                availableAssignees={filterOptions.assignees}
-                availableTags={filterOptions.tags}
-              />
-            </div>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg !text-black font-bold">Task Overview</CardTitle>
-                    <p className="text-sm !text-gray-900">All tasks across your projects</p>
-                  </div>
-                  <Button className="border-1 hover:bg-gray-200" onClick={() => setCreating(true)}>Create Task</Button>
+          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className={`text-lg font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Task Overview</CardTitle>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>All tasks across your projects</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {error && (
-                  <div className="text-sm text-red-600 mb-3">
-                    {/* was: Failed to load tasks: {error} */}
-                    Couldn't load your tasks
-                  </div>
-                )}
-                {loading ? (
-                  <div className="text-sm text-gray-700 p-4">Loading tasks…</div>
-                ) : (
-                  <TaskTable
-                    tasks={tasks}
-                    filters={filters}
-                    onTaskClick={handleTaskClick}
-                    projectByTaskId={projectByTaskId}
-                    titleById={titleById}
-                    priorityByTaskId={priorityByTaskId}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className={`border transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-700 hover:bg-gray-700 text-gray-200'
+                        : 'border-gray-200 hover:bg-gray-100 text-gray-800'
+                    }`}
+                    onClick={() => loadTasks()}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button
+                    className={`border transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-700 hover:bg-gray-700 text-gray-200'
+                        : 'border-gray-200 hover:bg-gray-100 text-gray-800'
+                    }`}
+                    onClick={() => setCreating(true)}
+                  >
+                    Create Task
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {error && (
+                <div className="text-sm text-red-600 mb-3">
+                  {/* was: Failed to load tasks: {error} */}
+                  Couldn't load your tasks
+                </div>
+              )}
+              {loading ? (
+                <div className={`text-sm p-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Loading tasks…</div>
+              ) : (
+                <TaskTable
+                  tasks={tasks}
+                  filters={filters}
+                  onTaskClick={handleTaskClick}
+                  projectByTaskId={projectByTaskId}
+                  titleById={titleById}
+                  priorityByTaskId={priorityByTaskId}
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
