@@ -417,7 +417,7 @@ describe('TaskDashboard - Report Features Unit Tests', () => {
       });
     });
 
-    it('should show project report selector for staff role', async () => {
+    it('should hide report features for staff role', async () => {
       mockUseUser.mockReturnValue({
         userId: 'staff-1',
         role: 'staff',
@@ -432,9 +432,16 @@ describe('TaskDashboard - Report Features Unit Tests', () => {
       render(<TaskDashboard />);
 
       await waitFor(() => {
-        // Project report should be available to all roles
-        expect(screen.getByText('View Project Report')).toBeInTheDocument();
+        // Quick Actions sidebar should still be visible
+        expect(screen.getByText('Quick Actions')).toBeInTheDocument();
+        // Team Overview should be visible to all roles
+        expect(screen.getByText('Team Overview')).toBeInTheDocument();
       });
+
+      // Report features should NOT be available to staff
+      expect(screen.queryByText('Task Completion Report')).not.toBeInTheDocument();
+      expect(screen.queryByText('View Project Report')).not.toBeInTheDocument();
+      expect(screen.queryByText('Select a project')).not.toBeInTheDocument();
     });
   });
 });

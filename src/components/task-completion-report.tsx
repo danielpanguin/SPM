@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/ViewTaskUi/popover"
+import { Checkbox } from "@/components/ui/ViewTaskUi/checkbox"
+import { Input } from "@/components/ui/ViewTaskUi/input"
+import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft, Search, X } from "lucide-react"
 import { useUser } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
 import type { Task, Priority, Role } from "@/types/task"
@@ -37,6 +40,15 @@ export function TaskCompletionReport() {
   const [projectFilter, setProjectFilter] = useState<string>('all')
   const [userFilter, setUserFilter] = useState<string>(role === 'manager' ? 'my-team' : 'all')
   
+  // Multi-select user filter for managers
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [userFilterOpen, setUserFilterOpen] = useState(false)
+  const [userSearchQuery, setUserSearchQuery] = useState('')
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  
   // Data
   const [tasks, setTasks] = useState<Task[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -59,7 +71,7 @@ export function TaskCompletionReport() {
       // Get end of week (Saturday)
       end.setDate(start.getDate() + 6)
       end.setHours(23, 59, 59, 999)
-    } else {
+    } else if (viewType === 'monthly') {
       // Get start of month
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
@@ -67,6 +79,15 @@ export function TaskCompletionReport() {
       // Get end of month
       end.setMonth(start.getMonth() + 1)
       end.setDate(0)
+      end.setHours(23, 59, 59, 999)
+    } else {
+      // 'all' - get all tasks (past 2 years to future 1 year as a reasonable range)
+      start.setFullYear(start.getFullYear() - 2)
+      start.setMonth(0, 1)
+      start.setHours(0, 0, 0, 0)
+      
+      end.setFullYear(end.getFullYear() + 1)
+      end.setMonth(11, 31)
       end.setHours(23, 59, 59, 999)
     }
     
@@ -155,30 +176,60 @@ export function TaskCompletionReport() {
     if (!userId || (role !== 'admin' && role !== 'manager')) return
     
     const loadUsers = async () => {
-      let query = supabase
-        .from('users')
-        .select('id, username, department_id')
-      
       if (role === 'manager') {
-        // Manager can only see their team members
-        query = query.eq('manager_id', userId)
-      } else if (role === 'admin' && departmentFilter !== 'all') {
-        // Admin filtering by department
-        if (departmentFilter === 'my-department' && userDepartmentId) {
-          query = query.eq('department_id', userDepartmentId)
-        } else if (departmentFilter !== 'my-department') {
-          query = query.eq('department_id', parseInt(departmentFilter))
+        // Manager can see their team members AND themselves
+        const { data: teamMembers } = await supabase
+          .from('users')
+          .select('id, username, department_id')
+          .eq('manager_id', userId)
+          .order('username')
+        
+        const { data: managerData } = await supabase
+          .from('users')
+          .select('id, username, department_id')
+          .eq('id', userId)
+          .single()
+        
+        // Combine manager and team members
+        const allUsers = []
+        if (managerData) {
+          allUsers.push(managerData)
         }
-      }
-      
-      const { data } = await query.order('username')
-      
-      if (data) {
-        setUsers(data.map(u => ({
+        if (teamMembers) {
+          allUsers.push(...teamMembers)
+        }
+        
+        // Remove duplicates and map to expected format
+        const uniqueUsers = Array.from(new Map(allUsers.map(u => [u.id, u])).values())
+        setUsers(uniqueUsers.map(u => ({
           id: u.id,
           name: u.username || u.id,
           department_id: u.department_id || undefined
         })))
+      } else {
+        // Admin users
+        let query = supabase
+          .from('users')
+          .select('id, username, department_id')
+        
+        if (role === 'admin' && departmentFilter !== 'all') {
+          // Admin filtering by department
+          if (departmentFilter === 'my-department' && userDepartmentId) {
+            query = query.eq('department_id', userDepartmentId)
+          } else if (departmentFilter !== 'my-department') {
+            query = query.eq('department_id', parseInt(departmentFilter))
+          }
+        }
+        
+        const { data } = await query.order('username')
+        
+        if (data) {
+          setUsers(data.map(u => ({
+            id: u.id,
+            name: u.username || u.id,
+            department_id: u.department_id || undefined
+          })))
+        }
       }
     }
     
@@ -419,25 +470,77 @@ export function TaskCompletionReport() {
         
         // Apply user filter for managers (after all tasks are fetched)
         let filteredTasks = allTasks
-        if (role === 'manager' && userFilter !== 'all') {
-          if (userFilter === 'my-team') {
-            // Show all tasks assigned to team members (owned by OR collaborating on)
+        if (role === 'manager') {
+          console.log('[Report] Manager filter - selectedUsers:', selectedUsers)
+          // Check if using multi-select filter
+          if (selectedUsers.length > 0) {
+            // Show tasks assigned to selected users (owned by OR collaborating on)
             filteredTasks = filteredTasks.filter((t: any) => {
-              const isOwner = accessibleUserIds.includes(t.owned_by)
+              const isOwner = selectedUsers.includes(t.owned_by)
               const isCollaborator = t.task_collaborator?.some((collab: any) => 
-                accessibleUserIds.includes(collab.users?.id)
+                selectedUsers.includes(collab.users?.id)
               )
-              return isOwner || isCollaborator
+              const shouldInclude = isOwner || isCollaborator
+              if (shouldInclude) {
+                console.log('[Report] Including task:', t.id, t.title, 'owned_by:', t.owned_by, 'isOwner:', isOwner, 'isCollaborator:', isCollaborator)
+              }
+              return shouldInclude
             })
-          } else {
-            // Show tasks assigned to specific user (owned by OR collaborating on)
-            filteredTasks = filteredTasks.filter((t: any) => {
-              const isOwner = t.owned_by === userFilter
-              const isCollaborator = t.task_collaborator?.some((collab: any) => 
-                collab.users?.id === userFilter
-              )
-              return isOwner || isCollaborator
-            })
+            console.log('[Report] After multi-select filter:', filteredTasks.length, 'tasks')
+            
+            // Log shared tasks analysis
+            if (selectedUsers.length > 1) {
+              const tasksByUser = selectedUsers.map(uid => ({
+                userId: uid,
+                userName: users.find(u => u.id === uid)?.name,
+                tasks: filteredTasks.filter((t: any) => {
+                  const isOwner = t.owned_by === uid
+                  const isCollaborator = t.task_collaborator?.some((collab: any) => collab.users?.id === uid)
+                  return isOwner || isCollaborator
+                })
+              }))
+              
+              console.log('[Report] Tasks per user:', tasksByUser.map(u => `${u.userName}: ${u.tasks.length}`).join(', '))
+              
+              const sharedTasks = filteredTasks.filter((t: any) => {
+                const involvedUsers = selectedUsers.filter(uid => {
+                  const isOwner = t.owned_by === uid
+                  const isCollaborator = t.task_collaborator?.some((collab: any) => collab.users?.id === uid)
+                  return isOwner || isCollaborator
+                })
+                return involvedUsers.length > 1
+              })
+              
+              console.log('[Report] Shared tasks (involving multiple selected users):', sharedTasks.length)
+              if (sharedTasks.length > 0) {
+                console.log('[Report] Shared task details:', sharedTasks.map((t: any) => ({
+                  id: t.id,
+                  title: t.title,
+                  owner: t.owned_by,
+                  collaborators: t.task_collaborator?.map((c: any) => c.users?.id) || []
+                })))
+              }
+            }
+          } else if (userFilter !== 'all') {
+            if (userFilter === 'my-team') {
+              // Show all tasks assigned to team members (owned by OR collaborating on)
+              filteredTasks = filteredTasks.filter((t: any) => {
+                const isOwner = accessibleUserIds.includes(t.owned_by)
+                const isCollaborator = t.task_collaborator?.some((collab: any) => 
+                  accessibleUserIds.includes(collab.users?.id)
+                )
+                return isOwner || isCollaborator
+              })
+            } else {
+              // Show tasks assigned to specific user (owned by OR collaborating on)
+              filteredTasks = filteredTasks.filter((t: any) => {
+                const isOwner = t.owned_by === userFilter
+                const isCollaborator = t.task_collaborator?.some((collab: any) => 
+                  collab.users?.id === userFilter
+                )
+                return isOwner || isCollaborator
+              })
+            }
           }
           console.log('[Report] After manager user filter:', filteredTasks.length)
         }
@@ -521,7 +624,7 @@ export function TaskCompletionReport() {
     }
     
     loadTasks()
-  }, [userId, accessibleUserIds, role, dateRange, departmentFilter, projectFilter, userFilter, taskFrequency, users, userDepartmentId])
+  }, [userId, accessibleUserIds, role, dateRange, departmentFilter, projectFilter, userFilter, taskFrequency, users, userDepartmentId, selectedUsers])
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -532,6 +635,15 @@ export function TaskCompletionReport() {
     const blocked = tasks.filter(t => t.status === 'blocked').length
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
     
+    console.log('[Report] Stats calculated:', {
+      total,
+      completed,
+      inProgress,
+      pending,
+      blocked,
+      sum: completed + inProgress + pending + blocked
+    })
+    
     return {
       total,
       completed,
@@ -541,6 +653,22 @@ export function TaskCompletionReport() {
       completionRate
     }
   }, [tasks])
+
+  // Pagination calculations
+  const totalPages = useMemo(() => Math.ceil(tasks.length / pageSize), [tasks.length, pageSize])
+  
+  const paginatedTasks = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return tasks.slice(startIndex, endIndex)
+  }, [tasks, currentPage, pageSize])
+
+  // Reset to page 1 if current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1)
+    }
+  }, [currentPage, totalPages])
 
   // Navigation handlers
   const handlePrevious = () => {
@@ -624,57 +752,54 @@ export function TaskCompletionReport() {
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-gray-800">Report Filters</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* View Type Toggle */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-600 block">View Type</label>
                 <div className="inline-flex gap-1 p-1 bg-white rounded-lg border border-gray-200 shadow-sm w-fit">
                   <Button
                     variant={viewType === 'weekly' ? 'default' : 'ghost'}
-                    onClick={() => setViewType('weekly')}
+                    onClick={() => { setViewType('weekly'); setCurrentPage(1); }}
                     size="sm"
-                    className={`font-medium transition-all px-4 ${
+                    className={`font-medium transition-all px-3 ${
                       viewType === 'weekly' 
                         ? 'bg-blue-300 text-blue-900 hover:bg-blue-200 shadow-sm' 
                         : 'bg-transparent text-gray-600 hover:bg-blue-100 hover:text-blue-700'
                     }`}
                   >
-                    Weekly
+                    By Week
                   </Button>
                   <Button
                     variant={viewType === 'monthly' ? 'default' : 'ghost'}
-                    onClick={() => setViewType('monthly')}
+                    onClick={() => { setViewType('monthly'); setCurrentPage(1); }}
                     size="sm"
-                    className={`font-medium transition-all px-4 ${
+                    className={`font-medium transition-all px-3 ${
                       viewType === 'monthly' 
                         ? 'bg-blue-300 text-blue-900 hover:bg-blue-200 shadow-sm' 
                         : 'bg-transparent text-gray-600 hover:bg-blue-100 hover:text-blue-700'
                     }`}
                   >
-                    Monthly
+                    By Month
+                  </Button>
+                  <Button
+                    variant={viewType === 'all' ? 'default' : 'ghost'}
+                    onClick={() => { setViewType('all'); setCurrentPage(1); }}
+                    size="sm"
+                    className={`font-medium transition-all px-3 ${
+                      viewType === 'all' 
+                        ? 'bg-blue-300 text-blue-900 hover:bg-blue-200 shadow-sm' 
+                        : 'bg-transparent text-gray-600 hover:bg-blue-100 hover:text-blue-700'
+                    }`}
+                  >
+                    All
                   </Button>
                 </div>
               </div>
 
-              {/* Task Frequency Filter */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 block">Task Type</label>
-                <Select value={taskFrequency} onValueChange={(value) => setTaskFrequency(value as TaskFrequencyFilter)}>
-                  <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Tasks</SelectItem>
-                    <SelectItem value="weekly">Weekly Tasks</SelectItem>
-                    <SelectItem value="monthly">Monthly Tasks</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Admin: Department Filter */}
               {role === 'admin' && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-600 block">Department</label>
                   <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                     <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
@@ -695,7 +820,7 @@ export function TaskCompletionReport() {
 
               {/* Project Filter (Admin & Manager) */}
               {(role === 'admin' || role === 'manager') && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-600 block">Project</label>
                   <Select value={projectFilter} onValueChange={setProjectFilter}>
                     <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
@@ -714,69 +839,170 @@ export function TaskCompletionReport() {
                 </div>
               )}
 
-              {/* User Filter */}
-              {(role === 'admin' || role === 'manager') && (
-                <div className="space-y-2">
+              {/* User Filter - Manager (Multi-select) */}
+              {role === 'manager' && userId && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700 block">Team Member</label>
+                  <Popover open={userFilterOpen} onOpenChange={setUserFilterOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between border-gray-300 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500 font-normal h-10 bg-white shadow-sm"
+                      >
+                        <span className="text-gray-700 truncate">
+                          {selectedUsers.length === 0 
+                            ? "All team members" 
+                            : selectedUsers.length === 1 
+                            ? (users.find(u => u.id === selectedUsers[0])?.id === userId 
+                                ? `${users.find(u => u.id === selectedUsers[0])?.name} (You)` 
+                                : users.find(u => u.id === selectedUsers[0])?.name || "1 member")
+                            : `${selectedUsers.length} member${selectedUsers.length > 1 ? 's' : ''} selected`}
+                        </span>
+                        <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0 shadow-xl border-gray-300 bg-white z-50" align="start" side="bottom" sideOffset={4}>
+                      <div className="p-2 bg-gradient-to-r from-indigo-50 to-blue-50">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                          <Input
+                            placeholder="Search team members..."
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            className="pl-10 border-gray-300 focus:border-indigo-500 bg-white h-9"
+                          />
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-200">
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-800">Select Team Members</span>
+                            <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                              {selectedUsers.length} of {users.length}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
+                              onClick={() => {
+                                const allUserIds = users.map(u => u.id)
+                                setSelectedUsers(allUserIds)
+                              }}
+                            >
+                              Select All
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-200"
+                              onClick={() => setSelectedUsers([])}
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="max-h-56 overflow-y-auto p-1.5 bg-white">
+                          {users
+                            .filter(user => 
+                              user.name && user.name.toLowerCase().includes(userSearchQuery.toLowerCase())
+                            )
+                            .map(user => {
+                              const isSelected = selectedUsers.includes(user.id)
+                              const isCurrentUser = user.id === userId
+                              return (
+                                <div
+                                  key={user.id}
+                                  className={`flex items-center space-x-2.5 p-2 rounded-md cursor-pointer transition-colors ${
+                                    isSelected 
+                                      ? 'bg-indigo-50 border border-indigo-200' 
+                                      : 'hover:bg-gray-100 border border-transparent'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    setSelectedUsers(prev =>
+                                      prev.includes(user.id)
+                                        ? prev.filter(id => id !== user.id)
+                                        : [...prev, user.id]
+                                    )
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={isSelected}
+                                    className="border-2 pointer-events-none"
+                                  />
+                                  <label className={`text-sm flex-1 cursor-pointer font-medium ${
+                                    isSelected ? 'text-indigo-700' : 'text-gray-700'
+                                  }`}>
+                                    {user.name}
+                                    {isCurrentUser && (
+                                      <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-normal">
+                                        You
+                                      </span>
+                                    )}
+                                  </label>
+                                </div>
+                              )
+                            })}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {/* User Filter - Admin (Single-select) */}
+              {role === 'admin' && (
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-600 block">Filter By</label>
                   <Select value={userFilter} onValueChange={setUserFilter}>
                     <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {role === 'manager' && userId && (
-                        <>
-                          <SelectItem value="my-team">My Team</SelectItem>
-                          <SelectItem value={userId}>My Tasks</SelectItem>
-                          {users
-                            .filter(user => user.id !== userId)
-                            .map(user => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.name}
-                              </SelectItem>
-                            ))}
-                        </>
-                      )}
-                      {role === 'admin' && (
-                        <>
-                          <SelectItem value="all">All Users</SelectItem>
-                          {users.map(user => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
+                      <SelectItem value="all">All Users</SelectItem>
+                      {users.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
             </div>
 
-            {/* Date Navigation */}
-            <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handlePrevious}
-                className="border-gray-200 hover:bg-gray-50 text-gray-700"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-                <Calendar className="h-4 w-4 text-indigo-500" />
-                {formatDateRange()}
+            {/* Date Navigation - Hidden for 'All' view */}
+            {viewType !== 'all' && (
+              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handlePrevious}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                  <Calendar className="h-4 w-4 text-indigo-500" />
+                  {formatDateRange()}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleNext}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleNext}
-                className="border-gray-200 hover:bg-gray-50 text-gray-700"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -865,7 +1091,7 @@ export function TaskCompletionReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tasks.map((task, index) => (
+                    {paginatedTasks.map((task, index) => (
                       <TableRow key={`task-${task.id}-${index}`}>
                         <TableCell className="font-mono text-sm text-black">
                           TSK-{String(task.id).padStart(3, "0")}
@@ -895,6 +1121,70 @@ export function TaskCompletionReport() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loading && tasks.length > 0 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Items per page:</span>
+                  <Select value={String(pageSize)} onValueChange={(value) => { setPageSize(Number(value)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-20 border-gray-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-gray-600">
+                    Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, tasks.length)} of {tasks.length} tasks
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="border-gray-200"
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="border-gray-200"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium text-gray-700 px-4">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="border-gray-200"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="border-gray-200"
+                  >
+                    Last
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

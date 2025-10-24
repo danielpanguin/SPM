@@ -111,7 +111,7 @@ function mapPriority(priorityId: number | null | undefined): string {
 }
 
 export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
-  const { accessibleUserIds } = useUser()
+  const { accessibleUserIds, role } = useUser()
   const router = useRouter()
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -663,84 +663,65 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
 
         {/* Main Content Area */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar */}
+          {/* Sidebar - Quick Actions */}
           <div className="lg:col-span-1">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg !text-black font-bold">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {/* Task Completion Report */}
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start bg-transparent"
-                  onClick={() => router.push('/reports/completion')}
-                >
-                  Task Completion Report
-                </Button>
+                {/* Report features - Only for managers and admins */}
+                {role && role !== 'staff' && (
+                  <>
+                    {/* Task Completion Report */}
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start bg-transparent"
+                      onClick={() => router.push('/reports/completion')}
+                    >
+                      Task Completion Report
+                    </Button>
+                    
+                    {/* Project Progress Report */}
+                    <div className="space-y-2">
+                      <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(projectNameToId.keys()).map((projectName) => (
+                            <SelectItem key={projectName} value={projectName}>
+                              {projectName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start bg-transparent"
+                        onClick={() => {
+                          if (selectedProjectForReport) {
+                            const projectId = projectNameToId.get(selectedProjectForReport)
+                            if (projectId) {
+                              router.push(`/reports/project/${projectId}`)
+                            }
+                          }
+                        }}
+                        disabled={!selectedProjectForReport}
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        View Project Report
+                      </Button>
+                    </div>
+                  </>
+                )}
                 
-                {/* Project Progress Report */}
-                <div className="space-y-2">
-                  <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from(projectNameToId.keys()).map((projectName) => (
-                        <SelectItem key={projectName} value={projectName}>
-                          {projectName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start bg-transparent"
-                    onClick={() => {
-                      if (selectedProjectForReport) {
-                        const projectId = projectNameToId.get(selectedProjectForReport)
-                        if (projectId) {
-                          router.push(`/reports/project/${projectId}`)
-                        }
-                      }
-                    }}
-                    disabled={!selectedProjectForReport}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    View Project Report
-                  </Button>
-                </div>
-                
+                {/* Team Overview - Available to all users */}
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   Team Overview
                 </Button>
               </CardContent>
             </Card>
-
-            {/* Team Members Summary (placeholder) */}
-            {/* <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Team Members</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { name: "Alice Developer", tasks: 4, status: "active" },
-                  { name: "Bob Designer", tasks: 3, status: "active" },
-                  { name: "Carol QA", tasks: 2, status: "active" },
-                  { name: "David Backend", tasks: 3, status: "active" },
-                ].map((member, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.tasks} ongoing tasks</p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {member.status}
-                    </Badge>
-                  </div>
-                ))}
-              </CardContent>
-            </Card> */}
           </div>
 
           {/* Main Task Area */}
