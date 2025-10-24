@@ -593,22 +593,9 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           : 'border-gray-200 bg-white'
       }`}>
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Tasks</h1>
-              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Manage and track your team's tasks</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Input
-                  data-testid="dashboard-search"
-                  placeholder="Search by title or ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-80"
-                />
-              </div>
-            </div>
+          <div>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Tasks</h1>
+            <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Manage and track your team's tasks</p>
           </div>
         </div>
       </header>

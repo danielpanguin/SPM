@@ -325,7 +325,11 @@ export function TaskFiltersComponent({
         {hasActiveFilters && (
           <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
             <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Active filters:</span>
-            {Object.entries(filters).map(([key, value]) => {
+            {Object.entries(filters).filter(([key, value]) => {
+              // Only include filters that have actual values
+              if (Array.isArray(value)) return value.length > 0
+              return value !== "" && value !== "all"
+            }).map(([key, value]) => {
               // Handle array values (multi-select)
               if (Array.isArray(value) && value.length > 0) {
                 // Create friendly label for deadline presets
