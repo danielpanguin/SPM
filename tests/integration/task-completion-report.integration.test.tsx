@@ -214,8 +214,9 @@ describe('TaskCompletionReport - Integration Tests', () => {
 
       await waitFor(() => {
         expect(screen.queryByText('Department')).not.toBeInTheDocument();
-        expect(screen.getByText('Project')).toBeInTheDocument();
-        expect(screen.getByText('Filter By')).toBeInTheDocument();
+        // Manager should see "Team Member" with multi-select
+        expect(screen.getByText('Team Member')).toBeInTheDocument();
+        expect(screen.getByText('All team members')).toBeInTheDocument();
       });
     });
   });
@@ -249,7 +250,7 @@ describe('TaskCompletionReport - Integration Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        const weeklyButton = screen.getByText('Weekly');
+        const weeklyButton = screen.getByText('By Week');
         fireEvent.click(weeklyButton);
       });
 
@@ -321,7 +322,7 @@ describe('TaskCompletionReport - Integration Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        const monthlyButton = screen.getByText('Monthly');
+        const monthlyButton = screen.getByText('By Month');
         fireEvent.click(monthlyButton);
       });
 

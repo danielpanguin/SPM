@@ -52,7 +52,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          const weeklyButton = screen.getByText('Weekly');
+          const weeklyButton = screen.getByText('By Week');
           expect(weeklyButton).toHaveClass('bg-blue-300');
         });
       });
@@ -85,12 +85,12 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          const monthlyButton = screen.getByText('Monthly');
+          const monthlyButton = screen.getByText('By Month');
           fireEvent.click(monthlyButton);
         });
 
         await waitFor(() => {
-          const monthlyButton = screen.getByText('Monthly');
+          const monthlyButton = screen.getByText('By Month');
           expect(monthlyButton).toHaveClass('bg-blue-300');
         });
       });
@@ -333,7 +333,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         });
       });
 
-      it('should show User filter for manager with "My Team" option', async () => {
+      it('should show User filter for manager with multi-select', async () => {
         mockUseUser.mockReturnValue({
           userId: 'manager-1',
           role: 'manager',
@@ -362,7 +362,9 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          expect(screen.getByText('Filter By')).toBeInTheDocument();
+          // Manager should see "Team Member" label with multi-select
+          expect(screen.getByText('Team Member')).toBeInTheDocument();
+          expect(screen.getByText('All team members')).toBeInTheDocument();
         });
       });
 
@@ -571,7 +573,6 @@ describe('TaskCompletionReport - Unit Tests', () => {
           email: 'admin@test.com',
           profile: null,
           signOut: jest.fn(),
-          refresh: jest.fn(),
           refresh: jest.fn(),
         });
 

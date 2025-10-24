@@ -1,4 +1,4 @@
-export type ReportViewType = 'weekly' | 'monthly';
+export type ReportViewType = 'weekly' | 'monthly' | 'all';
 export type TaskFrequencyFilter = 'all' | 'weekly' | 'monthly';
 
 export interface CompletionReportFilters {

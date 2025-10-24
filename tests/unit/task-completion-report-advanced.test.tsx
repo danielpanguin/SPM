@@ -209,7 +209,8 @@ describe('TaskCompletionReport - Advanced Coverage Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        expect(screen.getByText('Filter By')).toBeInTheDocument();
+        // Manager should see "Team Member" label with multi-select
+        expect(screen.getByText('Team Member')).toBeInTheDocument();
       }, { timeout: 3000 });
     });
   });
@@ -749,7 +750,7 @@ describe('TaskCompletionReport - Advanced Coverage Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        const monthlyButton = screen.getByText('Monthly');
+        const monthlyButton = screen.getByText('By Month');
         fireEvent.click(monthlyButton);
       });
 
@@ -763,7 +764,7 @@ describe('TaskCompletionReport - Advanced Coverage Tests', () => {
         fireEvent.click(previousButton);
       });
 
-      expect(screen.getByText('Monthly')).toHaveClass('bg-blue-300');
+      expect(screen.getByText('By Month')).toHaveClass('bg-blue-300');
     });
   });
 
