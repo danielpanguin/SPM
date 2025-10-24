@@ -359,11 +359,23 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
 
   return (
     <div className={`w-full p-3 sm:p-6 transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
-          Task Timeline - Gantt Chart
-        </h1>
-        
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+            Task Timeline
+          </h1>
+          <div className="flex items-center gap-4 mt-2 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Overdue</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-4 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-500'}`}></div>
+              <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Current</span>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center space-x-4">
           {/* Month Navigation */}
           <button 
@@ -520,19 +532,14 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                           
                           {/* Task Bar */}
                           {barStyle.display !== 'none' && (
-                            <div 
-                              className={`absolute top-2 h-8 rounded ${getTaskColor(task)} flex items-center justify-between px-2 text-white text-xs font-medium`}
+                            <div
+                              className={`absolute top-2 h-8 rounded ${getTaskColor(task)} flex items-center px-2 text-white text-xs font-medium`}
                               style={barStyle}
                               title={`${task.title} (${(task.status as any)?.status || 'No status'})`}
                             >
                               <span className="truncate">
                                 {(task.status as any)?.status || 'N/A'}
                               </span>
-                              {task.is_overdue && (
-                                <span className="ml-2 px-1 py-0.5 bg-red-600 rounded text-xs font-bold">
-                                  OVERDUE
-                                </span>
-                              )}
                             </div>
                           )}
                         </div>
