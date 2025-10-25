@@ -1,12 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Search, X } from "lucide-react"
+import { Check, Search } from "lucide-react"
 import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Input } from "@/components/ui/ViewTaskUi/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/ViewTaskUi/popover"
-import { Badge } from "@/components/ui/ViewTaskUi/badge"
-import { ScrollArea } from "@/components/ui/ViewTaskUi/scroll-area"
 import { Checkbox } from "@/components/ui/ViewTaskUi/checkbox"
 
 interface MultiSelectFilterProps {
@@ -16,6 +14,7 @@ interface MultiSelectFilterProps {
   onChange: (values: string[]) => void
   onClear: () => void
   placeholder?: string
+  currentUserId?: string
 }
 
 export function MultiSelectFilter({
@@ -24,7 +23,8 @@ export function MultiSelectFilter({
   selectedValues,
   onChange,
   onClear,
-  placeholder = "Select..."
+  placeholder = "Select...",
+  currentUserId
 }: MultiSelectFilterProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -55,54 +55,46 @@ export function MultiSelectFilter({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="w-full justify-between mt-1"
+          role="combobox"
+          className="w-full justify-between border-gray-300 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500 font-normal h-10 bg-white shadow-sm"
         >
-          {selectedValues.length > 0 ? (
-            <div className="flex gap-1 flex-wrap">
-              {selectedValues.slice(0, 2).map(val => (
-                <Badge key={val} variant="secondary" className="text-xs">
-                  {options.find(o => o.value === val)?.label || val}
-                </Badge>
-              ))}
-              {selectedValues.length > 2 && (
-                <Badge variant="secondary" className="text-xs">
-                  +{selectedValues.length - 2}
-                </Badge>
-              )}
-            </div>
-          ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
-          )}
-          <X
-            className={`ml-2 h-4 w-4 shrink-0 opacity-50 ${selectedValues.length === 0 ? 'hidden' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              clearAll()
-            }}
-          />
+          <span className="text-gray-700 truncate">
+            {selectedValues.length === 0 
+              ? placeholder
+              : selectedValues.length === 1 
+              ? options.find(o => o.value === selectedValues[0])?.label || "1 selected"
+              : `${selectedValues.length} selected`}
+          </span>
+          <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 shadow-lg" align="start">
-        <div className="flex flex-col">
-          <div className="p-2 border-b">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={`Search ${label.toLowerCase()}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+      <PopoverContent className="w-full p-0 shadow-xl border-gray-300 bg-white z-50" align="start" side="bottom" sideOffset={4}>
+        <div className="p-2 bg-gradient-to-r from-indigo-50 to-blue-50">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder={`Search ${label.toLowerCase()}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 border-gray-300 focus:border-indigo-500 bg-white h-9"
+            />
           </div>
-
-          <div className="flex items-center justify-between p-2 border-b">
-            <span className="text-sm font-medium">{label}</span>
+        </div>
+        <div className="border-t border-gray-200">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-800">{label}</span>
+              <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                {selectedValues.length} of {options.length}
+              </span>
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 text-xs"
+                className="h-8 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
                 onClick={selectAll}
               >
                 Select All
@@ -110,42 +102,50 @@ export function MultiSelectFilter({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 text-xs"
+                className="h-8 text-xs font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-200"
                 onClick={clearAll}
               >
                 Clear
               </Button>
             </div>
           </div>
-
-          <ScrollArea className="h-[200px]">
-            <div className="p-2 space-y-1">
-              {filteredOptions.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4">
-                  No results found
-                </div>
-              ) : (
-                filteredOptions.map((option) => (
+          <div className="max-h-56 overflow-y-auto p-1.5 bg-white">
+            {filteredOptions.length === 0 ? (
+              <div className="text-sm text-gray-500 text-center py-4">
+                No results found
+              </div>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = selectedValues.includes(option.value)
+                return (
                   <div
                     key={option.value}
-                    className="flex items-center space-x-2 p-2 rounded-sm hover:bg-accent cursor-pointer"
+                    className={`flex items-center space-x-2.5 p-2 rounded-md cursor-pointer transition-colors ${
+                      isSelected 
+                        ? 'bg-indigo-50 border border-indigo-200' 
+                        : 'hover:bg-gray-100 border border-transparent'
+                    }`}
                     onClick={() => toggleOption(option.value)}
                   >
                     <Checkbox
-                      checked={selectedValues.includes(option.value)}
-                      onCheckedChange={() => toggleOption(option.value)}
+                      checked={isSelected}
+                      className="border-2 pointer-events-none"
                     />
-                    <label className="text-sm cursor-pointer flex-1">
+                    <label className={`text-sm flex-1 cursor-pointer font-medium ${
+                      isSelected ? 'text-indigo-700' : 'text-gray-700'
+                    }`}>
                       {option.label}
+                      {currentUserId && option.value === currentUserId && (
+                        <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-normal">
+                          You
+                        </span>
+                      )}
                     </label>
-                    {selectedValues.includes(option.value) && (
-                      <Check className="h-4 w-4" />
-                    )}
                   </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
+                )
+              })
+            )}
+          </div>
         </div>
       </PopoverContent>
     </Popover>
