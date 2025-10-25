@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ViewTa
 import { Button } from '@/components/ui/ViewTaskUi/button'
 import { Badge } from '@/components/ui/ViewTaskUi/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/ViewTaskUi/table'
-import { ArrowLeft, BarChart3, ListTodo } from 'lucide-react'
+import { ArrowLeft, BarChart3, ListTodo, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/ViewTaskUi/select'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
 
@@ -39,6 +40,8 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
   const [statusData, setStatusData] = useState<StatusData[]>([])
   const [projectName, setProjectName] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => {
     loadProjectData()
@@ -173,6 +176,14 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
     })
   }
 
+  const totalPages = Math.ceil(tasks.length / pageSize)
+  const paginatedTasks = tasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  const handlePageSizeChange = (newSize: string) => {
+    setPageSize(Number(newSize))
+    setCurrentPage(1)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -278,15 +289,13 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
         {/* Task List */}
         <Card className="shadow-sm border-gray-200">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 rounded-lg">
-                  <ListTodo className="h-5 w-5 text-indigo-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg font-semibold text-gray-800">Task List</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <ListTodo className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-semibold text-gray-800">Task List</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
               </div>
             </div>
           </CardHeader>
@@ -317,7 +326,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tasks.map((task) => (
+                    {paginatedTasks.map((task) => (
                       <TableRow key={task.id} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="font-mono text-sm text-black">
                           TSK-{String(task.id).padStart(3, '0')}
@@ -350,6 +359,67 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
               <div className="text-center py-12 text-gray-500">
                 <ListTodo className="h-12 w-12 mx-auto mb-3 text-gray-400" />
                 <p>No tasks found for this project</p>
+              </div>
+            )}
+            {tasks.length > 0 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Items per page:</span>
+                  <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+                    <SelectTrigger className="w-[80px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-gray-600 ml-2">
+                    Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, tasks.length)} of {tasks.length} tasks
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="h-9 px-3"
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="h-9 w-9 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600 px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-9 w-9 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="h-9 px-3"
+                  >
+                    Last
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

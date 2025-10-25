@@ -62,7 +62,13 @@ export function MultiSelectFilter({
             {selectedValues.length === 0 
               ? placeholder
               : selectedValues.length === 1 
-              ? options.find(o => o.value === selectedValues[0])?.label || "1 selected"
+              ? (() => {
+                  const selectedOption = options.find(o => o.value === selectedValues[0])
+                  const isCurrentUser = currentUserId && selectedValues[0] === currentUserId
+                  return isCurrentUser 
+                    ? `${selectedOption?.label || "1 selected"} (You)` 
+                    : selectedOption?.label || "1 selected"
+                })()
               : `${selectedValues.length} selected`}
           </span>
           <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
