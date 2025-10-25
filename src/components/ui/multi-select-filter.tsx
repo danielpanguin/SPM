@@ -30,7 +30,7 @@ export function MultiSelectFilter({
   const [searchQuery, setSearchQuery] = useState("")
 
   const filteredOptions = options.filter(option =>
-    option.label.toLowerCase().includes(searchQuery.toLowerCase())
+    typeof option.label === 'string' && option.label.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const toggleOption = (value: string) => {
