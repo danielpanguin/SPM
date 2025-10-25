@@ -64,16 +64,19 @@ export function TaskCompletionReport() {
       start.setDate(start.getDate() + diff)
       start.setHours(0, 0, 0, 0)
       
-      // Get end of week (Sunday)
-      end.setDate(start.getDate() + 6)
-      end.setHours(23, 59, 59, 999)
+      // Get end of week (Sunday) - create new date from start to avoid mutation issues
+      const endDate = new Date(start)
+      endDate.setDate(endDate.getDate() + 6)
+      endDate.setHours(23, 59, 59, 999)
       
       console.log('[Report] Weekly date range (Monday-Sunday):', {
         start: start.toISOString(),
-        end: end.toISOString(),
+        end: endDate.toISOString(),
         startDay: start.toLocaleDateString('en-US', { weekday: 'long' }),
-        endDay: end.toLocaleDateString('en-US', { weekday: 'long' })
+        endDay: endDate.toLocaleDateString('en-US', { weekday: 'long' })
       })
+      
+      return { start, end: endDate }
     } else if (viewType === 'monthly') {
       // Get start of month
       start.setDate(1)
