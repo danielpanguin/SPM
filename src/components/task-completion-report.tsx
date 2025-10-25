@@ -58,14 +58,22 @@ export function TaskCompletionReport() {
     const end = new Date(currentDate)
     
     if (viewType === 'weekly') {
-      // Get start of week (Sunday)
+      // Get start of week (Monday)
       const day = start.getDay()
-      start.setDate(start.getDate() - day)
+      const diff = day === 0 ? -6 : 1 - day
+      start.setDate(start.getDate() + diff)
       start.setHours(0, 0, 0, 0)
       
-      // Get end of week (Saturday)
+      // Get end of week (Sunday)
       end.setDate(start.getDate() + 6)
       end.setHours(23, 59, 59, 999)
+      
+      console.log('[Report] Weekly date range (Monday-Sunday):', {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        startDay: start.toLocaleDateString('en-US', { weekday: 'long' }),
+        endDay: end.toLocaleDateString('en-US', { weekday: 'long' })
+      })
     } else if (viewType === 'monthly') {
       // Get start of month
       start.setDate(1)
@@ -567,12 +575,26 @@ export function TaskCompletionReport() {
         
         // Filter tasks by date range on the client side
         const filteredByDate = filteredTasks.filter((row: any) => {
-          const endDate = row.end_date ? new Date(row.end_date) : null
-          const createdAt = row.created_at ? new Date(row.created_at) : null
+          // Normalize dates to start of day for comparison
+          const normalizeDate = (dateStr: string | null) => {
+            if (!dateStr) return null
+            const date = new Date(dateStr)
+            date.setHours(0, 0, 0, 0)
+            return date
+          }
+          
+          const endDate = normalizeDate(row.end_date)
+          const createdAt = normalizeDate(row.created_at)
+          
+          // Normalize range dates for comparison
+          const rangeStart = new Date(dateRange.start)
+          rangeStart.setHours(0, 0, 0, 0)
+          const rangeEnd = new Date(dateRange.end)
+          rangeEnd.setHours(23, 59, 59, 999)
           
           // Include task if end_date is in range OR if it was created in the range
-          const endDateInRange = endDate && endDate >= dateRange.start && endDate <= dateRange.end
-          const createdInRange = createdAt && createdAt >= dateRange.start && createdAt <= dateRange.end
+          const endDateInRange = endDate && endDate >= rangeStart && endDate <= rangeEnd
+          const createdInRange = createdAt && createdAt >= rangeStart && createdAt <= rangeEnd
           
           return endDateInRange || createdInRange
         })
