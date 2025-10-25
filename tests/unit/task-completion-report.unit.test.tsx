@@ -232,7 +232,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         });
       });
 
-      it('should show User filter for admin with "All Users" option', async () => {
+      it('should show User filter for admin with multi-select', async () => {
         mockUseUser.mockReturnValue({
           userId: 'admin-1',
           role: 'admin',
@@ -260,7 +260,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          expect(screen.getByText('Filter By')).toBeInTheDocument();
+          expect(screen.getByText('Team Member')).toBeInTheDocument();
         });
       });
     });

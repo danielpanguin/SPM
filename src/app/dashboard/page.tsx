@@ -172,50 +172,70 @@ function DashboardContent() {
         <GanttChart isDarkMode={isDarkMode} />
       ) : activeTab === "reports" ? (
         <div className={`min-h-screen p-8 ${isDarkMode ? "bg-gray-900" : "bg-white"}`}>
-          <div className="max-w-4xl space-y-4">
+          <div className="max-w-4xl space-y-6">
             <h2 className={`text-2xl font-bold mb-6 ${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>
               Reports
             </h2>
 
-            {/* Task Completion Report */}
-            <Button
-              variant="outline"
-              className="w-full justify-start bg-transparent"
-              onClick={() => router.push('/reports/completion')}
-            >
-              Task Completion Report
-            </Button>
-
-            {/* Project Progress Report */}
+            {/* Task Completion Report Section */}
             <div className="space-y-2">
-              <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from(projectNameToId.keys()).map((projectName) => (
-                    <SelectItem key={projectName} value={projectName}>
-                      {projectName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div>
+                <h3 className={`text-sm font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Task Completion Report
+                </h3>
+                <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  View task completion statistics and trends across your team
+                </p>
+              </div>
               <Button
                 variant="outline"
                 className="w-full justify-start bg-transparent"
-                onClick={() => {
-                  if (selectedProjectForReport) {
-                    const projectId = projectNameToId.get(selectedProjectForReport);
-                    if (projectId) {
-                      router.push(`/reports/project/${projectId}`);
-                    }
-                  }
-                }}
-                disabled={!selectedProjectForReport}
+                onClick={() => router.push('/reports/completion')}
               >
-                <FileText className="mr-2 h-4 w-4" />
-                View Project Report
+                Task Completion Report
               </Button>
+            </div>
+
+            {/* Project Progress Report Section */}
+            <div className="space-y-2">
+              <div>
+                <h3 className={`text-sm font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Project Progress Report
+                </h3>
+                <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  View detailed progress and task breakdown for a specific project
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(projectNameToId.keys()).map((projectName) => (
+                      <SelectItem key={projectName} value={projectName}>
+                        {projectName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  className="bg-transparent whitespace-nowrap"
+                  onClick={() => {
+                    if (selectedProjectForReport) {
+                      const projectId = projectNameToId.get(selectedProjectForReport);
+                      if (projectId) {
+                        router.push(`/reports/project/${projectId}`);
+                      }
+                    }
+                  }}
+                  disabled={!selectedProjectForReport}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Report
+                </Button>
+              </div>
             </div>
           </div>
         </div>
