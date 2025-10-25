@@ -592,14 +592,31 @@ export function TaskCompletionReport() {
           const rangeEnd = new Date(dateRange.end)
           rangeEnd.setHours(23, 59, 59, 999)
           
-          // Include task if end_date is in range OR if it was created in the range
+          // Primary: Include task if deadline (end_date) is in range
+          // Secondary: If no deadline, include if created in the range
           const endDateInRange = endDate && endDate >= rangeStart && endDate <= rangeEnd
-          const createdInRange = createdAt && createdAt >= rangeStart && createdAt <= rangeEnd
+          const createdInRange = !endDate && createdAt && createdAt >= rangeStart && createdAt <= rangeEnd
           
-          return endDateInRange || createdInRange
+          const included = endDateInRange || createdInRange
+          
+          if (included) {
+            console.log('[Report] Task included:', {
+              id: row.id,
+              title: row.title,
+              end_date: row.end_date,
+              created_at: row.created_at,
+              reason: endDateInRange ? 'deadline in range' : 'created in range (no deadline)'
+            })
+          }
+          
+          return included
         })
         
-        console.log('[Report] After date filtering:', filteredByDate.length, 'tasks')
+        console.log('[Report] After date filtering:', filteredByDate.length, 'tasks', {
+          viewType,
+          rangeStart: dateRange.start.toISOString(),
+          rangeEnd: dateRange.end.toISOString()
+        })
         
         // Map to Task type
         const mappedTasks: Task[] = filteredByDate.map((row: any) => ({
