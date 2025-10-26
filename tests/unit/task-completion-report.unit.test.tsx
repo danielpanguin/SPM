@@ -52,7 +52,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          const weeklyButton = screen.getByText('Weekly');
+          const weeklyButton = screen.getByText('By Week');
           expect(weeklyButton).toHaveClass('bg-blue-300');
         });
       });
@@ -85,12 +85,12 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          const monthlyButton = screen.getByText('Monthly');
+          const monthlyButton = screen.getByText('By Month');
           fireEvent.click(monthlyButton);
         });
 
         await waitFor(() => {
-          const monthlyButton = screen.getByText('Monthly');
+          const monthlyButton = screen.getByText('By Month');
           expect(monthlyButton).toHaveClass('bg-blue-300');
         });
       });
@@ -167,41 +167,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
       });
     });
 
-    describe('3. Task Type Filter', () => {
-      it('should display All, Weekly, and Monthly task options', async () => {
-        mockUseUser.mockReturnValue({
-          userId: 'admin-1',
-          role: 'admin',
-          accessibleUserIds: ['admin-1'],
-          loading: false,
-          email: 'admin@test.com',
-          profile: null,
-          signOut: jest.fn(),
-          refresh: jest.fn(),
-        });
-
-        mockSupabase.from = jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({ data: { department_id: 1 }, error: null }),
-            }),
-            order: jest.fn().mockResolvedValue({ data: [], error: null }),
-            in: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-              order: jest.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        });
-
-        render(<TaskCompletionReport />);
-
-        await waitFor(() => {
-          expect(screen.getByText('Task Type')).toBeInTheDocument();
-        });
-      });
-    });
-
-    describe('4. Admin Filters', () => {
+    describe('3. Admin Filters', () => {
       it('should show Department filter for admin', async () => {
         mockUseUser.mockReturnValue({
           userId: 'admin-1',
@@ -266,7 +232,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         });
       });
 
-      it('should show User filter for admin with "All Users" option', async () => {
+      it('should show User filter for admin with multi-select', async () => {
         mockUseUser.mockReturnValue({
           userId: 'admin-1',
           role: 'admin',
@@ -294,12 +260,12 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          expect(screen.getByText('Filter By')).toBeInTheDocument();
+          expect(screen.getByText('Team Member')).toBeInTheDocument();
         });
       });
     });
 
-    describe('5. Manager Filters', () => {
+    describe('4. Manager Filters', () => {
       it('should show Project filter for manager', async () => {
         mockUseUser.mockReturnValue({
           userId: 'manager-1',
@@ -333,7 +299,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         });
       });
 
-      it('should show User filter for manager with "My Team" option', async () => {
+      it('should show User filter for manager with multi-select', async () => {
         mockUseUser.mockReturnValue({
           userId: 'manager-1',
           role: 'manager',
@@ -362,7 +328,9 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
 
         await waitFor(() => {
-          expect(screen.getByText('Filter By')).toBeInTheDocument();
+          // Manager should see "Team Member" label with multi-select
+          expect(screen.getByText('Team Member')).toBeInTheDocument();
+          expect(screen.getByText('All team members')).toBeInTheDocument();
         });
       });
 
@@ -538,7 +506,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
 
         await waitFor(() => {
           expect(screen.getByText('View Type')).toBeInTheDocument();
-          expect(screen.getByText('Task Type')).toBeInTheDocument();
+          expect(screen.getByText('Project')).toBeInTheDocument();
         });
       });
     });
@@ -571,7 +539,6 @@ describe('TaskCompletionReport - Unit Tests', () => {
           email: 'admin@test.com',
           profile: null,
           signOut: jest.fn(),
-          refresh: jest.fn(),
           refresh: jest.fn(),
         });
 

@@ -219,7 +219,8 @@ describe('TaskCompletionReport - Coverage Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        expect(screen.getByText('Filter By')).toBeInTheDocument();
+        // Manager should see "Team Member" label with multi-select
+        expect(screen.getByText('Team Member')).toBeInTheDocument();
       });
     });
   });
@@ -456,7 +457,7 @@ describe('TaskCompletionReport - Coverage Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        const monthlyButton = screen.getByText('Monthly');
+        const monthlyButton = screen.getByText('By Month');
         fireEvent.click(monthlyButton);
       });
 

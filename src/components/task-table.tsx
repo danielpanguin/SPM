@@ -232,7 +232,7 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
       completed: "bg-green-100 text-green-800 border-green-200",
       "in-progress": "bg-blue-100 text-blue-800 border-blue-200",
       blocked: "bg-red-100 text-red-800 border-red-200",
-      archived: "bg-gray-200 text-gray-700 border-gray-300",
+      archived: "bg-gray-200 text-gray-700 border-gray-200",
       review: "bg-purple-100 text-purple-800 border-purple-200",
       "to-do": "bg-gray-100 text-gray-800 border-gray-200",
       todo: "bg-gray-100 text-gray-800 border-gray-200",
@@ -264,12 +264,12 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border border-gray-200 dark:border-gray-700">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead 
-              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
+            <TableHead
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none pl-6"
               onClick={() => handleSort('taskId')}
             >
               <div className="flex items-center whitespace-nowrap">
@@ -367,8 +367,8 @@ export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleB
                   }`}
                   onClick={() => onTaskClick(t)}
                 >
-                  <TableCell className="font-mono text-sm text-black">
-                    {Number.isFinite(Number(t.id)) ? `TSK-${String(t.id).padStart(3, "0")}` : t.id}
+                  <TableCell className="font-mono text-sm text-black pl-6">
+                    {t.id}
                   </TableCell>
 
                   <TableCell>

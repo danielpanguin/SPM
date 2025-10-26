@@ -12,6 +12,7 @@ import { useUser } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
 import type { Task, Priority, Role } from "@/types/task"
 import type { ReportViewType, TaskFrequencyFilter, DateRange } from "@/types/report"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 
 interface Department {
   id: number
@@ -37,6 +38,12 @@ export function TaskCompletionReport() {
   const [projectFilter, setProjectFilter] = useState<string>('all')
   const [userFilter, setUserFilter] = useState<string>(role === 'manager' ? 'my-team' : 'all')
   
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  
   // Data
   const [tasks, setTasks] = useState<Task[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -51,15 +58,26 @@ export function TaskCompletionReport() {
     const end = new Date(currentDate)
     
     if (viewType === 'weekly') {
-      // Get start of week (Sunday)
+      // Get start of week (Monday)
       const day = start.getDay()
-      start.setDate(start.getDate() - day)
+      const diff = day === 0 ? -6 : 1 - day
+      start.setDate(start.getDate() + diff)
       start.setHours(0, 0, 0, 0)
       
-      // Get end of week (Saturday)
-      end.setDate(start.getDate() + 6)
-      end.setHours(23, 59, 59, 999)
-    } else {
+      // Get end of week (Sunday) - create new date from start to avoid mutation issues
+      const endDate = new Date(start)
+      endDate.setDate(endDate.getDate() + 6)
+      endDate.setHours(23, 59, 59, 999)
+      
+      console.log('[Report] Weekly date range (Monday-Sunday):', {
+        start: start.toISOString(),
+        end: endDate.toISOString(),
+        startDay: start.toLocaleDateString('en-US', { weekday: 'long' }),
+        endDay: endDate.toLocaleDateString('en-US', { weekday: 'long' })
+      })
+      
+      return { start, end: endDate }
+    } else if (viewType === 'monthly') {
       // Get start of month
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
@@ -67,6 +85,15 @@ export function TaskCompletionReport() {
       // Get end of month
       end.setMonth(start.getMonth() + 1)
       end.setDate(0)
+      end.setHours(23, 59, 59, 999)
+    } else {
+      // 'all' - get all tasks (past 2 years to future 1 year as a reasonable range)
+      start.setFullYear(start.getFullYear() - 2)
+      start.setMonth(0, 1)
+      start.setHours(0, 0, 0, 0)
+      
+      end.setFullYear(end.getFullYear() + 1)
+      end.setMonth(11, 31)
       end.setHours(23, 59, 59, 999)
     }
     
@@ -155,30 +182,60 @@ export function TaskCompletionReport() {
     if (!userId || (role !== 'admin' && role !== 'manager')) return
     
     const loadUsers = async () => {
-      let query = supabase
-        .from('users')
-        .select('id, username, department_id')
-      
       if (role === 'manager') {
-        // Manager can only see their team members
-        query = query.eq('manager_id', userId)
-      } else if (role === 'admin' && departmentFilter !== 'all') {
-        // Admin filtering by department
-        if (departmentFilter === 'my-department' && userDepartmentId) {
-          query = query.eq('department_id', userDepartmentId)
-        } else if (departmentFilter !== 'my-department') {
-          query = query.eq('department_id', parseInt(departmentFilter))
+        // Manager can see their team members AND themselves
+        const { data: teamMembers } = await supabase
+          .from('users')
+          .select('id, username, department_id')
+          .eq('manager_id', userId)
+          .order('username')
+        
+        const { data: managerData } = await supabase
+          .from('users')
+          .select('id, username, department_id')
+          .eq('id', userId)
+          .single()
+        
+        // Combine manager and team members
+        const allUsers = []
+        if (managerData) {
+          allUsers.push(managerData)
         }
-      }
-      
-      const { data } = await query.order('username')
-      
-      if (data) {
-        setUsers(data.map(u => ({
+        if (teamMembers) {
+          allUsers.push(...teamMembers)
+        }
+        
+        // Remove duplicates and map to expected format
+        const uniqueUsers = Array.from(new Map(allUsers.map(u => [u.id, u])).values())
+        setUsers(uniqueUsers.map(u => ({
           id: u.id,
           name: u.username || u.id,
           department_id: u.department_id || undefined
         })))
+      } else {
+        // Admin users
+        let query = supabase
+          .from('users')
+          .select('id, username, department_id')
+        
+        if (role === 'admin' && departmentFilter !== 'all') {
+          // Admin filtering by department
+          if (departmentFilter === 'my-department' && userDepartmentId) {
+            query = query.eq('department_id', userDepartmentId)
+          } else if (departmentFilter !== 'my-department') {
+            query = query.eq('department_id', parseInt(departmentFilter))
+          }
+        }
+        
+        const { data } = await query.order('username')
+        
+        if (data) {
+          setUsers(data.map(u => ({
+            id: u.id,
+            name: u.username || u.id,
+            department_id: u.department_id || undefined
+          })))
+        }
       }
     }
     
@@ -211,11 +268,17 @@ export function TaskCompletionReport() {
         
         // For managers, don't filter userIdsToQuery yet - we need to fetch all tasks first
         // then filter after merging with project tasks
-        const shouldFilterByUser = userFilter !== 'all' && role !== 'manager'
+        const shouldFilterByUser =
+          (role === 'admin' && selectedUsers.length > 0) ||
+          (userFilter !== 'all' && role !== 'manager')
         
         // Apply user filter for non-managers
         if (shouldFilterByUser) {
-          userIdsToQuery = [userFilter]
+          if (role === 'admin' && selectedUsers.length > 0) {
+            userIdsToQuery = selectedUsers
+          } else {
+            userIdsToQuery = [userFilter]
+          }
         }
         
         // Apply department filter for admin
@@ -417,27 +480,78 @@ export function TaskCompletionReport() {
           }
         }
         
-        // Apply user filter for managers (after all tasks are fetched)
         let filteredTasks = allTasks
-        if (role === 'manager' && userFilter !== 'all') {
-          if (userFilter === 'my-team') {
-            // Show all tasks assigned to team members (owned by OR collaborating on)
+        if (role === 'manager' || role === 'admin') {
+          console.log('[Report] Manager filter - selectedUsers:', selectedUsers)
+          // Check if using multi-select filter
+          if (selectedUsers.length > 0) {
+            // Show tasks assigned to selected users (owned by OR collaborating on)
             filteredTasks = filteredTasks.filter((t: any) => {
-              const isOwner = accessibleUserIds.includes(t.owned_by)
+              const isOwner = selectedUsers.includes(t.owned_by)
               const isCollaborator = t.task_collaborator?.some((collab: any) => 
-                accessibleUserIds.includes(collab.users?.id)
+                selectedUsers.includes(collab.users?.id)
               )
-              return isOwner || isCollaborator
+              const shouldInclude = isOwner || isCollaborator
+              if (shouldInclude) {
+                console.log('[Report] Including task:', t.id, t.title, 'owned_by:', t.owned_by, 'isOwner:', isOwner, 'isCollaborator:', isCollaborator)
+              }
+              return shouldInclude
             })
-          } else {
-            // Show tasks assigned to specific user (owned by OR collaborating on)
-            filteredTasks = filteredTasks.filter((t: any) => {
-              const isOwner = t.owned_by === userFilter
-              const isCollaborator = t.task_collaborator?.some((collab: any) => 
-                collab.users?.id === userFilter
-              )
-              return isOwner || isCollaborator
-            })
+            console.log('[Report] After multi-select filter:', filteredTasks.length, 'tasks')
+            
+            // Log shared tasks analysis
+            if (selectedUsers.length > 1) {
+              const tasksByUser = selectedUsers.map(uid => ({
+                userId: uid,
+                userName: users.find(u => u.id === uid)?.name,
+                tasks: filteredTasks.filter((t: any) => {
+                  const isOwner = t.owned_by === uid
+                  const isCollaborator = t.task_collaborator?.some((collab: any) => collab.users?.id === uid)
+                  return isOwner || isCollaborator
+                })
+              }))
+              
+              console.log('[Report] Tasks per user:', tasksByUser.map(u => `${u.userName}: ${u.tasks.length}`).join(', '))
+              
+              const sharedTasks = filteredTasks.filter((t: any) => {
+                const involvedUsers = selectedUsers.filter(uid => {
+                  const isOwner = t.owned_by === uid
+                  const isCollaborator = t.task_collaborator?.some((collab: any) => collab.users?.id === uid)
+                  return isOwner || isCollaborator
+                })
+                return involvedUsers.length > 1
+              })
+              
+              console.log('[Report] Shared tasks (involving multiple selected users):', sharedTasks.length)
+              if (sharedTasks.length > 0) {
+                console.log('[Report] Shared task details:', sharedTasks.map((t: any) => ({
+                  id: t.id,
+                  title: t.title,
+                  owner: t.owned_by,
+                  collaborators: t.task_collaborator?.map((c: any) => c.users?.id) || []
+                })))
+              }
+            }
+          } else if (userFilter !== 'all' && role === 'manager') {
+            if (userFilter === 'my-team') {
+              // Show all tasks assigned to team members (owned by OR collaborating on)
+              filteredTasks = filteredTasks.filter((t: any) => {
+                const isOwner = accessibleUserIds.includes(t.owned_by)
+                const isCollaborator = t.task_collaborator?.some((collab: any) => 
+                  accessibleUserIds.includes(collab.users?.id)
+                )
+                return isOwner || isCollaborator
+              })
+            } else {
+              // Show tasks assigned to specific user (owned by OR collaborating on)
+              filteredTasks = filteredTasks.filter((t: any) => {
+                const isOwner = t.owned_by === userFilter
+                const isCollaborator = t.task_collaborator?.some((collab: any) => 
+                  collab.users?.id === userFilter
+                )
+                return isOwner || isCollaborator
+              })
+            }
           }
           console.log('[Report] After manager user filter:', filteredTasks.length)
         }
@@ -464,17 +578,48 @@ export function TaskCompletionReport() {
         
         // Filter tasks by date range on the client side
         const filteredByDate = filteredTasks.filter((row: any) => {
-          const endDate = row.end_date ? new Date(row.end_date) : null
-          const createdAt = row.created_at ? new Date(row.created_at) : null
+          // Normalize dates to start of day for comparison
+          const normalizeDate = (dateStr: string | null) => {
+            if (!dateStr) return null
+            const date = new Date(dateStr)
+            date.setHours(0, 0, 0, 0)
+            return date
+          }
           
-          // Include task if end_date is in range OR if it was created in the range
-          const endDateInRange = endDate && endDate >= dateRange.start && endDate <= dateRange.end
-          const createdInRange = createdAt && createdAt >= dateRange.start && createdAt <= dateRange.end
+          const endDate = normalizeDate(row.end_date)
+          const createdAt = normalizeDate(row.created_at)
           
-          return endDateInRange || createdInRange
+          // Normalize range dates for comparison
+          const rangeStart = new Date(dateRange.start)
+          rangeStart.setHours(0, 0, 0, 0)
+          const rangeEnd = new Date(dateRange.end)
+          rangeEnd.setHours(23, 59, 59, 999)
+          
+          // Primary: Include task if deadline (end_date) is in range
+          // Secondary: If no deadline, include if created in the range
+          const endDateInRange = endDate && endDate >= rangeStart && endDate <= rangeEnd
+          const createdInRange = !endDate && createdAt && createdAt >= rangeStart && createdAt <= rangeEnd
+          
+          const included = endDateInRange || createdInRange
+          
+          if (included) {
+            console.log('[Report] Task included:', {
+              id: row.id,
+              title: row.title,
+              end_date: row.end_date,
+              created_at: row.created_at,
+              reason: endDateInRange ? 'deadline in range' : 'created in range (no deadline)'
+            })
+          }
+          
+          return included
         })
         
-        console.log('[Report] After date filtering:', filteredByDate.length, 'tasks')
+        console.log('[Report] After date filtering:', filteredByDate.length, 'tasks', {
+          viewType,
+          rangeStart: dateRange.start.toISOString(),
+          rangeEnd: dateRange.end.toISOString()
+        })
         
         // Map to Task type
         const mappedTasks: Task[] = filteredByDate.map((row: any) => ({
@@ -521,7 +666,7 @@ export function TaskCompletionReport() {
     }
     
     loadTasks()
-  }, [userId, accessibleUserIds, role, dateRange, departmentFilter, projectFilter, userFilter, taskFrequency, users, userDepartmentId])
+  }, [userId, accessibleUserIds, role, dateRange, departmentFilter, projectFilter, userFilter, taskFrequency, users, userDepartmentId, selectedUsers])
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -532,6 +677,15 @@ export function TaskCompletionReport() {
     const blocked = tasks.filter(t => t.status === 'blocked').length
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
     
+    console.log('[Report] Stats calculated:', {
+      total,
+      completed,
+      inProgress,
+      pending,
+      blocked,
+      sum: completed + inProgress + pending + blocked
+    })
+    
     return {
       total,
       completed,
@@ -541,6 +695,22 @@ export function TaskCompletionReport() {
       completionRate
     }
   }, [tasks])
+
+  // Pagination calculations
+  const totalPages = useMemo(() => Math.ceil(tasks.length / pageSize), [tasks.length, pageSize])
+  
+  const paginatedTasks = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return tasks.slice(startIndex, endIndex)
+  }, [tasks, currentPage, pageSize])
+
+  // Reset to page 1 if current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1)
+    }
+  }, [currentPage, totalPages])
 
   // Navigation handlers
   const handlePrevious = () => {
@@ -624,57 +794,54 @@ export function TaskCompletionReport() {
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-gray-800">Report Filters</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* View Type Toggle */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-600 block">View Type</label>
                 <div className="inline-flex gap-1 p-1 bg-white rounded-lg border border-gray-200 shadow-sm w-fit">
                   <Button
                     variant={viewType === 'weekly' ? 'default' : 'ghost'}
-                    onClick={() => setViewType('weekly')}
+                    onClick={() => { setViewType('weekly'); setCurrentPage(1); }}
                     size="sm"
-                    className={`font-medium transition-all px-4 ${
+                    className={`font-medium transition-all px-3 ${
                       viewType === 'weekly' 
                         ? 'bg-blue-300 text-blue-900 hover:bg-blue-200 shadow-sm' 
                         : 'bg-transparent text-gray-600 hover:bg-blue-100 hover:text-blue-700'
                     }`}
                   >
-                    Weekly
+                    By Week
                   </Button>
                   <Button
                     variant={viewType === 'monthly' ? 'default' : 'ghost'}
-                    onClick={() => setViewType('monthly')}
+                    onClick={() => { setViewType('monthly'); setCurrentPage(1); }}
                     size="sm"
-                    className={`font-medium transition-all px-4 ${
+                    className={`font-medium transition-all px-3 ${
                       viewType === 'monthly' 
                         ? 'bg-blue-300 text-blue-900 hover:bg-blue-200 shadow-sm' 
                         : 'bg-transparent text-gray-600 hover:bg-blue-100 hover:text-blue-700'
                     }`}
                   >
-                    Monthly
+                    By Month
+                  </Button>
+                  <Button
+                    variant={viewType === 'all' ? 'default' : 'ghost'}
+                    onClick={() => { setViewType('all'); setCurrentPage(1); }}
+                    size="sm"
+                    className={`font-medium transition-all px-3 ${
+                      viewType === 'all' 
+                        ? 'bg-blue-300 text-blue-900 hover:bg-blue-200 shadow-sm' 
+                        : 'bg-transparent text-gray-600 hover:bg-blue-100 hover:text-blue-700'
+                    }`}
+                  >
+                    All
                   </Button>
                 </div>
               </div>
 
-              {/* Task Frequency Filter */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 block">Task Type</label>
-                <Select value={taskFrequency} onValueChange={(value) => setTaskFrequency(value as TaskFrequencyFilter)}>
-                  <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Tasks</SelectItem>
-                    <SelectItem value="weekly">Weekly Tasks</SelectItem>
-                    <SelectItem value="monthly">Monthly Tasks</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Admin: Department Filter */}
               {role === 'admin' && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-600 block">Department</label>
                   <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                     <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
@@ -695,7 +862,7 @@ export function TaskCompletionReport() {
 
               {/* Project Filter (Admin & Manager) */}
               {(role === 'admin' || role === 'manager') && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-600 block">Project</label>
                   <Select value={projectFilter} onValueChange={setProjectFilter}>
                     <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
@@ -714,69 +881,63 @@ export function TaskCompletionReport() {
                 </div>
               )}
 
-              {/* User Filter */}
-              {(role === 'admin' || role === 'manager') && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-600 block">Filter By</label>
-                  <Select value={userFilter} onValueChange={setUserFilter}>
-                    <SelectTrigger className="border-gray-200 focus:ring-indigo-500">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {role === 'manager' && userId && (
-                        <>
-                          <SelectItem value="my-team">My Team</SelectItem>
-                          <SelectItem value={userId}>My Tasks</SelectItem>
-                          {users
-                            .filter(user => user.id !== userId)
-                            .map(user => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.name}
-                              </SelectItem>
-                            ))}
-                        </>
-                      )}
-                      {role === 'admin' && (
-                        <>
-                          <SelectItem value="all">All Users</SelectItem>
-                          {users.map(user => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+              {role === 'admin' && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700 block">Team Member</label>
+                  <MultiSelectFilter
+                    label="Select Team Members"
+                    options={users.map(u => ({ value: u.id, label: u.name }))}
+                    selectedValues={selectedUsers}
+                    onChange={(vals) => setSelectedUsers(vals)}
+                    onClear={() => setSelectedUsers([])}
+                    placeholder="All team members"
+                  />
+                </div>
+              )}
+
+              {role === 'manager' && userId && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700 block">Team Member</label>
+                  <MultiSelectFilter
+                    label="Select Team Members"
+                    options={users.map(u => ({ value: u.id, label: u.name }))}
+                    selectedValues={selectedUsers}
+                    onChange={(vals) => setSelectedUsers(vals)}
+                    onClear={() => setSelectedUsers([])}
+                    placeholder="All team members"
+                    currentUserId={userId}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Date Navigation */}
-            <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handlePrevious}
-                className="border-gray-200 hover:bg-gray-50 text-gray-700"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-                <Calendar className="h-4 w-4 text-indigo-500" />
-                {formatDateRange()}
+            {/* Date Navigation - Hidden for 'All' view */}
+            {viewType !== 'all' && (
+              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handlePrevious}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                  <Calendar className="h-4 w-4 text-indigo-500" />
+                  {formatDateRange()}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleNext}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleNext}
-                className="border-gray-200 hover:bg-gray-50 text-gray-700"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -865,7 +1026,7 @@ export function TaskCompletionReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tasks.map((task, index) => (
+                    {paginatedTasks.map((task, index) => (
                       <TableRow key={`task-${task.id}-${index}`}>
                         <TableCell className="font-mono text-sm text-black">
                           TSK-{String(task.id).padStart(3, "0")}
@@ -895,6 +1056,70 @@ export function TaskCompletionReport() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loading && tasks.length > 0 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Items per page:</span>
+                  <Select value={String(pageSize)} onValueChange={(value) => { setPageSize(Number(value)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-20 border-gray-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-gray-600">
+                    Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, tasks.length)} of {tasks.length} tasks
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="border-gray-200"
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="border-gray-200"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium text-gray-700 px-4">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="border-gray-200"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="border-gray-200"
+                  >
+                    Last
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

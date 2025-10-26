@@ -7,17 +7,57 @@ import { UserProvider, useUser } from "@/hooks/useAuth";
 import { TaskDashboard } from "@/components/task-dashboard";
 import GanttChart from "@/components/ui/GanttChart";
 import NotificationBell from "@/components/notifications/NotificationBell";
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, FileText } from "lucide-react";
+import { Button } from "@/components/ui/ViewTaskUi/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select";
+import { supabase } from "@/lib/db";
 
 function DashboardContent() {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<"gantt" | "tasks">("tasks");
-  const { loading, userId, email, profile, signOut } = useUser();
+  const [activeTab, setActiveTab] = useState<"gantt" | "tasks" | "reports">("tasks");
+  const { loading, userId, email, profile, signOut, role, accessibleUserIds } = useUser();
   const router = useRouter();
+  const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("");
+  const [projectNameToId, setProjectNameToId] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!loading && !userId) router.replace("/login");
   }, [loading, userId, router]);
+
+  // Load projects for project report
+  useEffect(() => {
+    if (accessibleUserIds.length > 0 && activeTab === "reports") {
+      loadProjects();
+    }
+  }, [accessibleUserIds, activeTab]);
+
+  const loadProjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`
+          id,
+          project:projects(id, name)
+        `)
+        .in("owned_by", accessibleUserIds);
+
+      if (error) {
+        console.error("Error loading projects:", error);
+        return;
+      }
+
+      const projNameToId = new Map<string, number>();
+      data?.forEach((row: any) => {
+        if (row.project?.name && row.project?.id) {
+          projNameToId.set(row.project.name, row.project.id);
+        }
+      });
+
+      setProjectNameToId(projNameToId);
+    } catch (err) {
+      console.error("Unexpected error loading projects:", err);
+    }
+  };
 
   if (!userId) return null;
 
@@ -30,20 +70,6 @@ function DashboardContent() {
       >
         <div className="flex h-16 items-center justify-between gap-4 p-3 sm:p-6">
           <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab("gantt")}
-              className={`px-4 py-2 rounded-lg ${
-                activeTab === "gantt"
-                  ? isDarkMode
-                    ? "bg-gray-700 text-white"
-                    : "bg-white text-gray-900 shadow"
-                  : isDarkMode
-                  ? "text-gray-400 hover:text-gray-200"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Gantt
-            </button>
             <button
               onClick={() => setActiveTab("tasks")}
               className={`px-4 py-2 rounded-lg ${
@@ -58,6 +84,36 @@ function DashboardContent() {
             >
               Tasks
             </button>
+            <button
+              onClick={() => setActiveTab("gantt")}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === "gantt"
+                  ? isDarkMode
+                    ? "bg-gray-700 text-white"
+                    : "bg-white text-gray-900 shadow"
+                  : isDarkMode
+                  ? "text-gray-400 hover:text-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Gantt
+            </button>
+            {role && role !== 'staff' && (
+              <button
+                onClick={() => setActiveTab("reports")}
+                className={`px-4 py-2 rounded-lg ${
+                  activeTab === "reports"
+                    ? isDarkMode
+                      ? "bg-gray-700 text-white"
+                      : "bg-white text-gray-900 shadow"
+                    : isDarkMode
+                    ? "text-gray-400 hover:text-gray-200"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Reports
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -112,7 +168,80 @@ function DashboardContent() {
         </div>
       </div>
 
-      {activeTab === "gantt" ? <GanttChart isDarkMode={isDarkMode} /> : <TaskDashboard isDarkMode={isDarkMode} />}
+      {activeTab === "gantt" ? (
+        <GanttChart isDarkMode={isDarkMode} />
+      ) : activeTab === "reports" ? (
+        <div className={`min-h-screen p-8 ${isDarkMode ? "bg-gray-900" : "bg-white"}`}>
+          <div className="max-w-4xl space-y-6">
+            <h2 className={`text-2xl font-bold mb-6 ${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>
+              Reports
+            </h2>
+
+            {/* Task Completion Report Section */}
+            <div className="space-y-2">
+              <div>
+                <h3 className={`text-sm font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Task Completion Report
+                </h3>
+                <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  View task completion statistics and trends across your team
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full justify-start bg-transparent"
+                onClick={() => router.push('/reports/completion')}
+              >
+                Task Completion Report
+              </Button>
+            </div>
+
+            {/* Project Progress Report Section */}
+            <div className="space-y-2">
+              <div>
+                <h3 className={`text-sm font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Project Progress Report
+                </h3>
+                <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  View detailed progress and task breakdown for a specific project
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={selectedProjectForReport} onValueChange={setSelectedProjectForReport}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(projectNameToId.keys()).map((projectName) => (
+                      <SelectItem key={projectName} value={projectName}>
+                        {projectName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  className="bg-transparent whitespace-nowrap"
+                  onClick={() => {
+                    if (selectedProjectForReport) {
+                      const projectId = projectNameToId.get(selectedProjectForReport);
+                      if (projectId) {
+                        router.push(`/reports/project/${projectId}`);
+                      }
+                    }
+                  }}
+                  disabled={!selectedProjectForReport}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Report
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <TaskDashboard isDarkMode={isDarkMode} />
+      )}
     </div>
   );
 }
