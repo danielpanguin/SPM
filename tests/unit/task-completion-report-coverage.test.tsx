@@ -496,7 +496,7 @@ describe('TaskCompletionReport - Coverage Tests', () => {
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        expect(screen.getByText(/No tasks found/i)).toBeInTheDocument();
+        expect(screen.getByText(/No tasks found for the selected period/i)).toBeInTheDocument();
       });
     });
   });

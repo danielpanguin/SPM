@@ -52,7 +52,9 @@ jest.mock("@/lib/supabaseClient", () => ({
         order: jest.fn().mockResolvedValue({ data: [], error: null }),
         in: jest.fn().mockResolvedValue({ data: [], error: null }),
         is: jest.fn().mockResolvedValue({ data: [], error: null }),
-        eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+        eq: jest.fn(() => ({
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        })),
       })),
       order: jest.fn().mockResolvedValue({ data: [], error: null }),
       in: jest.fn().mockResolvedValue({ data: [], error: null }),
