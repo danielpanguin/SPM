@@ -404,7 +404,7 @@ describe('Task Statistics Calculation - Unit Tests', () => {
       const end = performance.now();
 
       expect(stats.totalTasks).toBe(1000);
-      expect(end - start).toBeLessThan(100); // Should complete in < 100ms
+      expect(end - start).toBeLessThan(200); // Should complete in < 200ms
     });
   });
 

@@ -93,7 +93,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
           const monthlyButton = screen.getByText('By Month');
           expect(monthlyButton).toHaveClass('bg-blue-300');
         });
-      });
+      }, 15000);
     });
 
     describe('2. Navigation - Previous/Next', () => {

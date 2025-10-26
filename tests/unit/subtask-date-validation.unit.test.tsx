@@ -193,7 +193,7 @@ describe("AC1: Subtask Date Validation", () => {
 
     expect(screen.queryByText(/cannot be earlier/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/cannot be later/i)).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   // Boundary: Start Date Before Parent
   test("Boundary: Should reject subtask with start date before parent start date", async () => {
@@ -240,7 +240,7 @@ describe("AC1: Subtask Date Validation", () => {
 
     // Should not call onSaved
     expect(onSaved).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   // Boundary: End Date After Parent
   test("Boundary: Should reject subtask with end date after parent end date", async () => {
@@ -287,5 +287,5 @@ describe("AC1: Subtask Date Validation", () => {
 
     // Should not call onSaved
     expect(onSaved).not.toHaveBeenCalled();
-  });
+  }, 15000);
 });

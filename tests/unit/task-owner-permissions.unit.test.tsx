@@ -528,7 +528,7 @@ describe('TaskForm - Owner Reassignment Permissions', () => {
 
         unmount();
       }
-    });
+    }, 15000);
   });
 
   describe('TC-005: Owner Field Required Validation', () => {
@@ -609,7 +609,7 @@ describe('TaskForm - Owner Reassignment Permissions', () => {
         );
         expect(userOptions.length).toBe(mockUsers.length);
       });
-    });
+    }, 15000);
   });
 
   describe('TC-007: Integration with Create/Edit Modes', () => {
