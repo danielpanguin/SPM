@@ -791,7 +791,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
       <AttachmentUpload
         taskId={mode === "edit" ? Number(initial?.id) : undefined}
         currentAttachment={currentAttachment}
-        uploadedBy={currentUserId}
+        uploadedBy={currentUserId ?? undefined}
         onAttachmentChange={setCurrentAttachment}
         onFileSelected={setSelectedFile}
         onAttachmentMarkedForDeletion={setAttachmentToDelete}
