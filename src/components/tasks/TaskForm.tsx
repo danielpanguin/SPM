@@ -6,6 +6,8 @@ import { createTaskAPI, updateTaskAPI } from "@/components/useTasks";
 import type { UITask } from "./TaskDetailsModal";
 import { useUser } from "@/hooks/useAuth";
 import { notifyTaskSync } from "@/lib/notifyTaskSync";
+import { AttachmentUpload } from "./AttachmentUpload";
+import type { Attachment } from "@/types/attachment";
 
 const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
 const MAX_COLLABORATORS = 4;   // collaborators only (excludes owner)
@@ -87,6 +89,9 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   const [busy, setBusy] = useState(false);
   const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentAttachment, setCurrentAttachment] = useState<Attachment | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); // NEW: Store selected file for deferred upload
+  const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null); // NEW: Store attachment ID marked for deletion
 
   // Staff (role_id 3) cannot edit the owner field
   const canEditOwner = role !== "staff";
@@ -272,6 +277,17 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         setRecurrenceIntervalDays(Number(t.interval_days ?? 1));
         setRecurrenceCount(Number(t.num_of_recur ?? 1));
 
+        // Fetch attachment if editing
+        const { data: attachmentData } = await supabase
+          .from("attachments")
+          .select("*")
+          .eq("task_id", taskId)
+          .maybeSingle();
+
+        if (attachmentData) {
+          setCurrentAttachment(attachmentData);
+        }
+
         setError(null);
       } catch (err: any) {
         console.error("[TaskForm] hydrate error:", err);
@@ -397,6 +413,60 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
           : await updateTaskAPI(Number(initial?.id), payload);
 
       const savedTaskId = (Array.isArray(data) ? data[0]?.id : data?.id) ?? initial?.id;
+
+      // Delete attachment if marked for deletion
+      if (attachmentToDelete && savedTaskId) {
+        try {
+          const response = await fetch(`/api/tasks/${savedTaskId}/attachments?attachmentId=${attachmentToDelete}`, {
+            method: 'DELETE',
+          });
+
+          if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.error || 'Failed to delete attachment');
+          }
+
+          console.log('Attachment deleted successfully');
+          setCurrentAttachment(null);
+          setAttachmentToDelete(null);
+        } catch (attachmentError: any) {
+          console.error('Failed to delete attachment:', attachmentError);
+          setError(`Task saved, but attachment deletion failed: ${attachmentError.message}`);
+          setBusy(false);
+          return;
+        }
+      }
+
+      // Upload attachment if file was selected
+      if (selectedFile && savedTaskId) {
+        try {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          if (currentUserId) {
+            formData.append('uploaded_by', currentUserId);
+          }
+
+          const response = await fetch(`/api/tasks/${savedTaskId}/attachments`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.error || 'Failed to upload attachment');
+          }
+
+          // Successfully uploaded
+          console.log('Attachment uploaded successfully');
+        } catch (attachmentError: any) {
+          console.error('Failed to upload attachment:', attachmentError);
+          // Don't fail the entire task creation/update just because attachment failed
+          setError(`Task saved, but attachment upload failed: ${attachmentError.message}`);
+          setBusy(false);
+          return; // Don't call onSaved yet so user can retry
+        }
+      }
+
       if (savedTaskId) notifyTaskSync(savedTaskId as any);
 
       onSaved(data);
@@ -716,6 +786,18 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
+
+      {/* Attachment Upload - Show for both create and edit modes with deferred upload */}
+      <AttachmentUpload
+        taskId={mode === "edit" ? Number(initial?.id) : undefined}
+        currentAttachment={currentAttachment}
+        uploadedBy={currentUserId}
+        onAttachmentChange={setCurrentAttachment}
+        onFileSelected={setSelectedFile}
+        onAttachmentMarkedForDeletion={setAttachmentToDelete}
+        disabled={busy}
+        mode="deferred"
+      />
 
       <div className="flex items-center gap-2">
         <button
