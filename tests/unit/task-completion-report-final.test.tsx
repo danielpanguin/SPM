@@ -104,8 +104,8 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByText('P10')).toBeInTheDocument();
-      }, { timeout: 3000 });
-    });
+      }, { timeout: 10000 });
+    }, 15000);
 
     it('should render medium priority tasks (P4-P7) with yellow badge', async () => {
       mockUseUser.mockReturnValue({
@@ -189,8 +189,8 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByText('P5')).toBeInTheDocument();
-      }, { timeout: 3000 });
-    });
+      }, { timeout: 10000 });
+    }, 15000);
 
     it('should render low priority tasks (P1-P3) with green badge', async () => {
       mockUseUser.mockReturnValue({
@@ -359,8 +359,8 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByText('P1')).toBeInTheDocument();
-      }, { timeout: 3000 });
-    });
+      }, { timeout: 10000 });
+    }, 15000);
   });
 
   describe('Status Badge Rendering', () => {

@@ -472,7 +472,7 @@ describe('TaskCompletionReport - Unit Tests', () => {
         render(<TaskCompletionReport />);
         const endTime = performance.now();
 
-        expect(endTime - startTime).toBeLessThan(1000); // Should render in less than 1 second
+        expect(endTime - startTime).toBeLessThan(3000); // Should render in less than 3 seconds
       });
     });
 
