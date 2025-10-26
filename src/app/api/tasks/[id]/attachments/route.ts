@@ -36,6 +36,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Runtime validation for service role key
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('🔴 SUPABASE_SERVICE_ROLE_KEY is not configured');
+      return NextResponse.json({
+        error: 'Server configuration error. Please contact administrator.'
+      }, { status: 500 });
+    }
+
     console.log('🟢 POST /api/tasks/[id]/attachments - Request received');
     const { id } = await params;
     const taskId = parseInt(id);
@@ -175,6 +183,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Runtime validation for service role key
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('🔴 SUPABASE_SERVICE_ROLE_KEY is not configured');
+      return NextResponse.json({
+        error: 'Server configuration error. Please contact administrator.'
+      }, { status: 500 });
+    }
+
     const { id } = await params;
     const taskId = parseInt(id);
     const { searchParams } = new URL(request.url);
