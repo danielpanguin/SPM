@@ -482,23 +482,65 @@ describe('TaskCompletionReport - Coverage Tests', () => {
         refresh: jest.fn(),
       });
 
-      mockSupabase.from = jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({ data: { department_id: 1 }, error: null }),
+      mockSupabase.from = jest.fn((table: string) => {
+        if (table === 'users') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                single: jest.fn().mockResolvedValue({ data: { department_id: 1 }, error: null }),
+              }),
+              order: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === 'departments') {
+          return {
+            select: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === 'projects') {
+          return {
+            select: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === 'tasks') {
+          return {
+            select: jest.fn().mockReturnValue({
+              in: jest.fn().mockReturnValue({
+                eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'task_collaborator') {
+          return {
+            select: jest.fn().mockReturnValue({
+              in: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        return {
+          select: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+            order: jest.fn().mockResolvedValue({ data: [], error: null }),
+            in: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
           }),
-          order: jest.fn().mockResolvedValue({ data: [], error: null }),
-          in: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        }),
+        };
       });
 
       render(<TaskCompletionReport />);
 
       await waitFor(() => {
-        expect(screen.getByText(/No tasks found/i)).toBeInTheDocument();
-      });
+        expect(screen.getByText(/No tasks found for the selected period/i)).toBeInTheDocument();
+      }, { timeout: 5000 });
     });
   });
 

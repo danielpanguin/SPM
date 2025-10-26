@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Pencil, X } from "lucide-react";
+import { Pencil, X, File, Download } from "lucide-react";
 import type { ReactNode } from "react";
 import Comments from "@/components/tasks/comments/Comments";
 import { Badge } from "@/components/ui/ViewTaskUi/badge";
+import type { Attachment } from "@/types/attachment";
+import { formatFileSize } from "@/types/attachment";
 
 /* ---------- Unified Task Types ---------- */
 type Person = { id?: string | number | null; name?: string | null; email?: string | null };
@@ -85,9 +87,35 @@ export default function TaskDetailsModal({
   const [labels, setLabels] = useState<UserMap>({});
   const [loading, setLoading] = useState(false);
   const [commentCount, setCommentCount] = useState<number>(0);
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
 
   useEffect(() => {
     setCommentCount(0);
+  }, [task?.id]);
+
+  // Fetch attachment for this task
+  useEffect(() => {
+    let alive = true;
+    async function fetchAttachment() {
+      if (!task?.id) return;
+
+      const { data } = await supabase
+        .from('attachments')
+        .select('*')
+        .eq('task_id', task.id)
+        .maybeSingle();
+
+      if (!alive) return;
+      if (data) {
+        setAttachment(data);
+      } else {
+        setAttachment(null);
+      }
+    }
+    fetchAttachment();
+    return () => {
+      alive = false;
+    };
   }, [task?.id]);
 
   useEffect(() => {
@@ -276,6 +304,31 @@ export default function TaskDetailsModal({
           </div>
 
           <div className="text-sm grid grid-cols-1 gap-4">
+            {/* Attachment Display (AC5: View and Download) */}
+            {attachment && (
+              <div className="col-span-1">
+                <div className="text-gray-500 mb-2">Attachment</div>
+                <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <File className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-blue-900 truncate">{attachment.filename}</div>
+                      <div className="text-xs text-blue-700">
+                        {formatFileSize(attachment.size_bytes)} • Uploaded {new Date(attachment.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => window.open(attachment.public_url, '_blank')}
+                    className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors ml-2"
+                    title="Download attachment"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <Field label="Created by" value={getUserDisplay(task.createdBy as any)} />
             <Field label="Owned by" value={getUserDisplay(task.ownedBy as any)} />
             <Field label="Collaborators" value={getCollaboratorsDisplay()} />
