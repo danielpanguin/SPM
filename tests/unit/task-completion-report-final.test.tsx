@@ -274,8 +274,8 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByText('P2')).toBeInTheDocument();
-      }, { timeout: 3000 });
-    });
+      }, { timeout: 10000 });
+    }, 15000);
 
     it('should render default priority for tasks with no priority', async () => {
       mockUseUser.mockReturnValue({

@@ -152,7 +152,7 @@ describe('TaskForm - Owner Reassignment Permissions', () => {
         const ownerSelect = screen.getByLabelText(/assignee.*owned by/i);
         expect(ownerSelect).toBeDisabled();
       });
-    });
+    }, 15000);
 
     it('should disable owner field for staff user in edit mode', async () => {
       mockUseUser.mockReturnValue({

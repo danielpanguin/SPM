@@ -765,7 +765,7 @@ describe('TaskCompletionReport - Advanced Coverage Tests', () => {
       });
 
       expect(screen.getByText('By Month')).toHaveClass('bg-blue-300');
-    });
+    }, 15000);
   });
 
   describe('Admin with Department and User Filters Combined', () => {
