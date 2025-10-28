@@ -193,7 +193,7 @@ export function LoggedTimeReport() {
 
   // Load tasks with logged hours
   useEffect(() => {
-    if (!userId || !accessibleUserIds || accessibleUserIds.length === 0) {
+    if (!userId) {
       setTasksData([])
       setLoading(false)
       return
@@ -203,28 +203,7 @@ export function LoggedTimeReport() {
       setLoading(true)
 
       try {
-        let userIdsToQuery = accessibleUserIds
-
-        // Apply user filter
-        if (selectedUsers.length > 0) {
-          userIdsToQuery = selectedUsers
-        }
-
-        // Apply department filter for admin
-        if (role === 'admin' && departmentFilter !== 'all') {
-          const filteredUsers = users
-            .filter(u => {
-              if (departmentFilter === 'my-department') {
-                return u.department_id === userDepartmentId
-              }
-              return u.department_id === parseInt(departmentFilter)
-            })
-            .map(u => u.id)
-
-          userIdsToQuery = userIdsToQuery.filter(id => filteredUsers.includes(id))
-        }
-
-        // Fetch tasks with logged hours
+        // Build base query
         let query = supabase
           .from('tasks')
           .select(`
@@ -241,8 +220,52 @@ export function LoggedTimeReport() {
             owned_by_user:owned_by ( id, username ),
             project:project_id ( id, name )
           `)
-          .in('owned_by', userIdsToQuery)
           .eq('is_archived', false)
+
+        // Admin: Can see ALL tasks in the system (no restrictions by default)
+        // Manager: Can only see tasks from their projects
+        if (role === 'manager') {
+          // Get manager's projects
+          const { data: projectMembers } = await supabase
+            .from('project_members')
+            .select('project_id')
+            .eq('user_id', userId)
+
+          if (projectMembers && projectMembers.length > 0) {
+            const managerProjectIds = projectMembers.map(pm => pm.project_id)
+            query = query.in('project_id', managerProjectIds)
+          } else {
+            // Manager has no projects, show no tasks
+            setTasksData([])
+            setLoading(false)
+            return
+          }
+        }
+
+        // Apply user filter (filter by task owner)
+        if (selectedUsers.length > 0) {
+          query = query.in('owned_by', selectedUsers)
+        }
+
+        // Apply department filter for admin
+        if (role === 'admin' && departmentFilter !== 'all') {
+          const filteredUsers = users
+            .filter(u => {
+              if (departmentFilter === 'my-department') {
+                return u.department_id === userDepartmentId
+              }
+              return u.department_id === parseInt(departmentFilter)
+            })
+            .map(u => u.id)
+
+          if (filteredUsers.length > 0) {
+            query = query.in('owned_by', filteredUsers)
+          } else {
+            setTasksData([])
+            setLoading(false)
+            return
+          }
+        }
 
         // Apply project filter
         if (projectFilter !== 'all') {
@@ -304,7 +327,7 @@ export function LoggedTimeReport() {
     }
 
     loadTasksWithLoggedHours()
-  }, [userId, accessibleUserIds, role, departmentFilter, projectFilter, selectedUsers, users, userDepartmentId])
+  }, [userId, role, departmentFilter, projectFilter, selectedUsers, users, userDepartmentId])
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -447,7 +470,7 @@ export function LoggedTimeReport() {
                     onChange={(vals) => setSelectedUsers(vals)}
                     onClear={() => setSelectedUsers([])}
                     placeholder="All team members"
-                    currentUserId={role === 'manager' ? userId : undefined}
+                    currentUserId={role === 'manager' ? (userId ?? undefined) : undefined}
                   />
                 </div>
               )}

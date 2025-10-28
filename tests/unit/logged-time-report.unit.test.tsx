@@ -117,28 +117,49 @@ describe('LoggedTimeReport - Component Tests', () => {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
             single: jest.fn().mockResolvedValue({ data: { department_id: 1 }, error: null }),
-            order: jest.fn().mockResolvedValue({ data: [], error: null }),
+            order: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 1,
+                  title: 'Test Task',
+                  status_id: 1,
+                  priority_id: 5,
+                  owned_by: 'user-1',
+                  logged_hours: 10.5,
+                  end_date: '2024-12-31',
+                  project_id: 1,
+                  is_archived: false,
+                  status: { id: 1, status: 'in progress' },
+                  owned_by_user: { id: 'user-1', username: 'John Doe' },
+                  project: { id: 1, name: 'Project A' },
+                },
+              ],
+              error: null,
+            }),
           }),
-          order: jest.fn().mockResolvedValue({ data: [], error: null }),
+          order: jest.fn().mockResolvedValue({
+            data: [
+              {
+                id: 1,
+                title: 'Test Task',
+                status_id: 1,
+                priority_id: 5,
+                owned_by: 'user-1',
+                logged_hours: 10.5,
+                end_date: '2024-12-31',
+                project_id: 1,
+                is_archived: false,
+                status: { id: 1, status: 'in progress' },
+                owned_by_user: { id: 'user-1', username: 'John Doe' },
+                project: { id: 1, name: 'Project A' },
+              },
+            ],
+            error: null,
+          }),
           in: jest.fn().mockReturnValue({
             eq: jest.fn().mockReturnValue({
               order: jest.fn().mockResolvedValue({
-                data: [
-                  {
-                    id: 1,
-                    title: 'Test Task',
-                    status_id: 1,
-                    priority_id: 5,
-                    owned_by: 'user-1',
-                    logged_hours: 10.5,
-                    end_date: '2024-12-31',
-                    project_id: 1,
-                    is_archived: false,
-                    status: { id: 1, status: 'in progress' },
-                    owned_by_user: { id: 'user-1', username: 'John Doe' },
-                    project: { id: 1, name: 'Project A' },
-                  },
-                ],
+                data: [],
                 error: null,
               }),
             }),

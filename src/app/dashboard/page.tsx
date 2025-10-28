@@ -237,6 +237,25 @@ function DashboardContent() {
                 </Button>
               </div>
             </div>
+
+            {/* Logged Time Report Section */}
+            <div className="space-y-2">
+              <div>
+                <h3 className={`text-sm font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Logged Time Report
+                </h3>
+                <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  Track time logged on tasks across your team
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full justify-start bg-transparent"
+                onClick={() => router.push('/reports/logged-time')}
+              >
+                Logged Time Report
+              </Button>
+            </div>
           </div>
         </div>
       ) : (
