@@ -20,6 +20,7 @@ export class Task {
   private loaded: boolean = false;
   private project_id?: number;
   private parent_task_id?: number | null;
+  private logged_hours?: number;
 
   constructor(
     task_id: number,
@@ -37,7 +38,8 @@ export class Task {
     is_archived?: boolean,
     is_parent?: boolean,
     project_id?: number,
-    parent_task_id?: number | null
+    parent_task_id?: number | null,
+    logged_hours?: number
   ) {
     this.task_id = task_id;
     this.title = title || '';
@@ -55,6 +57,7 @@ export class Task {
     this.is_parent = is_parent;
     this.project_id = project_id;
     this.parent_task_id = parent_task_id;
+    this.logged_hours = logged_hours;
 
     // If only ID provided, we'll need to load from DB
     if (!title) {
@@ -96,6 +99,7 @@ export class Task {
     this.is_parent = data.is_parent;
     this.project_id = data.project_id;
     this.parent_task_id = data.parent_task_id;
+    this.logged_hours = data.logged_hours;
 
     // Load owner and creator
     if (data.owner_id) {
@@ -150,7 +154,8 @@ export class Task {
           t.is_archived,
           t.is_parent,
           t.project_id,
-          t.parent_task_id
+          t.parent_task_id,
+          t.logged_hours
         );
       })
     );
@@ -261,6 +266,11 @@ export class Task {
     return this.creator;
   }
 
+  async getLoggedHours(): Promise<number | undefined> {
+    if (!this.loaded) await this.init();
+    return this.logged_hours;
+  }
+
   // Synchronous getters (without DB check) - use with caution
   getTaskIdSync(): number {
     return this.task_id;
@@ -316,6 +326,10 @@ export class Task {
 
   getCreatorSync(): User {
     return this.creator;
+  }
+
+  getLoggedHoursSync(): number | undefined {
+    return this.logged_hours;
   }
 
   // Setters - update in database and in-memory
@@ -512,6 +526,21 @@ export class Task {
     return true;
   }
 
+  async setLoggedHours(logged_hours: number): Promise<boolean> {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ logged_hours })
+      .eq('id', this.task_id);
+
+    if (error) {
+      console.error('Error updating task logged hours:', error);
+      return false;
+    }
+
+    this.logged_hours = logged_hours;
+    return true;
+  }
+
   // Add a collaborator to the task
   async addCollaborator(userId: string): Promise<boolean> {
     const { error } = await supabase
@@ -564,6 +593,7 @@ export class Task {
         is_overdue: this.is_overdue,
         is_archived: this.is_archived,
         is_parent: this.is_parent,
+        logged_hours: this.logged_hours,
       })
       .select('id')
       .single();

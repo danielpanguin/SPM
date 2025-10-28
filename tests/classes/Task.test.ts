@@ -258,6 +258,226 @@ describe('Task Class', () => {
     });
   });
 
+  describe('Logged Hours', () => {
+    it('should create task with logged_hours', () => {
+      const owner = new User('owner-123');
+      const creator = new User('creator-123');
+      const task = new Task(
+        1,
+        'Test Task',
+        'Task description',
+        1,
+        Status.PENDING,
+        new Date('2024-01-01'),
+        new Date('2024-12-31'),
+        owner,
+        creator,
+        null,
+        [],
+        false,
+        false,
+        false,
+        1,
+        null,
+        10.5
+      );
+
+      expect(task.getLoggedHoursSync()).toBe(10.5);
+    });
+
+    it('should load logged_hours from database', async () => {
+      const mockData = {
+        id: 1,
+        title: 'Test Task',
+        description: 'Task description',
+        priority: 1,
+        status: 'PENDING',
+        start_date: '2024-01-01',
+        end_date: '2024-12-31',
+        is_overdue: false,
+        is_archived: false,
+        is_parent: false,
+        project_id: 1,
+        parent_task_id: null,
+        owner_id: 'owner-123',
+        creator_id: 'creator-123',
+        logged_hours: 15.5,
+      };
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockData, error: null }),
+          }),
+        }),
+      });
+
+      (User.loadById as jest.Mock).mockResolvedValue(new User('owner-123'));
+
+      const task = new Task(1);
+      await task.init();
+
+      expect(task.getLoggedHoursSync()).toBe(15.5);
+    });
+
+    it('should update logged_hours in database', async () => {
+      const owner = new User('owner-123');
+      const creator = new User('creator-123');
+      const task = new Task(1, 'Task', 'desc', 1, Status.PENDING, new Date(), new Date(), owner, creator, null, [], false, false, false, 1, null, 5);
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ error: null }),
+        }),
+      });
+
+      const result = await task.setLoggedHours(20.5);
+
+      expect(result).toBe(true);
+      expect(task.getLoggedHoursSync()).toBe(20.5);
+    });
+
+    it('should return false on logged_hours update error', async () => {
+      const owner = new User('owner-123');
+      const creator = new User('creator-123');
+      const task = new Task(1, 'Task', 'desc', 1, Status.PENDING, new Date(), new Date(), owner, creator);
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ error: { message: 'Update failed' } }),
+        }),
+      });
+
+      const result = await task.setLoggedHours(10);
+
+      expect(result).toBe(false);
+    });
+
+    it('should get logged_hours using async getter', async () => {
+      const mockData = {
+        id: 1,
+        title: 'Test Task',
+        description: 'desc',
+        priority: 1,
+        status: 'PENDING',
+        start_date: '2024-01-01',
+        end_date: '2024-12-31',
+        owner_id: 'owner-123',
+        creator_id: 'creator-123',
+        is_overdue: false,
+        is_archived: false,
+        is_parent: false,
+        project_id: 1,
+        parent_task_id: null,
+        logged_hours: 8.25,
+      };
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockData, error: null }),
+          }),
+        }),
+      });
+
+      (User.loadById as jest.Mock).mockResolvedValue(new User('owner-123'));
+
+      const task = new Task(1);
+      const loggedHours = await task.getLoggedHours();
+
+      expect(loggedHours).toBe(8.25);
+      expect(task.isLoaded()).toBe(true);
+    });
+
+    it('should handle undefined logged_hours', () => {
+      const owner = new User('owner-123');
+      const creator = new User('creator-123');
+      const task = new Task(1, 'Task', 'desc', 1, Status.PENDING, new Date(), new Date(), owner, creator);
+
+      expect(task.getLoggedHoursSync()).toBeUndefined();
+    });
+
+    it('should save logged_hours when saving to database', async () => {
+      const owner = new User('owner-123');
+      const creator = new User('creator-123');
+      const task = new Task(
+        0,
+        'New Task',
+        'desc',
+        1,
+        Status.PENDING,
+        new Date('2024-01-01'),
+        new Date('2024-12-31'),
+        owner,
+        creator,
+        null,
+        [],
+        false,
+        false,
+        false,
+        1,
+        null,
+        12.5
+      );
+
+      const mockInsert = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({ data: { id: 1 }, error: null }),
+        }),
+      });
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        insert: mockInsert,
+      });
+
+      const result = await task.saveToDB();
+
+      expect(result).toBe(true);
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logged_hours: 12.5,
+        })
+      );
+    });
+
+    it('should include logged_hours in loadByProjectId', async () => {
+      const mockTasks = [
+        {
+          id: 1,
+          title: 'Task 1',
+          description: 'desc1',
+          priority: 1,
+          status: 'PENDING',
+          start_date: '2024-01-01',
+          end_date: '2024-12-31',
+          owner_id: 'owner-123',
+          creator_id: 'creator-123',
+          is_overdue: false,
+          is_archived: false,
+          is_parent: false,
+          project_id: 1,
+          parent_task_id: null,
+          logged_hours: 5.5,
+        },
+      ];
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            order: jest.fn().mockResolvedValue({ data: mockTasks, error: null }),
+          }),
+        }),
+      });
+
+      (User.loadById as jest.Mock).mockResolvedValue(new User('owner-123'));
+
+      const tasks = await Task.loadByProjectId(1);
+
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].getLoggedHoursSync()).toBe(5.5);
+    });
+  });
+
   describe('Setters', () => {
     it('should update title in database', async () => {
       const owner = new User('owner-123');
@@ -559,7 +779,9 @@ describe('Task Class', () => {
         true,
         false,
         true,
-        1
+        1,
+        null,
+        7.5
       );
 
       expect(task.getTaskIdSync()).toBe(1);
@@ -574,6 +796,7 @@ describe('Task Class', () => {
       expect(task.getIsParentSync()).toBe(true);
       expect(task.getOwnerSync()).toBe(owner);
       expect(task.getCreatorSync()).toBe(creator);
+      expect(task.getLoggedHoursSync()).toBe(7.5);
     });
   });
 });
