@@ -211,7 +211,6 @@ export function LoggedTimeReport() {
             status_id,
             priority_id,
             owned_by,
-            logged_hours,
             end_date,
             project_id,
             is_archived,
@@ -300,22 +299,26 @@ export function LoggedTimeReport() {
         const taskIds = (tasksDbData || []).map((t: any) => t.id)
 
         // Fetch time logs from time_log table and aggregate by task_id
-        const { data: timeLogs, error: timeLogError } = await supabase
-          .from('time_log')
-          .select('task_id, logged_time')
-          .in('task_id', taskIds)
-
-        if (timeLogError) {
-          console.error('[Logged Time Report] Error loading time logs:', timeLogError)
-        }
-
-        // Aggregate time logs by task_id (sum all logged times in minutes, convert to hours)
+        // Only query if we have tasks
         const timeLogsByTask = new Map<number, number>()
-        if (timeLogs) {
-          timeLogs.forEach((log: any) => {
-            const currentTotal = timeLogsByTask.get(log.task_id) || 0
-            timeLogsByTask.set(log.task_id, currentTotal + (log.logged_time || 0))
-          })
+
+        if (taskIds.length > 0) {
+          const { data: timeLogs, error: timeLogError } = await supabase
+            .from('time_log')
+            .select('task_id, logged_time')
+            .in('task_id', taskIds)
+
+          if (timeLogError) {
+            console.error('[Logged Time Report] Error loading time logs:', timeLogError)
+          }
+
+          // Aggregate time logs by task_id (sum all logged times in minutes, convert to hours)
+          if (timeLogs) {
+            timeLogs.forEach((log: any) => {
+              const currentTotal = timeLogsByTask.get(log.task_id) || 0
+              timeLogsByTask.set(log.task_id, currentTotal + (log.logged_time || 0))
+            })
+          }
         }
 
         // Map tasks with their aggregated logged hours
