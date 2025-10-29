@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
 import { ChevronLeft, ChevronRight, Clock, ArrowLeft, TrendingUp } from "lucide-react"
 import { useUser } from "@/hooks/useAuth"
-import { Task } from "../../classes/Task"
 import { supabase } from "@/lib/db"
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 
@@ -36,7 +35,7 @@ interface TaskLoggedTimeData {
 }
 
 export function LoggedTimeReport() {
-  const { userId, role, accessibleUserIds } = useUser()
+  const { userId, role } = useUser()
   const router = useRouter()
 
   // Filters
@@ -297,25 +296,45 @@ export function LoggedTimeReport() {
           return
         }
 
-        // Load Task class instances to get logged hours using the getter
-        const tasksWithHours: TaskLoggedTimeData[] = await Promise.all(
-          (tasksDbData || []).map(async (taskDb: any) => {
-            const task = await Task.loadById(taskDb.id)
-            const loggedHours = task ? await task.getLoggedHours() : null
+        // Get all task IDs to fetch time logs
+        const taskIds = (tasksDbData || []).map((t: any) => t.id)
 
-            return {
-              id: taskDb.id,
-              title: taskDb.title,
-              status: taskDb.status?.status || 'Unknown',
-              priority: taskDb.priority_id || 0,
-              ownedBy: taskDb.owned_by,
-              ownedByName: taskDb.owned_by_user?.username || 'Unknown',
-              loggedHours: loggedHours ?? null,
-              projectName: taskDb.project?.name || null,
-              endDate: taskDb.end_date || null,
-            }
+        // Fetch time logs from time_log table and aggregate by task_id
+        const { data: timeLogs, error: timeLogError } = await supabase
+          .from('time_log')
+          .select('task_id, logged_time')
+          .in('task_id', taskIds)
+
+        if (timeLogError) {
+          console.error('[Logged Time Report] Error loading time logs:', timeLogError)
+        }
+
+        // Aggregate time logs by task_id (sum all logged times in minutes, convert to hours)
+        const timeLogsByTask = new Map<number, number>()
+        if (timeLogs) {
+          timeLogs.forEach((log: any) => {
+            const currentTotal = timeLogsByTask.get(log.task_id) || 0
+            timeLogsByTask.set(log.task_id, currentTotal + (log.logged_time || 0))
           })
-        )
+        }
+
+        // Map tasks with their aggregated logged hours
+        const tasksWithHours: TaskLoggedTimeData[] = (tasksDbData || []).map((taskDb: any) => {
+          const totalMinutes = timeLogsByTask.get(taskDb.id) || 0
+          const totalHours = totalMinutes > 0 ? parseFloat((totalMinutes / 60).toFixed(1)) : null
+
+          return {
+            id: taskDb.id,
+            title: taskDb.title,
+            status: taskDb.status?.status || 'Unknown',
+            priority: taskDb.priority_id || 0,
+            ownedBy: taskDb.owned_by,
+            ownedByName: taskDb.owned_by_user?.username || 'Unknown',
+            loggedHours: totalHours,
+            projectName: taskDb.project?.name || null,
+            endDate: taskDb.end_date || null,
+          }
+        })
 
         setTasksData(tasksWithHours)
       } catch (error) {
@@ -381,7 +400,7 @@ export function LoggedTimeReport() {
 
   const formatHours = (hours: number | null) => {
     if (hours === null || hours === 0) return "No time logged"
-    return `${hours.toFixed(2)} hrs`
+    return `${hours.toFixed(1)} hrs`
   }
 
   return (
@@ -516,7 +535,7 @@ export function LoggedTimeReport() {
               <Clock className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.totalHours.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalHours.toFixed(1)}</div>
             </CardContent>
           </Card>
 
@@ -526,7 +545,7 @@ export function LoggedTimeReport() {
               <Clock className="h-4 w-4 text-indigo-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-indigo-600">{stats.averageHours.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-indigo-600">{stats.averageHours.toFixed(1)}</div>
               <p className="text-xs text-indigo-600 mt-1">per task with time</p>
             </CardContent>
           </Card>

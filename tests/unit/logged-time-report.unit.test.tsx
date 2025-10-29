@@ -3,13 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { LoggedTimeReport } from '@/components/logged-time-report'
 import { useUser } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
-import { Task } from '../../classes/Task'
 
 // Mock dependencies
 jest.mock('@/hooks/useAuth')
 jest.mock('next/navigation')
 jest.mock('@/lib/db')
-jest.mock('../../classes/Task')
 
 const mockUseUser = useUser as jest.MockedFunction<typeof useUser>
 const mockUseRouter = useRouter as jest.MockedFunction<typeof useRouter>
@@ -103,77 +101,6 @@ describe('LoggedTimeReport - Component Tests', () => {
     })
   })
 
-  describe('Task Class Integration', () => {
-    it('should use Task.loadById to get logged hours', async () => {
-      mockUseUser.mockReturnValue(createMockUser('admin') as any)
-
-      const mockGetLoggedHours = jest.fn().mockResolvedValue(10.5)
-      ;(Task.loadById as jest.Mock).mockResolvedValue({
-        getLoggedHours: mockGetLoggedHours,
-      })
-
-      const mockSupabase = require('@/lib/db').supabase
-      mockSupabase.from = jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({ data: { department_id: 1 }, error: null }),
-            order: jest.fn().mockResolvedValue({
-              data: [
-                {
-                  id: 1,
-                  title: 'Test Task',
-                  status_id: 1,
-                  priority_id: 5,
-                  owned_by: 'user-1',
-                  logged_hours: 10.5,
-                  end_date: '2024-12-31',
-                  project_id: 1,
-                  is_archived: false,
-                  status: { id: 1, status: 'in progress' },
-                  owned_by_user: { id: 'user-1', username: 'John Doe' },
-                  project: { id: 1, name: 'Project A' },
-                },
-              ],
-              error: null,
-            }),
-          }),
-          order: jest.fn().mockResolvedValue({
-            data: [
-              {
-                id: 1,
-                title: 'Test Task',
-                status_id: 1,
-                priority_id: 5,
-                owned_by: 'user-1',
-                logged_hours: 10.5,
-                end_date: '2024-12-31',
-                project_id: 1,
-                is_archived: false,
-                status: { id: 1, status: 'in progress' },
-                owned_by_user: { id: 'user-1', username: 'John Doe' },
-                project: { id: 1, name: 'Project A' },
-              },
-            ],
-            error: null,
-          }),
-          in: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({
-                data: [],
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      })
-
-      render(<LoggedTimeReport />)
-
-      await waitFor(() => {
-        expect(Task.loadById).toHaveBeenCalledWith(1)
-      })
-    })
-  })
 
   describe('Filters for Different Roles', () => {
     it('should show department filter for admin', async () => {
@@ -241,18 +168,18 @@ describe('LoggedTimeReport - Component Tests', () => {
 })
 
 describe('LoggedTimeReport - Logged Hours Display', () => {
-  it('should format logged hours correctly', () => {
+  it('should format logged hours correctly to 1 decimal place', () => {
     // Test helper function behavior
     const formatHours = (hours: number | null) => {
       if (hours === null || hours === 0) return "No time logged"
-      return `${hours.toFixed(2)} hrs`
+      return `${hours.toFixed(1)} hrs`
     }
 
     expect(formatHours(null)).toBe("No time logged")
     expect(formatHours(0)).toBe("No time logged")
-    expect(formatHours(10.5)).toBe("10.50 hrs")
-    expect(formatHours(8)).toBe("8.00 hrs")
-    expect(formatHours(15.75)).toBe("15.75 hrs")
+    expect(formatHours(10.5)).toBe("10.5 hrs")
+    expect(formatHours(8)).toBe("8.0 hrs")
+    expect(formatHours(15.7)).toBe("15.7 hrs")
   })
 
   it('should calculate statistics correctly', () => {
