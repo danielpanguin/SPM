@@ -559,7 +559,8 @@ describe('Task Class', () => {
         true,
         false,
         true,
-        1
+        1,
+        null
       );
 
       expect(task.getTaskIdSync()).toBe(1);
