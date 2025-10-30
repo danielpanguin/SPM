@@ -7,12 +7,19 @@ import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, TrendingUp, CheckCircle2, Clock, AlertCircle, ArrowLeft, Download, FileSpreadsheet, FileText } from "lucide-react"
 import { useUser } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
 import type { Task, Priority, Role } from "@/types/task"
 import type { ReportViewType, TaskFrequencyFilter, DateRange } from "@/types/report"
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { exportToPDF, exportToExcel } from "@/lib/exportUtils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/ViewTaskUi/dropdown-menu"
 
 interface Department {
   id: number
@@ -763,6 +770,32 @@ export function TaskCompletionReport() {
     return "bg-gray-100 text-gray-800 border-gray-200"
   }
 
+  // Download handler
+  const [isDownloading, setIsDownloading] = useState(false)
+  
+  const handleDownload = async (format: 'pdf' | 'excel') => {
+    setIsDownloading(true)
+    
+    try {
+      // Create a map for project names
+      const projectByTaskId = new Map<string, string | null>()
+      tasks.forEach(task => {
+        projectByTaskId.set(task.id, task.project?.name ?? null)
+      })
+      
+      if (format === 'pdf') {
+        await exportToPDF(tasks, projectByTaskId, new Map())
+      } else {
+        await exportToExcel(tasks, projectByTaskId, new Map())
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error)
+      alert('Failed to download report. Please try again.')
+    } finally {
+      setTimeout(() => setIsDownloading(false), 500)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
@@ -998,7 +1031,38 @@ export function TaskCompletionReport() {
         {/* Tasks Table */}
         <Card className="shadow-sm border-gray-200">
           <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
-            <CardTitle className="text-lg font-semibold text-gray-800">Tasks</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-800">Tasks</CardTitle>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 hover:bg-gray-100"
+                    disabled={isDownloading || tasks.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {isDownloading ? 'Downloading...' : `Download Report (${tasks.length})`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => handleDownload('excel')}
+                    className="cursor-pointer"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Download as Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload('pdf')}
+                    className="cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
