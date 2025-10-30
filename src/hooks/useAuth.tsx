@@ -19,13 +19,37 @@ type Ctx = {
 
 const UserCtx = createContext<Ctx | null>(null);
 
-function roleFromEmail(email: string | null): Role {
-  if (!email) return null;
-  const e = email.toLowerCase();
-  if (e.endsWith("@staff.com")) return "staff";
-  if (e.endsWith("@manager.com")) return "manager";
-  if (e.endsWith("@admin.com")) return "admin";
-  return null;
+async function getRoleFromDatabase(userId: string): Promise<Role> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('role_id, roles(name)')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error("[useAuth] Error fetching user role:", error);
+      return null;
+    }
+
+    if (!data?.roles) {
+      console.warn("[useAuth] No role found for user:", userId);
+      return null;
+    }
+
+    const roleName = (data.roles as any).name?.toLowerCase();
+
+    // Map role name from database to our Role type
+    if (roleName === 'staff') return 'staff';
+    if (roleName === 'manager') return 'manager';
+    if (roleName === 'admin') return 'admin';
+
+    console.warn("[useAuth] Unknown role name:", roleName);
+    return null;
+  } catch (error) {
+    console.error("[useAuth] Exception fetching role:", error);
+    return null;
+  }
 }
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
@@ -58,11 +82,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setEmail(u?.email ?? null);
 
       if (u?.id) {
+        // Get role from database
+        const userRole = await getRoleFromDatabase(u.id);
+
         const username = u.email ? u.email.split("@")[0] : null;
-        setProfile({ id: u.id, username, role: roleFromEmail(u.email ?? null) });
+        setProfile({ id: u.id, username, role: userRole });
 
         // Load accessible user IDs based on role
-        const userRole = roleFromEmail(u.email ?? null);
         if (userRole === 'staff') {
           // Staff can only see their own tasks
           setAccessibleUserIds([u.id]);
