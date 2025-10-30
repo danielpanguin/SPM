@@ -7,10 +7,16 @@ import { Button } from "@/components/ui/ViewTaskUi/button"
 import { Badge } from "@/components/ui/ViewTaskUi/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
-import { ChevronLeft, ChevronRight, Clock, ArrowLeft, TrendingUp } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, ArrowLeft, TrendingUp, Download, FileSpreadsheet, FileText } from "lucide-react"
 import { useUser } from "@/hooks/useAuth"
 import { supabase } from "@/lib/db"
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/ViewTaskUi/dropdown-menu"
 
 interface Department {
   id: number
@@ -46,6 +52,7 @@ export function LoggedTimeReport() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Data
   const [tasksData, setTasksData] = useState<TaskLoggedTimeData[]>([])
@@ -377,6 +384,100 @@ export function LoggedTimeReport() {
     return tasksData.slice(startIndex, endIndex)
   }, [tasksData, currentPage, pageSize])
 
+  const handleDownload = async (format: 'pdf' | 'excel') => {
+    setIsDownloading(true)
+    
+    try {
+      const worksheetData = [
+        ['ID', 'Title', 'Status', 'Priority', 'Assignee', 'Project', 'Logged Hours', 'Deadline'],
+        ...tasksData.map((task) => [
+          `TSK-${String(task.id).padStart(3, '0')}`,
+          task.title,
+          task.status === 'in-progress' ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1),
+          `P${task.priority}`,
+          task.ownedByName || 'Unassigned',
+          task.projectName || '—',
+          task.loggedHours !== null ? task.loggedHours.toFixed(1) : '0.0',
+          task.endDate ? new Date(task.endDate).toLocaleDateString() : '—',
+        ]),
+      ]
+
+      if (format === 'excel') {
+        const XLSX = await import('xlsx')
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+        const workbook = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Logged Time')
+        
+        worksheet['!cols'] = [
+          { wch: 12 }, // ID
+          { wch: 40 }, // Title
+          { wch: 15 }, // Status
+          { wch: 10 }, // Priority
+          { wch: 20 }, // Assignee
+          { wch: 25 }, // Project
+          { wch: 15 }, // Logged Hours
+          { wch: 15 }, // Deadline
+        ]
+        
+        const fileName = `logged-time-report-${new Date().toISOString().split('T')[0]}.xlsx`
+        XLSX.writeFile(workbook, fileName)
+      } else {
+        const { default: jsPDF } = await import('jspdf')
+        const { default: autoTable } = await import('jspdf-autotable')
+        
+        const doc = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+        })
+        
+        doc.setFontSize(18)
+        doc.text('Logged Time Report', 14, 15)
+        
+        doc.setFontSize(10)
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22)
+        doc.text(`Total Tasks: ${tasksData.length}`, 14, 27)
+        doc.text(`Total Hours: ${stats.totalHours.toFixed(1)}`, 14, 32)
+        
+        autoTable(doc, {
+          startY: 37,
+          head: [['ID', 'Title', 'Status', 'Priority', 'Assignee', 'Project', 'Logged Hours', 'Deadline']],
+          body: tasksData.map((task) => [
+            `TSK-${String(task.id).padStart(3, '0')}`,
+            task.title,
+            task.status === 'in-progress' ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1),
+            `P${task.priority}`,
+            task.ownedByName || 'Unassigned',
+            task.projectName || '—',
+            task.loggedHours !== null ? task.loggedHours.toFixed(1) : '0.0',
+            task.endDate ? new Date(task.endDate).toLocaleDateString() : '—',
+          ]),
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
+          columnStyles: {
+            0: { cellWidth: 18 },
+            1: { cellWidth: 60 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 18 },
+            4: { cellWidth: 35 },
+            5: { cellWidth: 40 },
+            6: { cellWidth: 22 },
+            7: { cellWidth: 25 },
+          },
+        })
+        
+        const fileName = `logged-time-report-${new Date().toISOString().split('T')[0]}.pdf`
+        doc.save(fileName)
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error)
+      alert('Failed to download report. Please try again.')
+    } finally {
+      setTimeout(() => setIsDownloading(false), 500)
+    }
+  }
+
   // Reset to page 1 if current page exceeds total pages
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
@@ -557,7 +658,38 @@ export function LoggedTimeReport() {
         {/* Tasks Table */}
         <Card className="shadow-sm border-gray-200">
           <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
-            <CardTitle className="text-lg font-semibold text-gray-800">Tasks with Logged Hours</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-800">Tasks with Logged Hours</CardTitle>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 hover:bg-gray-100"
+                    disabled={isDownloading || tasksData.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {isDownloading ? 'Downloading...' : `Download Report (${tasksData.length})`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => handleDownload('excel')}
+                    className="cursor-pointer"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Download as Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload('pdf')}
+                    className="cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (

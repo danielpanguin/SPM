@@ -6,10 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ViewTa
 import { Button } from '@/components/ui/ViewTaskUi/button'
 import { Badge } from '@/components/ui/ViewTaskUi/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/ViewTaskUi/table'
-import { ArrowLeft, BarChart3, ListTodo, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, BarChart3, ListTodo, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/ViewTaskUi/select'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/ViewTaskUi/dropdown-menu'
 
 interface Task {
   id: number
@@ -42,6 +48,7 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   useEffect(() => {
     loadProjectData()
@@ -184,6 +191,95 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
     setCurrentPage(1)
   }
 
+  const handleDownload = async (format: 'pdf' | 'excel') => {
+    setIsDownloading(true)
+    
+    try {
+      const worksheetData = [
+        ['ID', 'Title', 'Status', 'Priority', 'Assignee', 'Deadline', 'Created'],
+        ...tasks.map((task) => [
+          `TSK-${String(task.id).padStart(3, '0')}`,
+          task.title,
+          task.status === 'in-progress' ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1),
+          `P${task.priority}`,
+          task.owned_by_user?.username || 'Unassigned',
+          task.end_date ? formatDate(task.end_date) : '—',
+          formatDate(task.created_at),
+        ]),
+      ]
+
+      if (format === 'excel') {
+        const XLSX = await import('xlsx')
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+        const workbook = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Tasks')
+        
+        worksheet['!cols'] = [
+          { wch: 12 }, // ID
+          { wch: 40 }, // Title
+          { wch: 15 }, // Status
+          { wch: 10 }, // Priority
+          { wch: 20 }, // Assignee
+          { wch: 15 }, // Deadline
+          { wch: 15 }, // Created
+        ]
+        
+        const fileName = `${projectName}-progress-report-${new Date().toISOString().split('T')[0]}.xlsx`
+        XLSX.writeFile(workbook, fileName)
+      } else {
+        const { default: jsPDF } = await import('jspdf')
+        const { default: autoTable } = await import('jspdf-autotable')
+        
+        const doc = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+        })
+        
+        doc.setFontSize(18)
+        doc.text(`Project Progress Report: ${projectName}`, 14, 15)
+        
+        doc.setFontSize(10)
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22)
+        doc.text(`Total Tasks: ${tasks.length}`, 14, 27)
+        
+        autoTable(doc, {
+          startY: 32,
+          head: [['ID', 'Title', 'Status', 'Priority', 'Assignee', 'Deadline', 'Created']],
+          body: tasks.map((task) => [
+            `TSK-${String(task.id).padStart(3, '0')}`,
+            task.title,
+            task.status === 'in-progress' ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1),
+            `P${task.priority}`,
+            task.owned_by_user?.username || 'Unassigned',
+            task.end_date ? formatDate(task.end_date) : '—',
+            formatDate(task.created_at),
+          ]),
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
+          columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 20 },
+            4: { cellWidth: 40 },
+            5: { cellWidth: 30 },
+            6: { cellWidth: 30 },
+          },
+        })
+        
+        const fileName = `${projectName}-progress-report-${new Date().toISOString().split('T')[0]}.pdf`
+        doc.save(fileName)
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error)
+      alert('Failed to download report. Please try again.')
+    } finally {
+      setTimeout(() => setIsDownloading(false), 500)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -289,14 +385,45 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
         {/* Task List */}
         <Card className="shadow-sm border-gray-200">
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <ListTodo className="h-5 w-5 text-indigo-600" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <ListTodo className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-semibold text-gray-800">Task List</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-lg font-semibold text-gray-800">Task List</CardTitle>
-                <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 hover:bg-gray-100"
+                    disabled={isDownloading || tasks.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {isDownloading ? 'Downloading...' : `Download Report (${tasks.length})`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => handleDownload('excel')}
+                    className="cursor-pointer"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Download as Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload('pdf')}
+                    className="cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </CardHeader>
           <CardContent className="p-6">
