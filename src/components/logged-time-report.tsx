@@ -660,35 +660,37 @@ export function LoggedTimeReport() {
           <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold text-gray-800">Tasks with Logged Hours</CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-200 hover:bg-gray-100"
-                    disabled={isDownloading || tasksData.length === 0}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    {isDownloading ? 'Downloading...' : `Download Report (${tasksData.length})`}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => handleDownload('excel')}
-                    className="cursor-pointer"
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Download as Excel
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload('pdf')}
-                    className="cursor-pointer"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Download as PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {role === 'admin' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-200 hover:bg-gray-100"
+                      disabled={isDownloading || tasksData.length === 0}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {isDownloading ? 'Downloading...' : `Download Report (${tasksData.length})`}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => handleDownload('excel')}
+                      className="cursor-pointer"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Download as Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDownload('pdf')}
+                      className="cursor-pointer"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Download as PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </CardHeader>
           <CardContent>

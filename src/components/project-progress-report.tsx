@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/db'
+import { useUser } from '@/hooks/useAuth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ViewTaskUi/card'
 import { Button } from '@/components/ui/ViewTaskUi/button'
 import { Badge } from '@/components/ui/ViewTaskUi/badge'
@@ -42,6 +43,7 @@ interface ProjectProgressReportProps {
 
 export function ProjectProgressReport({ projectId }: ProjectProgressReportProps) {
   const router = useRouter()
+  const { role } = useUser()
   const [tasks, setTasks] = useState<Task[]>([])
   const [statusData, setStatusData] = useState<StatusData[]>([])
   const [projectName, setProjectName] = useState<string>('')
@@ -395,35 +397,37 @@ export function ProjectProgressReport({ projectId }: ProjectProgressReportProps)
                   <p className="text-sm text-gray-600 mt-1">{tasks.length} total tasks</p>
                 </div>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-200 hover:bg-gray-100"
-                    disabled={isDownloading || tasks.length === 0}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    {isDownloading ? 'Downloading...' : `Download Report (${tasks.length})`}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => handleDownload('excel')}
-                    className="cursor-pointer"
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Download as Excel
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload('pdf')}
-                    className="cursor-pointer"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Download as PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {role === 'admin' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-200 hover:bg-gray-100"
+                      disabled={isDownloading || tasks.length === 0}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {isDownloading ? 'Downloading...' : `Download Report (${tasks.length})`}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => handleDownload('excel')}
+                      className="cursor-pointer"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Download as Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDownload('pdf')}
+                      className="cursor-pointer"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Download as PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </CardHeader>
           <CardContent className="p-6">
