@@ -1,5 +1,5 @@
-import { Notification } from '../../classes/Notification';
-import { NotificationType } from '../../classes/NotificationType';
+import { Notification } from '../../../classes/Notification';
+import { NotificationType } from '../../../classes/NotificationType';
 import { supabase } from '@/lib/supabaseClient';
 
 // Mock Supabase

@@ -1,5 +1,5 @@
-import { User } from '../../classes/User';
-import { Role } from '../../classes/Role';
+import { User } from '../../../classes/User';
+import { Role } from '../../../classes/Role';
 import { supabase } from '@/lib/supabaseClient';
 
 // Mock Supabase

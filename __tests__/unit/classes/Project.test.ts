@@ -1,6 +1,6 @@
-import { Project } from '../../classes/Project';
-import { User } from '../../classes/User';
-import { Task } from '../../classes/Task';
+import { Project } from '../../../classes/Project';
+import { User } from '../../../classes/User';
+import { Task } from '../../../classes/Task';
 import { supabase } from '@/lib/supabaseClient';
 
 // Mock Supabase
@@ -11,8 +11,8 @@ jest.mock('@/lib/supabaseClient', () => ({
 }));
 
 // Mock User and Task classes
-jest.mock('../../classes/User');
-jest.mock('../../classes/Task');
+jest.mock('../../../classes/User');
+jest.mock('../../../classes/Task');
 
 describe('Project Class', () => {
   const mockSupabase = supabase as jest.Mocked<typeof supabase>;

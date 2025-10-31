@@ -1,4 +1,4 @@
-import { Tag } from '../../classes/Tag';
+import { Tag } from '../../../classes/Tag';
 import { supabase } from '@/lib/supabaseClient';
 
 // Mock Supabase

@@ -1,5 +1,5 @@
-import { Department } from '../../classes/Department';
-import { User } from '../../classes/User';
+import { Department } from '../../../classes/Department';
+import { User } from '../../../classes/User';
 import { supabase } from '@/lib/supabaseClient';
 
 // Mock Supabase
@@ -10,7 +10,7 @@ jest.mock('@/lib/supabaseClient', () => ({
 }));
 
 // Mock User class
-jest.mock('../../classes/User');
+jest.mock('../../../classes/User');
 
 describe('Department Class', () => {
   const mockSupabase = supabase as jest.Mocked<typeof supabase>;
