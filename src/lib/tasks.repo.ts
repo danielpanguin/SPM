@@ -111,11 +111,7 @@ function titleFor(kind: NotificationKind): string {
   }
 }
 
-/**
- * Compose a stable OR event-unique notification id.
- * - For reminders, pass a date (YYYY-MM-DD) to dedupe per day.
- * - For assignment events, pass a timestamp so each event is unique.
- */
+/** Stable/event-unique notification id */
 function composeNotificationId(
   taskId: number,
   userId: UUID,
@@ -126,14 +122,10 @@ function composeNotificationId(
 }
 
 function nowIsoCompact(): string {
-  // e.g. "2025-10-31T19:33:12Z" (no milliseconds / colons for shorter keys)
   return new Date().toISOString().replace(/:/g, "-").replace(/\.\d{3}/, "");
 }
 
-/**
- * Insert notifications (UPSERT on PK id).
- * Callers must provide `id` using composeNotificationId.
- */
+/** Upsert notifications (by PK id) */
 async function insertNotifications(rows: Array<{
   id: string;
   user_id: UUID;
@@ -157,7 +149,6 @@ async function insertNotifications(rows: Array<{
       .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
     if (error) console.warn("[notify] upsert failed:", error.message);
   } catch (e: any) {
-    // best-effort: never block caller
     console.warn("[notify] unexpected error:", e?.message || e);
   }
 }
@@ -257,16 +248,15 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
         .insert(collabRows);
       if (collabErr) throw new Error(`Error linking collaborators: ${collabErr.message}`);
 
-      // --- Assignment notifications on create ---
-      const nameMap = await fetchUserNames(Array.from(assigneesSet));
-      const eventRef = nowIsoCompact(); // event-unique id suffix
+      // --- Assignment notifications on create (second-person) ---
+      const eventRef = nowIsoCompact();
       const notes = Array.from(assigneesSet).map((uid) => ({
         id: composeNotificationId(task.id, uid, "assignment_added", eventRef),
         user_id: uid,
         task_id: task.id,
         kind: "assignment_added" as const,
         title: titleFor("assignment_added"),
-        message: `${nameMap.get(uid) || "You"} have been assigned to “${task.title}”.`,
+        message: `You have been assigned to “${task.title}”.`,
       }));
       await insertNotifications(notes);
     }
@@ -344,7 +334,7 @@ export async function updateTask(
     if (error) throw new Error(`Error updating task: ${error.message}`);
   }
 
-  // Owner change notifications
+  // Owner change notifications (second-person for affected users)
   if (needOwnerCheck && current) {
     const oldOwner = current.owned_by ?? null;
     const newOwner = (patch.owned_by ?? oldOwner) ?? null;
@@ -355,8 +345,6 @@ export async function updateTask(
         .eq("task_id", id);
       const nowSet = new Set<UUID>((collabNow ?? []).map((r: any) => r.user_id));
 
-      const nameMap = await fetchUserNames([oldOwner!, newOwner!, ...nowSet]);
-
       const eventRefOwner = nowIsoCompact();
       const rows: any[] = [];
       if (newOwner) {
@@ -366,7 +354,7 @@ export async function updateTask(
           task_id: id,
           kind: "assignment_added",
           title: titleFor("assignment_added"),
-          message: `${nameMap.get(newOwner) || "You"} are now the owner of “${current.title}”.`,
+          message: `You are now the owner of “${current.title}”.`,
         });
       }
       if (oldOwner) {
@@ -376,21 +364,27 @@ export async function updateTask(
           task_id: id,
           kind: "assignment_removed",
           title: titleFor("assignment_removed"),
-          message: `${nameMap.get(oldOwner) || "You"} are no longer the owner of “${current.title}”.`,
+          message: `You are no longer the owner of “${current.title}”.`,
         });
       }
-      const newOwnerName = newOwner ? (nameMap.get(newOwner) || "—") : "—";
-      for (const uid of nowSet) {
-        if (uid === newOwner || uid === oldOwner) continue;
-        rows.push({
-          id: composeNotificationId(id, uid, "assignment_update", eventRefOwner),
-          user_id: uid,
-          task_id: id,
-          kind: "assignment_update",
-          title: titleFor("assignment_update"),
-          message: `Owner changed to ${newOwnerName} for “${current.title}”.`,
-        });
+
+      // Inform remaining members with a summary (names are fine here)
+      if (nowSet.size) {
+        const nameMap = await fetchUserNames([...(nowSet as any)]);
+        const newOwnerName = newOwner ? (nameMap.get(newOwner) || "—") : "—";
+        for (const uid of nowSet) {
+          if (uid === newOwner || uid === oldOwner) continue;
+          rows.push({
+            id: composeNotificationId(id, uid, "assignment_update", eventRefOwner),
+            user_id: uid,
+            task_id: id,
+            kind: "assignment_update",
+            title: titleFor("assignment_update"),
+            message: `Owner changed to ${newOwnerName} for “${current.title}”.`,
+          });
+        }
       }
+
       await insertNotifications(rows);
     }
   }
@@ -445,7 +439,7 @@ export async function updateTask(
       const eventRefDiff = nowIsoCompact();
       const noteRows: any[] = [];
 
-      // direct notices
+      // direct notices (second-person)
       for (const uid of added) {
         noteRows.push({
           id: composeNotificationId(id, uid, "assignment_added", eventRefDiff),
@@ -453,7 +447,7 @@ export async function updateTask(
           task_id: id,
           kind: "assignment_added",
           title: titleFor("assignment_added"),
-          message: `${nameMap.get(uid) || "You"} have been assigned to “${current?.title ?? "Task"}”.`,
+          message: `You have been assigned to “${current?.title ?? "Task"}”.`,
         });
       }
       for (const uid of removed) {
@@ -463,11 +457,11 @@ export async function updateTask(
           task_id: id,
           kind: "assignment_removed",
           title: titleFor("assignment_removed"),
-          message: `${nameMap.get(uid) || "You"} have been removed from “${current?.title ?? "Task"}”.`,
+          message: `You have been removed from “${current?.title ?? "Task"}”.`,
         });
       }
 
-      // summary for everyone still on task
+      // summary for everyone still on task (use names)
       const addedNames = added.map((u) => nameMap.get(u) || "—");
       const removedNames = removed.map((u) => nameMap.get(u) || "—");
       const parts: string[] = [];
