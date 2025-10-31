@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git fetch:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []
