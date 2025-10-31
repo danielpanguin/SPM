@@ -1,4 +1,4 @@
-// lib/tasks.repo.ts
+// src/lib/tasks.repo.ts
 import { supabase } from "./supabaseClient";
 
 export type UUID = string;
@@ -77,35 +77,9 @@ const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
 /* --------------------------- NOTIFY HELPERS ------------------------ */
 /* ------------------------------------------------------------------ */
 
-type AssignmentKind =
-  | "assignment_added"
-  | "assignment_removed"
-  | "assignment_update";
-
-function ymd(d: string | Date | null | undefined): string {
-  if (!d) return "";
-  const dt = typeof d === "string" ? new Date(d) : d;
-  // YYYY-MM-DD
-  return dt.toISOString().slice(0, 10);
-}
-
-/**
- * Compose IDs to match your convention exactly:
- *  - due_* rows:  <task_id>:<user_id>:<kind>:<YYYY-MM-DD>
- *  - assignment_* rows: <task_id>:<user_id>:<kind>
- */
-function composeNotificationId(
-  taskId: number,
-  userId: UUID,
-  kind: string,
-  dueDate?: string | null
-): string {
-  if (kind === "due_today" || kind === "due_tomorrow" || kind === "overdue") {
-    return `${taskId}:${userId}:${kind}:${ymd(dueDate || new Date())}`;
-  }
-  // assignment_* — deterministic, de-duplicable
-  return `${taskId}:${userId}:${kind}`;
-}
+type NotificationKind =
+  | "due_today" | "due_tomorrow" | "overdue"
+  | "assignment_added" | "assignment_removed" | "assignment_update";
 
 async function fetchUserNames(userIds: UUID[]): Promise<Map<UUID, string>> {
   const map = new Map<UUID, string>();
@@ -125,37 +99,63 @@ async function fetchUserNames(userIds: UUID[]): Promise<Map<UUID, string>> {
   return map;
 }
 
-function titleFor(kind: AssignmentKind): string {
+function titleFor(kind: NotificationKind): string {
   switch (kind) {
-    case "assignment_added": return "Task assignment";
+    case "assignment_added":   return "Task assignment";
     case "assignment_removed": return "Task assignment removed";
-    case "assignment_update": return "Assignees changed";
+    case "assignment_update":  return "Assignees changed";
+    case "due_today":          return "Task due today";
+    case "due_tomorrow":       return "Upcoming deadline";
+    case "overdue":            return "Task overdue";
+    default:                   return "Task notification";
   }
 }
 
+/**
+ * Compose a stable OR event-unique notification id.
+ * - For reminders, pass a date (YYYY-MM-DD) to dedupe per day.
+ * - For assignment events, pass a timestamp so each event is unique.
+ */
+function composeNotificationId(
+  taskId: number,
+  userId: UUID,
+  kind: NotificationKind,
+  ref?: string
+): string {
+  return `${taskId}:${userId}:${kind}${ref ? `:${ref}` : ""}`;
+}
+
+function nowIsoCompact(): string {
+  // e.g. "2025-10-31T19:33:12Z" (no milliseconds / colons for shorter keys)
+  return new Date().toISOString().replace(/:/g, "-").replace(/\.\d{3}/, "");
+}
+
+/**
+ * Insert notifications (UPSERT on PK id).
+ * Callers must provide `id` using composeNotificationId.
+ */
 async function insertNotifications(rows: Array<{
+  id: string;
   user_id: UUID;
   task_id: number;
-  kind: AssignmentKind;
+  kind: NotificationKind;
   title?: string;
   message: string;
   is_read?: boolean;
+  due_date?: string | null;
 }>): Promise<void> {
   if (!rows.length) return;
   try {
     const payload = rows.map(r => ({
-      id: composeNotificationId(r.task_id, r.user_id, r.kind),
-      user_id: r.user_id,
-      task_id: r.task_id,
-      kind: r.kind,
+      ...r,
       title: r.title ?? titleFor(r.kind),
-      message: r.message,
       is_read: r.is_read ?? false,
-      // assignment_* => keep null so they appear with general notifications
-      due_date: null,
+      due_date: r.due_date ?? null,
     }));
-    const { error } = await supabase.from("notifications").insert(payload);
-    if (error) console.warn("[notify] insert failed:", error.message);
+    const { error } = await supabase
+      .from("notifications")
+      .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
+    if (error) console.warn("[notify] upsert failed:", error.message);
   } catch (e: any) {
     // best-effort: never block caller
     console.warn("[notify] unexpected error:", e?.message || e);
@@ -259,16 +259,15 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
 
       // --- Assignment notifications on create ---
       const nameMap = await fetchUserNames(Array.from(assigneesSet));
-      const notes = Array.from(assigneesSet).map((uid) => {
-        const me = nameMap.get(uid) || "You";
-        return {
-          user_id: uid,
-          task_id: task.id,
-          kind: "assignment_added" as const,
-          title: titleFor("assignment_added"),
-          message: `${me} have been assigned to “${task.title}”.`,
-        };
-      });
+      const eventRef = nowIsoCompact(); // event-unique id suffix
+      const notes = Array.from(assigneesSet).map((uid) => ({
+        id: composeNotificationId(task.id, uid, "assignment_added", eventRef),
+        user_id: uid,
+        task_id: task.id,
+        kind: "assignment_added" as const,
+        title: titleFor("assignment_added"),
+        message: `${nameMap.get(uid) || "You"} have been assigned to “${task.title}”.`,
+      }));
       await insertNotifications(notes);
     }
 
@@ -358,21 +357,24 @@ export async function updateTask(
 
       const nameMap = await fetchUserNames([oldOwner!, newOwner!, ...nowSet]);
 
+      const eventRefOwner = nowIsoCompact();
       const rows: any[] = [];
       if (newOwner) {
         rows.push({
+          id: composeNotificationId(id, newOwner, "assignment_added", eventRefOwner),
           user_id: newOwner,
           task_id: id,
-          kind: "assignment_added" as const,
+          kind: "assignment_added",
           title: titleFor("assignment_added"),
           message: `${nameMap.get(newOwner) || "You"} are now the owner of “${current.title}”.`,
         });
       }
       if (oldOwner) {
         rows.push({
+          id: composeNotificationId(id, oldOwner, "assignment_removed", eventRefOwner),
           user_id: oldOwner,
           task_id: id,
-          kind: "assignment_removed" as const,
+          kind: "assignment_removed",
           title: titleFor("assignment_removed"),
           message: `${nameMap.get(oldOwner) || "You"} are no longer the owner of “${current.title}”.`,
         });
@@ -381,9 +383,10 @@ export async function updateTask(
       for (const uid of nowSet) {
         if (uid === newOwner || uid === oldOwner) continue;
         rows.push({
+          id: composeNotificationId(id, uid, "assignment_update", eventRefOwner),
           user_id: uid,
           task_id: id,
-          kind: "assignment_update" as const,
+          kind: "assignment_update",
           title: titleFor("assignment_update"),
           message: `Owner changed to ${newOwnerName} for “${current.title}”.`,
         });
@@ -439,27 +442,28 @@ export async function updateTask(
 
       const nameMap = await fetchUserNames([...added, ...removed, ...currentMembers]);
 
+      const eventRefDiff = nowIsoCompact();
       const noteRows: any[] = [];
 
       // direct notices
       for (const uid of added) {
-        const me = nameMap.get(uid) || "You";
         noteRows.push({
+          id: composeNotificationId(id, uid, "assignment_added", eventRefDiff),
           user_id: uid,
           task_id: id,
-          kind: "assignment_added" as const,
+          kind: "assignment_added",
           title: titleFor("assignment_added"),
-          message: `${me} have been assigned to “${current?.title ?? "Task"}”.`,
+          message: `${nameMap.get(uid) || "You"} have been assigned to “${current?.title ?? "Task"}”.`,
         });
       }
       for (const uid of removed) {
-        const me = nameMap.get(uid) || "You";
         noteRows.push({
+          id: composeNotificationId(id, uid, "assignment_removed", eventRefDiff),
           user_id: uid,
           task_id: id,
-          kind: "assignment_removed" as const,
+          kind: "assignment_removed",
           title: titleFor("assignment_removed"),
-          message: `${me} have been removed from “${current?.title ?? "Task"}”.`,
+          message: `${nameMap.get(uid) || "You"} have been removed from “${current?.title ?? "Task"}”.`,
         });
       }
 
@@ -473,18 +477,18 @@ export async function updateTask(
 
       if (summary) {
         for (const uid of currentMembers) {
-          if (added.includes(uid)) continue; // already got a direct "added"
           noteRows.push({
+            id: composeNotificationId(id, uid, "assignment_update", eventRefDiff),
             user_id: uid,
             task_id: id,
-            kind: "assignment_update" as const,
+            kind: "assignment_update",
             title: titleFor("assignment_update"),
             message: `${summary} on “${current?.title ?? "Task"}”.`,
           });
         }
       }
 
-      if (noteRows.length) await insertNotifications(noteRows);
+      await insertNotifications(noteRows);
     } catch (e: any) {
       console.warn("[notify] updateTask diff notify error:", e?.message || e);
     }
@@ -562,7 +566,7 @@ function pickRecurrenceColumnsFromPatch(patch: TaskUpdateInput) {
       is_recurring: isRecurring,
       interval_days: isRecurring ? Number(patch.interval_days ?? 1) : null,
       num_of_recur: isRecurring ? Number(patch.num_of_recur ?? 1) : null,
-    } as any;
+    };
   }
   return null;
 }
