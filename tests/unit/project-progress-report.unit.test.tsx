@@ -18,6 +18,14 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
+jest.mock('@/hooks/useAuth', () => ({
+  useUser: () => ({
+    userId: 'test-user-id',
+    role: 'admin',
+    accessibleUserIds: ['test-user-id'],
+  }),
+}));
+
 const mockSupabase = supabase as jest.Mocked<typeof supabase>;
 
 describe('ProjectProgressReport - Unit Tests', () => {
