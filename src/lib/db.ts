@@ -102,11 +102,22 @@ export interface ProjectMember {
   user?: User
 }
 
+export type NotificationKind =
+  | 'due_today'
+  | 'due_tomorrow'
+  | 'overdue'
+  | 'comment'
+  | 'task_update'
+  // NEW kinds for assignment changes
+  | 'assignment_added'
+  | 'assignment_removed'
+  | 'assignment_update'
+
 export interface Notification {
   id: string
   task_id: number
   user_id: string // uuid
-  kind: 'due_today' | 'due_tomorrow' | 'overdue' | 'comment' | 'task_update'
+  kind: NotificationKind
   title: string
   message: string
   is_read: boolean
