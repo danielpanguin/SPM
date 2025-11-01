@@ -1,6 +1,6 @@
-import { Task } from '../../classes/Task';
-import { User } from '../../classes/User';
-import { Status } from '../../classes/Status';
+import { Task } from '../../../classes/Task';
+import { User } from '../../../classes/User';
+import { Status } from '../../../classes/Status';
 import { supabase } from '@/lib/supabaseClient';
 
 // Mock Supabase
@@ -11,7 +11,7 @@ jest.mock('@/lib/supabaseClient', () => ({
 }));
 
 // Mock User class
-jest.mock('../../classes/User');
+jest.mock('../../../classes/User');
 
 /**
  * Database status mappings:

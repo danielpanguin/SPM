@@ -46,6 +46,7 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
           created_at: new Date().toISOString(),
           is_archived: false,
           status: { id: 1, status: 'in progress' },
+          priority: { id: 10 }, // Added priority object
           owned_by_user: { id: 'admin-1', username: 'Admin', roles: { name: 'admin' } },
           project: { id: 1, name: 'Project' },
           task_collaborator: [],
@@ -131,6 +132,7 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
           created_at: new Date().toISOString(),
           is_archived: false,
           status: { id: 1, status: 'in progress' },
+          priority: { id: 5 }, // Added priority object
           owned_by_user: { id: 'admin-1', username: 'Admin', roles: { name: 'admin' } },
           project: { id: 1, name: 'Project' },
           task_collaborator: [],
@@ -216,6 +218,7 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
           created_at: new Date().toISOString(),
           is_archived: false,
           status: { id: 1, status: 'in progress' },
+          priority: { id: 2 }, // Added priority object
           owned_by_user: { id: 'admin-1', username: 'Admin', roles: { name: 'admin' } },
           project: { id: 1, name: 'Project' },
           task_collaborator: [],
@@ -301,6 +304,7 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
           created_at: new Date().toISOString(),
           is_archived: false,
           status: { id: 1, status: 'in progress' },
+          priority: null, // Added priority object as null
           owned_by_user: { id: 'admin-1', username: 'Admin', roles: { name: 'admin' } },
           project: { id: 1, name: 'Project' },
           task_collaborator: [],
@@ -388,6 +392,7 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
           created_at: new Date().toISOString(),
           is_archived: false,
           status: { id: 2, status: 'completed' },
+          priority: { id: 5 }, // Added priority object
           owned_by_user: { id: 'admin-1', username: 'Admin', roles: { name: 'admin' } },
           project: { id: 1, name: 'Project' },
           task_collaborator: [],
@@ -473,6 +478,7 @@ describe('TaskCompletionReport - Final Coverage Tests', () => {
           created_at: new Date().toISOString(),
           is_archived: false,
           status: { id: 4, status: 'blocked' },
+          priority: { id: 5 }, // Added priority object
           owned_by_user: { id: 'admin-1', username: 'Admin', roles: { name: 'admin' } },
           project: { id: 1, name: 'Project' },
           task_collaborator: [],
