@@ -58,3 +58,92 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 GMAIL_ADDRESS=your_gmail_address
 GMAIL_APP_PASSWORD=your_gmail_app_password
 
+---
+
+# ▶️ Setup and Run Commands
+
+# Install dependencies:
+npm install
+
+# Start development server:
+npm run dev
+
+# Then open your browser and visit:
+# http://localhost:3000
+
+# Build for production:
+npm run build
+
+# Start production server:
+npm start
+
+
+# 🗄️ Database & Storage Setup
+
+# 1️⃣ Run SQL migrations:
+# Run each SQL file manually or via Supabase SQL editor
+# Folder: /supabase_migrations/
+
+# 2️⃣ Ensure Row-Level Security (RLS) is enabled for the attachments bucket.
+# (No command here — configure in Supabase dashboard / SQL policies.)
+
+# 3️⃣ Run storage setup script:
+node scripts/setup-supabase-storage.js
+
+# This creates the required bucket, permissions, and RLS policies automatically.
+
+
+# 📁 Project Structure (for reference)
+# (This is a directory tree, not commands.)
+# src/
+#   app/
+#     dashboard/
+#     reports/
+#     login/
+#     api/
+#   components/
+#   lib/
+#   hooks/
+#   types/
+# scripts/
+#   setup-supabase-storage.js
+# supabase_migrations/
+# tests/
+
+
+# 🧪 Testing
+
+# Run all test suites:
+npm test
+
+# This includes:
+# - Unit tests for Auth, Task CRUD, and Reports
+# - Integration tests for filters & notifications
+# - End-to-End tests for Staff and Manager workflows
+
+
+# 🧱 Scrum Process Summary
+# This project follows the Scrum framework taught in IS212.
+# Sprints: 3 total (2 weeks each)
+# Velocity: ~6 hrs of development per member per week
+# Artifacts: Product Backlog, Sprint Backlogs, Burndown Charts, Retrospectives, and Meeting Recordings
+# Continuous Integration: Tests and deployments automated via npm scripts and GitHub repository
+
+
+# 🔮 Future Enhancements (Backlog Beyond Release 1)
+# - Activity Tracking & Change History
+# - Calendar Integration (Drag-and-Drop Scheduling)
+# - Focus Timer / Time Logging
+# - User Personalisation (Dark Mode, Custom Views)
+# - HR & Management Dashboard
+
+
+# 👩‍💻 Contributors
+# Team SPM — School of Computing and Information Systems, Singapore Management University
+# Name            Role
+# (Add Name 1)    Scrum Master
+# (Add Name 2)    Developer
+# (Add Name 3)    Developer
+# (Add Name 4)    Tester
+# (Add Name 5)    Product Owner
+
