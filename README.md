@@ -32,3 +32,29 @@ This repository contains the first software release (Week 12) built using the sc
 - Storage: Supabase Storage Bucket attachments with RLS policies  
 - Email Service: Nodemailer / Gmail API  
 - Testing: Jest + React Testing Library
+
+---
+
+## ⚙️ Getting Started  
+
+Below are the full setup and bash commands needed to run the app locally.
+
+### 🧱 Prerequisites  
+- Node v18 or newer  
+- npm or pnpm  
+- Supabase project (URL + keys)
+
+---
+
+### 🧾 Environment Variables  
+
+Create a `.env.local` file in your project root and paste the following (replace placeholders with your values):
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+GMAIL_ADDRESS=your_gmail_address
+GMAIL_APP_PASSWORD=your_gmail_app_password
+
