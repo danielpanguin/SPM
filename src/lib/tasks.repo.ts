@@ -1,4 +1,4 @@
-// lib/tasks.repo.ts
+// src/lib/tasks.repo.ts
 import { supabase } from "./supabaseClient";
 
 export type UUID = string;
@@ -18,10 +18,10 @@ export type TaskRow = {
   parent_task_id: number | null;
   is_overdue: boolean | null;
 
-  // --- NEW recurrence columns in DB ---
+  // recurrence columns in DB
   is_recurring: boolean | null;
-  interval_days: number | null;  // int8 in DB
-  num_of_recur: number | null;   // int8 in DB
+  interval_days: number | null;  // int8
+  num_of_recur: number | null;   // int8
 };
 
 /** Input accepted by create() */
@@ -39,14 +39,13 @@ export type TaskCreateInput = {
   assignee_ids?: UUID[];
   tags?: string[];
 
-  // --- NEW: preferred nested payload from UI ---
   recurrence?: {
-    isRecurring?: boolean;   // default false
-    intervalDays?: number;   // default 1
-    count?: number;          // default 1
+    isRecurring?: boolean;
+    intervalDays?: number;
+    count?: number;
   } | null;
 
-  // --- Also allow flat fields (tests/legacy) ---
+  // flat fields (legacy/tests)
   is_recurring?: boolean;
   interval_days?: number;
   num_of_recur?: number;
@@ -65,7 +64,6 @@ export type TaskHydrated = TaskRow & {
   created_by_email?: string | null;
   owned_by_email?: string | null;
 
-  // --- Convenience echo back to UI ---
   recurrence?: {
     isRecurring: boolean;
     intervalDays: number;
@@ -74,6 +72,86 @@ export type TaskHydrated = TaskRow & {
 };
 
 const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
+
+/* ------------------------------------------------------------------ */
+/* --------------------------- NOTIFY HELPERS ------------------------ */
+/* ------------------------------------------------------------------ */
+
+type NotificationKind =
+  | "due_today" | "due_tomorrow" | "overdue"
+  | "assignment_added" | "assignment_removed" | "assignment_update";
+
+async function fetchUserNames(userIds: UUID[]): Promise<Map<UUID, string>> {
+  const map = new Map<UUID, string>();
+  if (!userIds.length) return map;
+  const ids = Array.from(new Set(userIds));
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, username, email")
+    .in("id", ids);
+  if (error) {
+    console.warn("[notify] fetchUserNames failed:", error.message);
+    return map;
+  }
+  for (const u of data ?? []) {
+    map.set(u.id, (u.username as string) || (u.email as string) || u.id);
+  }
+  return map;
+}
+
+function titleFor(kind: NotificationKind): string {
+  switch (kind) {
+    case "assignment_added":   return "Task assignment";
+    case "assignment_removed": return "Task assignment removed";
+    case "assignment_update":  return "Assignees changed";
+    case "due_today":          return "Task due today";
+    case "due_tomorrow":       return "Upcoming deadline";
+    case "overdue":            return "Task overdue";
+    default:                   return "Task notification";
+  }
+}
+
+/** Stable/event-unique notification id */
+function composeNotificationId(
+  taskId: number,
+  userId: UUID,
+  kind: NotificationKind,
+  ref?: string
+): string {
+  return `${taskId}:${userId}:${kind}${ref ? `:${ref}` : ""}`;
+}
+
+function nowIsoCompact(): string {
+  return new Date().toISOString().replace(/:/g, "-").replace(/\.\d{3}/, "");
+}
+
+/** Upsert notifications (by PK id) */
+async function insertNotifications(rows: Array<{
+  id: string;
+  user_id: UUID;
+  task_id: number;
+  kind: NotificationKind;
+  title?: string;
+  message: string;
+  is_read?: boolean;
+  due_date?: string | null;
+}>): Promise<void> {
+  if (!rows.length) return;
+  try {
+    const payload = rows.map(r => ({
+      ...r,
+      title: r.title ?? titleFor(r.kind),
+      is_read: r.is_read ?? false,
+      due_date: r.due_date ?? null,
+    }));
+    const { error } = await supabase
+      .from("notifications")
+      .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
+    if (error) console.warn("[notify] upsert failed:", error.message);
+  } catch (e: any) {
+    console.warn("[notify] unexpected error:", e?.message || e);
+  }
+}
 
 /* -------------------------------- READ -------------------------------- */
 
@@ -140,8 +218,6 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
       created_by: input.created_by ?? null,
       owned_by: input.owned_by ?? null,
       parent_task_id: input.parent_task_id ?? null,
-
-      // --- NEW recurrence fields persisted ---
       ...recurrenceCols,
     })
     .select("*")
@@ -151,7 +227,7 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
   const task = data as TaskRow;
 
   try {
-    // --- Collaborators: include owner automatically; cap total at 5 (AC-232, AC-233) ---
+    // include owner + assignees, cap total at 5
     const assigneesSet = new Set<UUID>();
     if (input.owned_by) assigneesSet.add(input.owned_by);
     (input.assignee_ids ?? []).forEach((uid) => uid && assigneesSet.add(uid));
@@ -171,6 +247,18 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
         .from("task_collaborator")
         .insert(collabRows);
       if (collabErr) throw new Error(`Error linking collaborators: ${collabErr.message}`);
+
+      // --- Assignment notifications on create (second-person) ---
+      const eventRef = nowIsoCompact();
+      const notes = Array.from(assigneesSet).map((uid) => ({
+        id: composeNotificationId(task.id, uid, "assignment_added", eventRef),
+        user_id: uid,
+        task_id: task.id,
+        kind: "assignment_added" as const,
+        title: titleFor("assignment_added"),
+        message: `You have been assigned to “${task.title}”.`,
+      }));
+      await insertNotifications(notes);
     }
 
     if (input.tags?.length) {
@@ -182,7 +270,7 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
       }
     }
   } catch (err) {
-    // rollback
+    // rollback on failure
     await supabase.from("task_collaborator").delete().eq("task_id", task.id);
     await supabase.from("task_tasktag").delete().eq("task_id", task.id);
     await supabase.from("tasks").delete().eq("id", task.id);
@@ -198,6 +286,31 @@ export async function updateTask(
   id: number,
   patch: TaskUpdateInput
 ): Promise<TaskHydrated> {
+  // Preload for owner change / diffing
+  let current: { title: string; owned_by: UUID | null } | null = null;
+  let oldAssignees: UUID[] = [];
+  const needOwnerCheck = typeof patch.owned_by !== "undefined";
+  const needAssigneesDiff = typeof patch.assignee_ids !== "undefined";
+
+  if (needOwnerCheck || needAssigneesDiff) {
+    const { data: tRow, error: tErr } = await supabase
+      .from("tasks")
+      .select("id, title, owned_by")
+      .eq("id", id)
+      .single();
+    if (tErr) throw new Error(`Error fetching task: ${tErr.message}`);
+    current = tRow as any;
+
+    if (needAssigneesDiff) {
+      const { data: collab, error: cErr } = await supabase
+        .from("task_collaborator")
+        .select("user_id")
+        .eq("task_id", id);
+      if (cErr) throw new Error(`Error fetching collaborators: ${cErr.message}`);
+      oldAssignees = (collab ?? []).map((r: any) => r.user_id);
+    }
+  }
+
   const scalar: Record<string, unknown> = Object.fromEntries(
     Object.entries({
       title: patch.title,
@@ -213,35 +326,89 @@ export async function updateTask(
     }).filter(([, v]) => v !== undefined)
   );
 
-  // --- NEW: handle recurrence updates if present in payload ---
   const recurrencePatch = pickRecurrenceColumnsFromPatch(patch);
-  if (recurrencePatch) {
-    Object.assign(scalar, recurrencePatch);
-  }
+  if (recurrencePatch) Object.assign(scalar, recurrencePatch);
 
   if (Object.keys(scalar).length > 0) {
     const { error } = await supabase.from("tasks").update(scalar).eq("id", id);
     if (error) throw new Error(`Error updating task: ${error.message}`);
   }
 
-  if (patch.assignee_ids !== undefined) {
-    // Always rewrite the collaborator list from scratch for determinism
+  // Owner change notifications (second-person for affected users)
+  if (needOwnerCheck && current) {
+    const oldOwner = current.owned_by ?? null;
+    const newOwner = (patch.owned_by ?? oldOwner) ?? null;
+    if (oldOwner !== newOwner) {
+      const { data: collabNow } = await supabase
+        .from("task_collaborator")
+        .select("user_id")
+        .eq("task_id", id);
+      const nowSet = new Set<UUID>((collabNow ?? []).map((r: any) => r.user_id));
+
+      const eventRefOwner = nowIsoCompact();
+      const rows: any[] = [];
+      if (newOwner) {
+        rows.push({
+          id: composeNotificationId(id, newOwner, "assignment_added", eventRefOwner),
+          user_id: newOwner,
+          task_id: id,
+          kind: "assignment_added",
+          title: titleFor("assignment_added"),
+          message: `You are now the owner of “${current.title}”.`,
+        });
+      }
+      if (oldOwner) {
+        rows.push({
+          id: composeNotificationId(id, oldOwner, "assignment_removed", eventRefOwner),
+          user_id: oldOwner,
+          task_id: id,
+          kind: "assignment_removed",
+          title: titleFor("assignment_removed"),
+          message: `You are no longer the owner of “${current.title}”.`,
+        });
+      }
+
+      // Inform remaining members with a summary (names are fine here)
+      if (nowSet.size) {
+        const nameMap = await fetchUserNames([...(nowSet as any)]);
+        const newOwnerName = newOwner ? (nameMap.get(newOwner) || "—") : "—";
+        for (const uid of nowSet) {
+          if (uid === newOwner || uid === oldOwner) continue;
+          rows.push({
+            id: composeNotificationId(id, uid, "assignment_update", eventRefOwner),
+            user_id: uid,
+            task_id: id,
+            kind: "assignment_update",
+            title: titleFor("assignment_update"),
+            message: `Owner changed to ${newOwnerName} for “${current.title}”.`,
+          });
+        }
+      }
+
+      await insertNotifications(rows);
+    }
+  }
+
+  // Assignee diff + notifications
+  if (needAssigneesDiff) {
+    // reset collaborators for determinism
     const { error: delErr } = await supabase
       .from("task_collaborator")
       .delete()
       .eq("task_id", id);
     if (delErr) throw new Error(`Error clearing collaborators: ${delErr.message}`);
 
-    // Determine the effective owner (patched or current row)
+    // determine effective owner
     let ownerId: UUID | null = patch.owned_by ?? null;
     if (!ownerId) {
       const { data: tRow, error: tErr } = await supabase
         .from("tasks")
-        .select("owned_by")
+        .select("owned_by, title")
         .eq("id", id)
         .single();
       if (tErr) throw new Error(`Error fetching task owner: ${tErr.message}`);
       ownerId = (tRow as any)?.owned_by ?? null;
+      if (!current) current = tRow as any;
     }
 
     const set = new Set<UUID>();
@@ -258,6 +425,66 @@ export async function updateTask(
       const rows = Array.from(set).map((uid) => ({ task_id: id, user_id: uid }));
       const { error: insErr } = await supabase.from("task_collaborator").insert(rows);
       if (insErr) throw new Error(`Error inserting collaborators: ${insErr.message}`);
+    }
+
+    // notifications (best-effort)
+    try {
+      const newAssignees = Array.from(set);
+      const added = newAssignees.filter((u) => !oldAssignees.includes(u));
+      const removed = oldAssignees.filter((u) => !set.has(u));
+      const currentMembers = newAssignees;
+
+      const nameMap = await fetchUserNames([...added, ...removed, ...currentMembers]);
+
+      const eventRefDiff = nowIsoCompact();
+      const noteRows: any[] = [];
+
+      // direct notices (second-person)
+      for (const uid of added) {
+        noteRows.push({
+          id: composeNotificationId(id, uid, "assignment_added", eventRefDiff),
+          user_id: uid,
+          task_id: id,
+          kind: "assignment_added",
+          title: titleFor("assignment_added"),
+          message: `You have been assigned to “${current?.title ?? "Task"}”.`,
+        });
+      }
+      for (const uid of removed) {
+        noteRows.push({
+          id: composeNotificationId(id, uid, "assignment_removed", eventRefDiff),
+          user_id: uid,
+          task_id: id,
+          kind: "assignment_removed",
+          title: titleFor("assignment_removed"),
+          message: `You have been removed from “${current?.title ?? "Task"}”.`,
+        });
+      }
+
+      // summary for everyone still on task (use names)
+      const addedNames = added.map((u) => nameMap.get(u) || "—");
+      const removedNames = removed.map((u) => nameMap.get(u) || "—");
+      const parts: string[] = [];
+      if (addedNames.length) parts.push(`${addedNames.join(", ")} added`);
+      if (removedNames.length) parts.push(`${removedNames.join(", ")} removed`);
+      const summary = parts.join("; ");
+
+      if (summary) {
+        for (const uid of currentMembers) {
+          noteRows.push({
+            id: composeNotificationId(id, uid, "assignment_update", eventRefDiff),
+            user_id: uid,
+            task_id: id,
+            kind: "assignment_update",
+            title: titleFor("assignment_update"),
+            message: `${summary} on “${current?.title ?? "Task"}”.`,
+          });
+        }
+      }
+
+      await insertNotifications(noteRows);
+    } catch (e: any) {
+      console.warn("[notify] updateTask diff notify error:", e?.message || e);
     }
   }
 
@@ -291,7 +518,6 @@ export async function deleteTask(id: number): Promise<void> {
 /* ------------------------------ HELPERS -------------------------------- */
 
 function pickRecurrenceColumns(input: TaskCreateInput) {
-  // Preferred nested object (from your UI)
   if (input.recurrence) {
     const { isRecurring = false, intervalDays = 1, count = 1 } = input.recurrence;
     return {
@@ -300,7 +526,6 @@ function pickRecurrenceColumns(input: TaskCreateInput) {
       num_of_recur: isRecurring ? Number(count) : null,
     };
   }
-  // Flat fields fallback
   if (
     typeof input.is_recurring !== "undefined" ||
     typeof input.interval_days !== "undefined" ||
@@ -313,12 +538,10 @@ function pickRecurrenceColumns(input: TaskCreateInput) {
       num_of_recur: isRecurring ? Number(input.num_of_recur ?? 1) : null,
     };
   }
-  // Default: not recurring
   return { is_recurring: false, interval_days: null, num_of_recur: null };
 }
 
 function pickRecurrenceColumnsFromPatch(patch: TaskUpdateInput) {
-  // Only include keys if caller attempted to change recurrence
   if (typeof patch.recurrence !== "undefined") {
     const { isRecurring = false, intervalDays = 1, count = 1 } = patch.recurrence ?? {};
     return {
@@ -360,9 +583,7 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
       supabase.from("users").select("id,email"),
     ]);
 
-  if (tagData.error) {
-    console.error("Error fetching tags:", tagData.error);
-  }
+  if (tagData.error) console.error("Error fetching tags:", tagData.error);
 
   const collabMap = new Map<number, UUID[]>();
   (collabData.data ?? []).forEach((c: any) => {
@@ -396,7 +617,6 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   return rows.map((r) => {
     const assignees = collabMap.get(r.id) ?? [];
 
-    // --- Build recurrence echo for UI convenience ---
     const recurrence =
       r.is_recurring
         ? {
