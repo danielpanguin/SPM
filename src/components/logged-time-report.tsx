@@ -228,28 +228,29 @@ export function LoggedTimeReport() {
           .eq('is_archived', false)
 
         // Admin: Can see ALL tasks in the system (no restrictions by default)
-        // Manager: Can only see tasks from their projects
+        // Manager: Can see tasks owned by themselves and their reportees
         if (role === 'manager') {
-          // Get manager's projects
-          const { data: projectMembers } = await supabase
-            .from('project_members')
-            .select('project_id')
-            .eq('user_id', userId)
+          // For managers, show tasks owned by themselves and their reportees
+          const managerAndReportees = users.map(u => u.id)
 
-          if (projectMembers && projectMembers.length > 0) {
-            const managerProjectIds = projectMembers.map(pm => pm.project_id)
-            query = query.in('project_id', managerProjectIds)
+          if (managerAndReportees.length > 0) {
+            // Apply user filter if specified, otherwise show all team members
+            if (selectedUsers.length > 0) {
+              query = query.in('owned_by', selectedUsers)
+            } else {
+              query = query.in('owned_by', managerAndReportees)
+            }
           } else {
-            // Manager has no projects, show no tasks
+            // Manager has no team members loaded yet, show no tasks
             setTasksData([])
             setLoading(false)
             return
           }
-        }
-
-        // Apply user filter (filter by task owner)
-        if (selectedUsers.length > 0) {
-          query = query.in('owned_by', selectedUsers)
+        } else {
+          // Admin: Apply user filter only if specified
+          if (selectedUsers.length > 0) {
+            query = query.in('owned_by', selectedUsers)
+          }
         }
 
         // Apply department filter for admin
