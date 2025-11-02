@@ -106,7 +106,6 @@ export type NotificationKind =
   | 'due_today'
   | 'due_tomorrow'
   | 'overdue'
-  | 'comment'
   | 'task_update'
   // NEW kinds for assignment changes
   | 'assignment_added'
@@ -114,6 +113,7 @@ export type NotificationKind =
   | 'assignment_update'
   // NEW kind for task modification 
   | 'task_update'
+  | 'comment'
 
 export interface Notification {
   id: string
