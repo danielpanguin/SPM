@@ -78,7 +78,7 @@ const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
 /* ------------------------------------------------------------------ */
 
 type NotificationKind =
-  | "due_today" | "due_tomorrow" | "overdue"
+  | "due_today" | "due_tomorrow" | "overdue" | "comment"
   | "assignment_added" | "assignment_removed" | "assignment_update";
 
 async function fetchUserNames(userIds: UUID[]): Promise<Map<UUID, string>> {
@@ -107,6 +107,7 @@ function titleFor(kind: NotificationKind): string {
     case "due_today":          return "Task due today";
     case "due_tomorrow":       return "Upcoming deadline";
     case "overdue":            return "Task overdue";
+    case "comment":            return "New comment";
     default:                   return "Task notification";
   }
 }
