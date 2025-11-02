@@ -202,6 +202,10 @@ jest.mock("@/lib/supabaseClient", () => {
             }
             return ok(result ? JSON.parse(JSON.stringify(result)) : null);
           },
+          // Make the chain thenable so it can be awaited directly without .single()/.maybeSingle()
+          then(resolve: any) {
+            return ok(result).then(resolve);
+          },
         };
         return chain;
       },
