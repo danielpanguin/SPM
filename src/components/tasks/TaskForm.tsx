@@ -306,9 +306,22 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initial?.id]);
 
-  // Owner dropdown should list all users; collaborators should exclude the owner.
-  const ownerOptions = users;
-  const collabOptions = useMemo(() => users.filter((u) => u.id !== ownedById), [users, ownedById]);
+  // Owner dropdown should list all users in alphabetical order; collaborators should exclude only the owner.
+  const ownerOptions = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const emailA = (a.email || '').toLowerCase();
+      const emailB = (b.email || '').toLowerCase();
+      return emailA.localeCompare(emailB);
+    });
+  }, [users]);
+  
+  const collabOptions = useMemo(() => {
+    return users.filter((u) => {
+      // Exclude only the owner (assignee) from collaborators
+      if (u.id === ownedById) return false;
+      return true;
+    });
+  }, [users, ownedById]);
 
   // If owner changes, auto-remove owner from collaborators (AC-231 guard)
   useEffect(() => {
@@ -488,35 +501,46 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         // Staff cannot remove existing collaborators in edit mode
         if (!canRemoveCollaborators && mode === "edit" && wasInitiallyAdded) {
           setError("Only managers and admins can remove existing collaborators.");
+          // Auto-clear error after 3 seconds
+          setTimeout(() => setError(null), 3000);
           return prev;
         }
+        // Clear any existing error when successfully removing
+        setError(null);
         return prev.filter((i) => i !== x);
       }
 
       // Trying to add
       if (prev.length >= MAX_COLLABORATORS) {
         setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+        // Auto-clear error after 3 seconds
+        setTimeout(() => setError(null), 3000);
         return prev;
       }
+      // Clear any existing error when successfully adding
+      setError(null);
       return [...prev, x];
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {(error || hydrating) && (
-        <div
-          className={`p-3 rounded-md ${
-            hydrating ? "bg-blue-50 border border-blue-200" : "bg-red-50 border border-red-300"
-          }`}
-        >
-          {hydrating ? (
-            <p className="text-sm text-blue-700">Loading latest task data…</p>
-          ) : (
-            <p className="text-sm font-semibold text-red-700">{error}</p>
-          )}
-        </div>
-      )}
+      {/* Fixed height container to prevent jumpiness */}
+      <div className="min-h-[52px]">
+        {(error || hydrating) && (
+          <div
+            className={`p-3 rounded-md ${
+              hydrating ? "bg-blue-50 border border-blue-200" : "bg-red-50 border border-red-300"
+            }`}
+          >
+            {hydrating ? (
+              <p className="text-sm text-blue-700">Loading latest task data…</p>
+            ) : (
+              <p className="text-sm font-semibold text-red-700">{error}</p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div>
         <label htmlFor={id.title} className="block text-sm font-medium">
@@ -717,7 +741,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
                   disabled={isDisabledForRemoval}
                   className={isDisabledForRemoval ? "cursor-not-allowed" : "cursor-pointer"}
                 />
-                <span className="text-sm">{u.email || u.id}</span>
+                <span className="text-sm break-all overflow-hidden" title={u.email || u.id}>{u.email || u.id}</span>
               </label>
             );
           })}
