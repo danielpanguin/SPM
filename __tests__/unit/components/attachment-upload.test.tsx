@@ -13,7 +13,10 @@ global.fetch = jest.fn();
 
 // Helper to create mock File objects
 function createMockFile(name: string, size: number, type: string): File {
-  const file = new File(['a'.repeat(size)], name, { type });
+  // For large files, don't try to create actual content (causes RangeError)
+  // Just create a small file and override the size property
+  const content = size > 10_000_000 ? ['mock'] : ['a'.repeat(size)];
+  const file = new File(content, name, { type });
   Object.defineProperty(file, 'size', { value: size });
   return file;
 }

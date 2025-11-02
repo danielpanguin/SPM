@@ -39,10 +39,8 @@ jest.mock("@/lib/supabaseClient", () => {
   // Reset function for tests
   const __reset = () => {
     capturedNotifications.length = 0;
-    tasks.length = 0;
-    collaborators.length = 0;
-    tags.length = 0;
-    taskTags.length = 0;
+    // Don't reset tasks, collaborators, tags, or taskTags
+    // because tests need them to persist after creation
   };
 
   // Chainable query object builder
@@ -180,7 +178,10 @@ jest.mock("@/lib/supabaseClient", () => {
                   task_tag: tags.find((t) => t.id === tt.tag_id),
                 }));
             } else if (Array.isArray(result)) {
-              result = result.filter((r) => r[col] === val);
+              // For single-row lookups (status, projects, priority, etc)
+              const filtered = result.filter((r) => r[col] === val);
+              // Keep as array for potential .in() chaining, but .single() will extract first element
+              result = filtered;
             } else if (result && (result as Row)[col] === val) {
               // already filtered
             } else {
@@ -192,7 +193,15 @@ jest.mock("@/lib/supabaseClient", () => {
             return chain;
           },
           maybeSingle: () => ok(result),
-          single: () => ok(result),
+          single: () => {
+            // If result is an array, return first element for .single()
+            // Return deep copy to avoid reference issues
+            if (Array.isArray(result)) {
+              const item = result[0] ?? null;
+              return ok(item ? JSON.parse(JSON.stringify(item)) : null);
+            }
+            return ok(result ? JSON.parse(JSON.stringify(result)) : null);
+          },
         };
         return chain;
       },
@@ -228,9 +237,9 @@ jest.mock("@/lib/supabaseClient", () => {
   // expose helper for assertions
   const __getCapturedNotifications = () =>
     (supabase.from("notifications") as any).__getCapturedNotifications();
-  const __reset = () => (supabase.from("notifications") as any).__reset();
+  const __resetMock = () => (supabase.from("notifications") as any).__reset();
 
-  return { supabase, __getCapturedNotifications, __reset };
+  return { supabase, __getCapturedNotifications, __reset: __resetMock };
 });
 
 // pull the helpers the mock exposed

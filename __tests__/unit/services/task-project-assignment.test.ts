@@ -251,11 +251,11 @@ describe('Task-Project Assignment - Unit Tests', () => {
 
   describe('updateTask - Project Assignment', () => {
     it('should update task to assign a new project', async () => {
-      const mockTaskData = {
+      const mockTaskDataBefore = {
         id: 1,
         title: 'Test Task',
         description: null,
-        project_id: 200,
+        project_id: null,
         status_id: null,
         priority_id: null,
         start_date: null,
@@ -266,27 +266,44 @@ describe('Task-Project Assignment - Unit Tests', () => {
         is_overdue: false,
       };
 
+      const mockTaskData = {
+        ...mockTaskDataBefore,
+        project_id: 200,
+      };
+
       const mockProject = { id: 200, name: 'Project Beta' };
 
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'tasks') {
           return {
-            update: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({ error: null }),
-            }),
             select: jest.fn().mockReturnValue({
               eq: jest.fn().mockReturnValue({
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskDataBefore,
+                  error: null,
+                }),
                 maybeSingle: jest.fn().mockResolvedValue({
                   data: mockTaskData,
                   error: null,
                 }),
               }),
             }),
+            update: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ error: null }),
+            }),
           };
         }
         if (table === 'projects') {
           return {
             select: jest.fn().mockResolvedValue({ data: [mockProject], error: null }),
+          };
+        }
+        if (table === 'task_collaborator') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+              in: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
           };
         }
         return {
@@ -304,11 +321,11 @@ describe('Task-Project Assignment - Unit Tests', () => {
     });
 
     it('should update task to remove project assignment', async () => {
-      const mockTaskData = {
+      const mockTaskDataBefore = {
         id: 1,
         title: 'Test Task',
         description: null,
-        project_id: null,
+        project_id: 100,
         status_id: null,
         priority_id: null,
         start_date: null,
@@ -319,19 +336,36 @@ describe('Task-Project Assignment - Unit Tests', () => {
         is_overdue: false,
       };
 
+      const mockTaskData = {
+        ...mockTaskDataBefore,
+        project_id: null,
+      };
+
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'tasks') {
           return {
-            update: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({ error: null }),
-            }),
             select: jest.fn().mockReturnValue({
               eq: jest.fn().mockReturnValue({
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskDataBefore,
+                  error: null,
+                }),
                 maybeSingle: jest.fn().mockResolvedValue({
                   data: mockTaskData,
                   error: null,
                 }),
               }),
+            }),
+            update: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        if (table === 'task_collaborator') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+              in: jest.fn().mockResolvedValue({ data: [], error: null }),
             }),
           };
         }
@@ -375,19 +409,31 @@ describe('Task-Project Assignment - Unit Tests', () => {
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'tasks') {
           return {
-            update: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({ error: null }),
-            }),
             select: jest.fn().mockReturnValue({
               eq: jest.fn().mockReturnValue({
+                single: jest.fn().mockResolvedValue({
+                  data: mockTaskDataBefore,
+                  error: null,
+                }),
                 maybeSingle: jest.fn().mockResolvedValue({
                   data: mockTaskDataAfter,
                   error: null }),
               }),
             }),
+            update: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ error: null }),
+            }),
           };
         }
-        if (table === 'task_collaborator' || table === 'task_tasktag') {
+        if (table === 'task_collaborator') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+              in: jest.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === 'task_tasktag') {
           return {
             select: jest.fn().mockReturnValue({
               in: jest.fn().mockResolvedValue({ data: [], error: null }),
