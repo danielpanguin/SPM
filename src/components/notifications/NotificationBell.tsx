@@ -10,7 +10,7 @@ type UINotification = {
   id: string;
   task_id: string;
   user_id: string;
-  kind: "overdue" | "due_today";
+  kind: "overdue" | "due_today" | "due_tomorrow" | "comment" | string;
   title: string;
   message: string;
   is_read: boolean;

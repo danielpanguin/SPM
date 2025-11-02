@@ -81,6 +81,8 @@ function kindToTitle(kind: string | null | undefined) {
       return "Task due today";
     case "due_tomorrow":
       return "Upcoming deadline";
+    case "comment":
+      return "New comment";
     default:
       return "Notification";
   }

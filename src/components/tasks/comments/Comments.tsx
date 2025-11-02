@@ -4,6 +4,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState, useRef } from "react";
 import { useUser } from "@/hooks/useAuth";
+import { emitNotificationsHint } from "@/lib/notificationsBus";
 
 type Comment = {
   id: number;
@@ -166,26 +167,25 @@ export default function Comments({ taskId, onPosted, onCountChange }: Props) {
 
     setSubmitting(true);
     try {
-      const { data, error } = await supabase
-        .from("comments")
-        .insert({ task_id: taskIdNum, user_id: userId, content: message })
-        .select(`
-          id,
-          task_id,
-          message:content,
-          created_at,
-          updated_at,
-          author:users!fk_comments_user_id ( id, username )
-        `)
-        .single();
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: taskIdNum,
+          userId,
+          content: message,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Failed to post comment");
 
-      if (error) throw error;
-
+      const data = json.comment as Comment; 
       const merged = normalizeAndSort([...(comments ?? []), data]);
       setComments(merged);
       onCountChange?.(merged.length);
       setText("");
       onPosted?.();
+      emitNotificationsHint();
     } catch (err: any) {
       console.error(err);
       alert(err.message ?? "Failed to post comment");
