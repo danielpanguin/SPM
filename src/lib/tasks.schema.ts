@@ -31,6 +31,9 @@ export const TaskCreateSchema = z.object({
   is_recurring: z.boolean().optional(),
   interval_days: z.number().int().positive().optional().nullable(), // ← allow null
   num_of_recur: z.number().int().positive().optional().nullable(), // ← allow null
+
+  // Metadata field for tracking who updated the task
+  updatedBy: z.string().uuid().optional(),
 });
 
 export const TaskUpdateSchema = TaskCreateSchema.partial();

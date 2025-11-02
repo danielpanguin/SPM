@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTask, updateTask, deleteTask } from "@/lib/tasks.repo";
 import { TaskUpdateSchema } from "@/lib/tasks.schema";
+import { supabaseAdmin } from "@/lib/supabaseAdmin"; // supabase admin SDK with service role key
 
 type P = { params: Promise<{ id: string }> };
 
@@ -23,10 +24,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
     const body = await req.json();
 
     // Parse with Zod first (this may include `null` for recurrence numbers)
-    const patch = TaskUpdateSchema.parse(body) as any;
-
+    const patchRaw = TaskUpdateSchema.parse(body) as any;
+    const { updatedBy, ...Patch } = patchRaw;
+    const updaterId = typeof updatedBy === "string" ? updatedBy : undefined;
     // Normalize the payload so the repo receives only number | undefined
-    const normalized: any = { ...patch };
+    const normalized: any = { ...patchRaw };
 
     // Map nested `recurrence` (if provided) to flat columns
     if (normalized.recurrence) {
@@ -55,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
       delete normalized.num_of_recur;
     }
 
-    const updated = await updateTask(Number(id), normalized);
+    const updated = await updateTask(Number(id), normalized, updaterId);
     return NextResponse.json({ ok: true, data: updated });
   } catch (e: any) {
     console.error(e);

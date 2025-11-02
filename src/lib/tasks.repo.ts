@@ -79,7 +79,7 @@ const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
 
 type NotificationKind =
   | "due_today" | "due_tomorrow" | "overdue"
-  | "assignment_added" | "assignment_removed" | "assignment_update";
+  | "assignment_added" | "assignment_removed" | "assignment_update" | "task_update"
 
 async function fetchUserNames(userIds: UUID[]): Promise<Map<UUID, string>> {
   const map = new Map<UUID, string>();
@@ -107,6 +107,7 @@ function titleFor(kind: NotificationKind): string {
     case "due_today":          return "Task due today";
     case "due_tomorrow":       return "Upcoming deadline";
     case "overdue":            return "Task overdue";
+    case "task_update":        return "Task updated"
     default:                   return "Task notification";
   }
 }
@@ -123,6 +124,33 @@ function composeNotificationId(
 
 function nowIsoCompact(): string {
   return new Date().toISOString().replace(/:/g, "-").replace(/\.\d{3}/, "");
+}
+
+/** Format field name for display in notifications */
+function formatFieldName(fieldName: string): string {
+  const fieldMap: Record<string, string> = {
+    title: "Title",
+    description: "Description",
+    project_id: "Project",
+    status_id: "Status",
+    priority_id: "Priority",
+    start_date: "Start Date",
+    end_date: "End Date",
+    parent_task_id: "Parent Task",
+    is_recurring: "Recurring",
+    interval_days: "Interval Days",
+    num_of_recur: "Number of Recurrences",
+    tags: "Tags",
+  };
+  return fieldMap[fieldName] || fieldName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Format value for display in notifications */
+function formatValue(value: any): string {
+  if (value === null || value === undefined) return "empty";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "empty";
+  return String(value);
 }
 
 /** Upsert notifications (by PK id) */
@@ -281,25 +309,28 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
 }
 
 /* ------------------------------ UPDATE -------------------------------- */
-
 export async function updateTask(
   id: number,
-  patch: TaskUpdateInput
+  patch: TaskUpdateInput,
+  updaterId?: UUID, // pass authenticated user ID here
 ): Promise<TaskHydrated> {
+  // Fetch FULL task state BEFORE any updates for notification comparisons
+  const { data: taskBefore, error: fetchErr } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (fetchErr || !taskBefore) {
+    throw new Error(`Error fetching task: ${fetchErr?.message}`);
+  }
+
   // Preload for owner change / diffing
-  let current: { title: string; owned_by: UUID | null } | null = null;
+  let current: { title: string; owned_by: UUID | null } | null = taskBefore as any;
   let oldAssignees: UUID[] = [];
   const needOwnerCheck = typeof patch.owned_by !== "undefined";
   const needAssigneesDiff = typeof patch.assignee_ids !== "undefined";
 
   if (needOwnerCheck || needAssigneesDiff) {
-    const { data: tRow, error: tErr } = await supabase
-      .from("tasks")
-      .select("id, title, owned_by")
-      .eq("id", id)
-      .single();
-    if (tErr) throw new Error(`Error fetching task: ${tErr.message}`);
-    current = tRow as any;
 
     if (needAssigneesDiff) {
       const { data: collab, error: cErr } = await supabase
@@ -320,7 +351,7 @@ export async function updateTask(
       priority_id: patch.priority_id,
       start_date: patch.start_date,
       end_date: patch.end_date,
-      created_by: patch.created_by,
+      // created_by is intentionally excluded - it should not change after task creation
       owned_by: patch.owned_by,
       parent_task_id: patch.parent_task_id,
     }).filter(([, v]) => v !== undefined)
@@ -487,6 +518,138 @@ export async function updateTask(
       console.warn("[notify] updateTask diff notify error:", e?.message || e);
     }
   }
+
+// Notification for general task field changes (excluding assignment/owner)
+  try {
+    // Use taskBefore that was fetched at the start of updateTask function
+
+    // Fetch old tags from the database (they're not in the tasks table)
+    let oldTags: string[] = [];
+    if (patch.tags !== undefined) {
+      const { data: oldTagData } = await supabase
+        .from("task_tasktag")
+        .select("tag_id, task_tag(name)")
+        .eq("task_id", id);
+      oldTags = (oldTagData ?? [])
+        .map((t: any) => t.task_tag?.name)
+        .filter(Boolean);
+    }
+
+    // Fields to exclude from task_update notifications (they have dedicated handlers)
+    const excludedFields = new Set([
+      "owned_by",       // handled by owner change logic
+      "assignee_ids",   // handled by assignee diff logic
+      "recurrence",     // nested object
+      "updatedBy",      // metadata field, not a task field
+      "created_by",     // never changes after creation, excluded from scalar update
+    ]);
+
+    // Get updater name
+    let updaterName = "A team member";
+    if (updaterId) {
+      const nameMap = await fetchUserNames([updaterId]);
+      updaterName = nameMap.get(updaterId) || updaterName;
+      console.log("[notify] updaterId:", updaterId, "updaterName:", updaterName);
+    } else {
+      console.log("[notify] No updaterId provided");
+    }
+
+    // Fetch all collaborators for this task
+    const { data: collabData } = await supabase
+      .from("task_collaborator")
+      .select("user_id")
+      .eq("task_id", id);
+
+    const notifyUsersSet = new Set<UUID>(
+      (collabData ?? []).map((c: any) => c.user_id)
+    );
+
+    // Include owner if not already in collaborators
+    if (taskBefore.owned_by) {
+      notifyUsersSet.add(taskBefore.owned_by);
+    }
+
+    console.log("[notify] All potential recipients:", Array.from(notifyUsersSet));
+
+    // Don't notify the person who made the update
+    if (updaterId) {
+      notifyUsersSet.delete(updaterId);
+      console.log("[notify] After removing updater:", Array.from(notifyUsersSet));
+    }
+
+    const eventRefUpdate = nowIsoCompact();
+    const notifications = [];
+
+    // Helper to format field values (fetch names for IDs)
+    const formatFieldValue = async (fieldName: string, value: any): Promise<string> => {
+      if (value === null || value === undefined) return "empty";
+
+      // Fetch actual names for foreign key fields
+      if (fieldName === "status_id" && typeof value === "number") {
+        const { data } = await supabase.from("status").select("status").eq("id", value).single();
+        return data?.status || `Status #${value}`;
+      }
+      if (fieldName === "project_id" && typeof value === "number") {
+        const { data } = await supabase.from("projects").select("name").eq("id", value).single();
+        return data?.name || `Project #${value}`;
+      }
+      if (fieldName === "priority_id" && typeof value === "number") {
+        const { data } = await supabase.from("priority").select("level").eq("id", value).single();
+        return data?.level || `Priority #${value}`;
+      }
+
+      // Default formatting
+      return formatValue(value);
+    };
+
+    // Loop through each field in the patch
+    for (const [key, newVal] of Object.entries(patch)) {
+      if (excludedFields.has(key)) continue;
+      if (newVal === undefined) continue;
+
+      // Special handling for tags (they're not in taskBefore)
+      let oldVal: any;
+      if (key === "tags") {
+        oldVal = oldTags;
+      } else {
+        // @ts-ignore - accessing dynamic task fields
+        oldVal = taskBefore[key];
+      }
+
+      // Only notify if value actually changed
+      if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+        const fieldLabel = formatFieldName(key);
+        const oldValFormatted = await formatFieldValue(key, oldVal);
+        const newValFormatted = await formatFieldValue(key, newVal);
+        const taskTitle = (taskBefore.title || "").trim();
+        const message = `${updaterName} updated ${fieldLabel} on "${taskTitle}" from "${oldValFormatted}" to "${newValFormatted}".`;
+
+        console.log(`[notify] Field changed: ${key}, old: ${oldVal}, new: ${newVal}`);
+
+        // Create a notification for each user, with unique ID per field
+        for (const uid of notifyUsersSet) {
+          notifications.push({
+            id: composeNotificationId(id, uid, "task_update", `${eventRefUpdate}:${key}`),
+            user_id: uid,
+            task_id: id,
+            kind: "task_update" as const,
+            title: titleFor("task_update"),
+            message,
+          });
+        }
+      }
+    }
+
+    if (notifications.length) {
+      console.log("[notify] Sending notifications:", notifications.length, "total");
+      await insertNotifications(notifications);
+    } else {
+      console.log("[notify] No field changes detected");
+    }
+  } catch (e: any) {
+    console.warn("[notify] Task update notification error:", e?.message || e);
+  }
+
 
   if (patch.tags !== undefined) {
     const { error: delErr } = await supabase
