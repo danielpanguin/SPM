@@ -595,7 +595,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
 
                 {/* User's Tasks */}
                 <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  isUserCollapsed(user.id) ? 'max-h-0' : 'max-h-[1000px]'
+                  isUserCollapsed(user.id) ? 'max-h-0' : 'max-h-none'
                 }`}>
                   {tasks.map((task) => {
                     const barStyle = getTaskBarStyle(task)
