@@ -212,17 +212,36 @@ export async function DELETE(
       return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
     }
 
-    // Delete file from storage (use admin client)
-    const { error: storageError } = await supabaseAdmin.storage
+    // Check if other tasks reference the same storage_path (for recurring tasks)
+    const { data: referencingAttachments, error: refError } = await supabase
       .from('attachments')
-      .remove([attachment.storage_path]);
+      .select('id')
+      .eq('storage_path', attachment.storage_path);
 
-    if (storageError) {
-      console.error('Error deleting file from storage:', storageError);
-      // Continue anyway to delete from database
+    if (refError) {
+      console.error('Error checking attachment references:', refError);
+      return NextResponse.json({ error: 'Failed to check attachment references' }, { status: 500 });
     }
 
-    // Delete from database
+    const referenceCount = referencingAttachments?.length || 0;
+    console.log(`🔍 Attachment ${attachmentId} has ${referenceCount} reference(s) in the database`);
+
+    // Only delete from storage if this is the last reference
+    if (referenceCount <= 1) {
+      console.log('🗑️  Last reference - deleting from storage bucket');
+      const { error: storageError } = await supabaseAdmin.storage
+        .from('attachments')
+        .remove([attachment.storage_path]);
+
+      if (storageError) {
+        console.error('Error deleting file from storage:', storageError);
+        // Continue anyway to delete from database
+      }
+    } else {
+      console.log(`⏭️  ${referenceCount - 1} other reference(s) exist - keeping file in storage bucket`);
+    }
+
+    // Always delete the database row for this task's attachment
     const { error: dbError } = await supabase
       .from('attachments')
       .delete()
@@ -233,7 +252,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to delete attachment' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, message: 'Attachment deleted successfully' });
+    return NextResponse.json({
+      ok: true,
+      message: 'Attachment deleted successfully',
+      deletedFromStorage: referenceCount <= 1
+    });
   } catch (error) {
     console.error('Error in DELETE /api/tasks/[id]/attachments:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
