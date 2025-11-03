@@ -169,7 +169,11 @@ export default function TaskDetailsModal({
   };
   const getCollaboratorsDisplay = () => {
     if (!task.collaborators || task.collaborators.length === 0) return "—";
-    return task.collaborators
+    // Filter out owner from collaborators (safety check for old data)
+    const ownerId = (task.ownedBy as any)?.id;
+    const collaborators = task.collaborators.filter(c => c.id !== ownerId);
+    if (collaborators.length === 0) return "—";
+    return collaborators
       .map(c => labels[String(c.id)] || (c as any).name || (c as any).email || String(c.id))
       .join(", ");
   };
