@@ -8,6 +8,7 @@ import { useUser } from "@/hooks/useAuth";
 import { notifyTaskSync } from "@/lib/notifyTaskSync";
 import { AttachmentUpload } from "./AttachmentUpload";
 import type { Attachment } from "@/types/attachment";
+import CollaboratorsDropdown from "./CollaboratorsDropdown";
 
 const MAX_TOTAL_ASSIGNEES = 5; // owner + collaborators
 const MAX_COLLABORATORS = 4;   // collaborators only (excludes owner)
@@ -43,7 +44,14 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+    const collabIds = collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+
+    // Auto-select current user in create mode if not already in the list
+    if (mode === "create" && currentUserId && !collabIds.includes(currentUserId)) {
+      return [...collabIds, currentUserId];
+    }
+
+    return collabIds;
   });
 
   // Track initial collaborators to determine which can be removed
@@ -478,30 +486,6 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     }
   }
 
-  function toggleCollaborator(x: string) {
-    setCollaboratorIds((prev) => {
-      const exists = prev.includes(x);
-      const wasInitiallyAdded = initialCollaboratorIds.includes(x);
-
-      if (exists) {
-        // Trying to remove
-        // Staff cannot remove existing collaborators in edit mode
-        if (!canRemoveCollaborators && mode === "edit" && wasInitiallyAdded) {
-          setError("Only managers and admins can remove existing collaborators.");
-          return prev;
-        }
-        return prev.filter((i) => i !== x);
-      }
-
-      // Trying to add
-      if (prev.length >= MAX_COLLABORATORS) {
-        setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
-        return prev;
-      }
-      return [...prev, x];
-    });
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {(error || hydrating) && (
@@ -695,32 +679,29 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
       <div>
         <label className="block text-sm font-medium">Collaborators</label>
-        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {collabOptions.map((u) => {
-            const isChecked = collaboratorIds.includes(u.id);
-            const wasInitiallyAdded = initialCollaboratorIds.includes(u.id);
-            // Staff cannot remove existing collaborators in edit mode, but can add/remove new ones
-            const isDisabledForRemoval = !canRemoveCollaborators && mode === "edit" && wasInitiallyAdded && isChecked;
-
-            return (
-              <label
-                key={u.id}
-                className={`flex items-center gap-2 rounded border p-2 ${
-                  isChecked ? "bg-gray-50" : ""
-                } ${isDisabledForRemoval ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-                title={isDisabledForRemoval ? "Only managers and admins can remove existing collaborators" : ""}
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => toggleCollaborator(u.id)}
-                  disabled={isDisabledForRemoval}
-                  className={isDisabledForRemoval ? "cursor-not-allowed" : "cursor-pointer"}
-                />
-                <span className="text-sm">{u.email || u.id}</span>
-              </label>
-            );
-          })}
+        <div className="mt-1">
+          <CollaboratorsDropdown
+            users={collabOptions}
+            selectedIds={collaboratorIds}
+            onSelectionChange={(newIds) => {
+              // Validate max collaborators
+              if (newIds.length > MAX_COLLABORATORS) {
+                setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+                return;
+              }
+              setCollaboratorIds(newIds);
+              setError(null);
+            }}
+            currentUserId={currentUserId ?? undefined}
+            disabled={busy}
+            disabledIds={
+              // Staff cannot remove existing collaborators in edit mode
+              !canRemoveCollaborators && mode === "edit"
+                ? initialCollaboratorIds
+                : []
+            }
+            disabledTooltip="Only managers and admins can remove existing collaborators"
+          />
         </div>
         {!canRemoveCollaborators && mode === "edit" && initialCollaboratorIds.length > 0 && (
           <p className="mt-1 text-xs text-gray-500">
