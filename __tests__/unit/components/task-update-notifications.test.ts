@@ -285,7 +285,7 @@ describe("Task Update Notifications", () => {
 
       // Check message format
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Status on "Test Task" from "To Do" to "In Progress"\./
+        /Updater updated Status for Task "Test Task" from "To Do" to "In Progress"\./
       );
 
       // Verify recipients (owner + bob + alice, not updater)
@@ -316,7 +316,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2); // owner + bob
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Project on "Project Task" from "Project Alpha" to "Project Beta"\./
+        /Updater updated Project for Task "Project Task" from "Project Alpha" to "Project Beta"\./
       );
     });
 
@@ -343,7 +343,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2);
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Priority on "Priority Task" from "Low" to "High"\./
+        /Updater updated Priority for Task "Priority Task" from "Low" to "High"\./
       );
     });
 
@@ -370,7 +370,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2);
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Description on "Description Task" from "Old description" to "New description"\./
+        /Updater updated Description for Task "Description Task" from "Old description" to "New description"\./
       );
     });
 
@@ -396,7 +396,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2);
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Title on "Old Title" from "Old Title" to "New Title"\./
+        /Updater updated Title for Task "Old Title" from "Old Title" to "New Title"\./
       );
     });
   });
@@ -555,7 +555,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2);
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Tags on "Tags Task" from "backend" to "backend, frontend"\./
+        /Updater updated Tags for Task "Tags Task" from "backend" to "backend, frontend"\./
       );
     });
 
@@ -581,7 +581,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2);
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Tags on "No Tags Task" from "empty" to "urgent"\./
+        /Updater updated Tags for Task "No Tags Task" from "empty" to "urgent"\./
       );
     });
 
@@ -608,7 +608,7 @@ describe("Task Update Notifications", () => {
 
       expect(taskUpdateNotes).toHaveLength(2);
       expect(taskUpdateNotes[0].message).toMatch(
-        /Updater updated Tags on "Remove Tags Task" from "backend, urgent" to "empty"\./
+        /Updater updated Tags for Task "Remove Tags Task" from "backend, urgent" to "empty"\./
       );
     });
   });
