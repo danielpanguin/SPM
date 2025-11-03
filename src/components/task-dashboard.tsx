@@ -11,7 +11,6 @@ import { TaskTable } from "./task-table" // <-- TaskTable updated to accept Task
 import { TaskFiltersComponent, type TaskFilters } from "./task-filters"
 import  TaskDetailsModal from "./tasks/TaskDetailsModal"
 import TaskForm from "./tasks/TaskForm"
-import { DownloadReportButton } from "./DownloadReportButton"
 import { supabase } from "@/lib/db"
 import { useUser } from "@/hooks/useAuth"
 import type { Task, Priority } from "@/types/task"// bring in your canonical Task interface
@@ -660,13 +659,6 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
                   <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>All tasks across your projects</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <DownloadReportButton
-                    tasks={tasks}
-                    filters={filters}
-                    projectByTaskId={projectByTaskId}
-                    titleById={titleById}
-                    isDarkMode={isDarkMode}
-                  />
                   <Button
                     variant="outline"
                     className={`border transition-colors ${
