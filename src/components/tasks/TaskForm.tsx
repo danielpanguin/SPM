@@ -316,11 +316,18 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   }, [users]);
   
   const collabOptions = useMemo(() => {
-    return users.filter((u) => {
-      // Exclude only the owner (assignee) from collaborators
-      if (u.id === ownedById) return false;
-      return true;
-    });
+    return users
+      .filter((u) => {
+        // Exclude only the owner (assignee) from collaborators
+        if (u.id === ownedById) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort alphabetically by email for easier finding
+        const emailA = (a.email || '').toLowerCase();
+        const emailB = (b.email || '').toLowerCase();
+        return emailA.localeCompare(emailB);
+      });
   }, [users, ownedById]);
 
   // If owner changes, auto-remove owner from collaborators (AC-231 guard)
