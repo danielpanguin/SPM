@@ -44,13 +44,21 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+    const ownerId = (initial?.ownedBy as any)?.id;
+    // Filter out owner from collaborators (in case old tasks have owner in collaborators)
+    return collabs
+      .map((c: any) => c.id)
+      .filter((id: string) => id && typeof id === "string" && id !== ownerId);
   });
 
   // Track initial collaborators to determine which can be removed
   const [initialCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+    const ownerId = (initial?.ownedBy as any)?.id;
+    // Filter out owner from collaborators (in case old tasks have owner in collaborators)
+    return collabs
+      .map((c: any) => c.id)
+      .filter((id: string) => id && typeof id === "string" && id !== ownerId);
   });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
@@ -269,7 +277,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         setOwnedById(t.owned_by ?? undefined);
         setParentTaskId(t.parent_task_id ?? "");
         setProjectId(t.project_id ?? "");
-        setCollaboratorIds((collabRows ?? []).map((r: any) => String(r.user_id)));
+        // Filter out owner from collaborators (in case old tasks have owner in task_collaborator table)
+        const collabIds = (collabRows ?? [])
+          .map((r: any) => String(r.user_id))
+          .filter((id: string) => id !== t.owned_by);
+        setCollaboratorIds(collabIds);
         setTag(tagName ?? "");
 
         // ✅ Populate recurrence from DB columns
