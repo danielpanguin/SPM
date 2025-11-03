@@ -24,12 +24,13 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
     accessibleUserIds
   } = useUser()
   
-  const [tasksByUser, setTasksByUser] = useState<TasksByUser[]>([])
+  const [allTasksByUser, setAllTasksByUser] = useState<TasksByUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [collapsedUsers, setCollapsedUsers] = useState<Set<string>>(new Set())
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
+  const [taskFilter, setTaskFilter] = useState<'all' | 'owned' | 'reportees' | 'collaborator'>('all')
 
   // Initial load - set loading to false when component mounts
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       fetchTasksAndUsers()
     } else {
       // Clear tasks when no accessible users
-      setTasksByUser([])
+      setAllTasksByUser([])
       setLoading(false)
     }
   }, [accessibleUserIds])
@@ -61,7 +62,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
     try {
       setLoading(true)
       console.log('🔄 Fetching data from Supabase...')
-      
+
       // Fetch tasks based on accessible user IDs (role-based access)
       // Exclude archived tasks from Gantt chart
       const { data: tasks, error: tasksError } = accessibleUserIds.length > 0
@@ -74,27 +75,79 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
             .in('owned_by', accessibleUserIds)
             .eq('is_archived', false)
         : { data: [], error: null }
-      
+
       console.log('🎯 Fetching tasks for accessible user IDs:', accessibleUserIds)
 
       console.log('👤 Current user ID:', userId)
       console.log('📋 Tasks query result:', { tasks, tasksError })
       console.log('🔢 Number of tasks found:', tasks?.length || 0)
 
+      // Fetch tasks where current user is a collaborator
+      const { data: collaboratorTasks, error: collaboratorError } = userId
+        ? await supabase
+            .from('task_collaborator')
+            .select(`
+              task_id,
+              tasks!inner(
+                *,
+                status(status)
+              )
+            `)
+            .eq('user_id', userId)
+            .eq('tasks.is_archived', false)
+        : { data: [], error: null }
+
+      console.log('🤝 Collaborator tasks:', collaboratorTasks)
+
       if (tasksError) {
         console.error('❌ Tasks error:', tasksError)
         throw new Error(`Tasks table error: ${tasksError.message}`)
       }
 
-      // Fetch users for accessible user IDs
-      const { data: users, error: usersError } = accessibleUserIds.length > 0
+      if (collaboratorError) {
+        console.error('❌ Collaborator tasks error:', collaboratorError)
+        throw new Error(`Collaborator tasks error: ${collaboratorError.message}`)
+      }
+
+      // Extract tasks from collaborator relationships and mark them as collaborator tasks
+      const collaboratorTasksList = collaboratorTasks?.map((ct: any) => ({
+        ...ct.tasks,
+        isCollaboratorTask: true
+      })) || []
+
+      // Merge owned tasks and collaborator tasks, avoiding duplicates
+      const allTasksMap = new Map()
+      tasks?.forEach((task: any) => {
+        allTasksMap.set(task.id, { ...task, isCollaboratorTask: false })
+      })
+      collaboratorTasksList.forEach((task: any) => {
+        if (!allTasksMap.has(task.id)) {
+          allTasksMap.set(task.id, task)
+        } else {
+          // If task exists in both, mark it has having both relationships
+          const existing = allTasksMap.get(task.id)
+          allTasksMap.set(task.id, { ...existing, isCollaboratorTask: true })
+        }
+      })
+      const allTasks = Array.from(allTasksMap.values())
+
+      // Get unique user IDs from all tasks (both owned_by and collaborator tasks)
+      const allUserIds = new Set([...accessibleUserIds])
+      collaboratorTasksList.forEach((task: any) => {
+        if (task.owned_by) {
+          allUserIds.add(task.owned_by)
+        }
+      })
+
+      // Fetch users for all relevant user IDs
+      const { data: users, error: usersError } = allUserIds.size > 0
         ? await supabase
             .from('users')
             .select(`
               *,
               roles(name)
             `)
-            .in('id', accessibleUserIds)
+            .in('id', Array.from(allUserIds))
         : { data: [], error: null }
 
       console.log('👥 Users query result:', { users, usersError })
@@ -112,14 +165,15 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       }, {}) || {}
 
       // Group tasks by user using owned_by column
-      const grouped = tasks?.reduce((acc: Record<string, TasksByUser>, task: any) => {
+      const grouped = allTasks?.reduce((acc: Record<string, TasksByUser>, task: any) => {
         const userId = task.owned_by // Use owned_by instead of user_id
-        const user = userMap[userId] || { 
-          id: userId, 
+        const user = userMap[userId] || {
+          id: userId,
           name: `Unknown User (${userId})`,
-          username: `user_${userId}`
+          username: `user_${userId}`,
+          email: `unknown@${userId}`
         }
-        
+
         if (!acc[userId]) {
           acc[userId] = {
             user: {
@@ -130,17 +184,17 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
             tasks: []
           }
         }
-        
+
         acc[userId].tasks.push({
           ...task,
           user_name: user.username || user.email.split('@')[0]
         })
-        
+
         return acc
       }, {})
 
       console.log('📊 Grouped data:', grouped)
-      setTasksByUser(Object.values(grouped || {}))
+      setAllTasksByUser(Object.values(grouped || {}))
     } catch (err) {
       console.error('❌ Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -153,6 +207,31 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
     return new Date(dateString).toLocaleDateString()
   }
 
+  // Apply filter to tasks
+  const tasksByUser = allTasksByUser.map(({ user, tasks }) => {
+    let filteredTasks = tasks
+
+    if (taskFilter === 'owned') {
+      // Show only tasks owned by current user
+      filteredTasks = tasks.filter((task: any) => task.owned_by === userId)
+    } else if (taskFilter === 'reportees') {
+      // Show only tasks owned by reportees (accessible users excluding current user)
+      filteredTasks = tasks.filter((task: any) =>
+        task.owned_by !== userId && accessibleUserIds.includes(task.owned_by)
+      )
+    } else if (taskFilter === 'collaborator') {
+      // Show only tasks where current user is a collaborator
+      filteredTasks = tasks.filter((task: any) =>
+        task.isCollaboratorTask && task.owned_by !== userId
+      )
+    }
+    // 'all' shows everything (no filter)
+
+    return {
+      user,
+      tasks: filteredTasks
+    }
+  }).filter(({ tasks }) => tasks.length > 0) // Remove users with no tasks after filtering
 
   // Generate days for the current month with responsive intervals
   const getCurrentMonthDays = () => {
@@ -372,6 +451,24 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
             <div className="flex items-center gap-2">
               <div className={`w-4 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-500'}`}></div>
               <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Current</span>
+            </div>
+            {/* Task Filter Dropdown */}
+            <div className="flex items-center gap-2">
+              <label className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Filter:</label>
+              <select
+                value={taskFilter}
+                onChange={(e) => setTaskFilter(e.target.value as 'all' | 'owned' | 'reportees' | 'collaborator')}
+                className={`px-3 py-1 rounded border ${
+                  isDarkMode
+                    ? 'bg-gray-700 border-gray-600 text-gray-200'
+                    : 'bg-white border-gray-300 text-gray-800'
+                }`}
+              >
+                <option value="all">All Tasks</option>
+                <option value="owned">My Tasks</option>
+                <option value="reportees">Reportees Tasks</option>
+                <option value="collaborator">Collaborator Tasks</option>
+              </select>
             </div>
           </div>
         </div>
