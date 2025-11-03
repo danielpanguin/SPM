@@ -111,6 +111,8 @@ export type NotificationKind =
   | 'assignment_added'
   | 'assignment_removed'
   | 'assignment_update'
+  // NEW kind for task modification 
+  | 'task_update'
   | 'comment'
 
 export interface Notification {

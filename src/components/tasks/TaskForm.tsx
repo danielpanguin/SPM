@@ -28,7 +28,6 @@ type Project = { id: number; name: string };
 
 export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleUserIds }: Props) {
   const { userId: currentUserId, role } = useUser();
-
   const [users, setUsers] = useState<DbRoleUser[]>([]);
   const [statusOpts, setStatusOpts] = useState<Option[]>([]);
   const [prioOpts, setPrioOpts] = useState<Option[]>([]);
@@ -386,6 +385,7 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         project_id: projectId === "" ? null : Number(projectId),
         assignee_ids: validCollaboratorIds,
         tags: tag ? [tag] : [],
+        updatedBy: currentUserId,
       };
 
       // 🔁 Include recurrence in payload

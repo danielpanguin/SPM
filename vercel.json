@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-email-summary",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/due-notifications",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-task-notifications",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
