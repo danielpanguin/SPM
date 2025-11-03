@@ -623,7 +623,7 @@ export async function updateTask(
         const oldValFormatted = await formatFieldValue(key, oldVal);
         const newValFormatted = await formatFieldValue(key, newVal);
         const taskTitle = (taskBefore.title || "").trim();
-        const message = `${updaterName} updated ${fieldLabel} on "${taskTitle}" from "${oldValFormatted}" to "${newValFormatted}".`;
+        const message = `${updaterName} updated ${fieldLabel} for Task "${taskTitle}" from "${oldValFormatted}" to "${newValFormatted}".`;
 
         console.log(`[notify] Field changed: ${key}, old: ${oldVal}, new: ${newVal}`);
 
