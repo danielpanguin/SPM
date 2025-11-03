@@ -620,7 +620,9 @@ async function hydrateTasks(rows: TaskRow[]): Promise<TaskHydrated[]> {
   });
 
   return rows.map((r) => {
-    const assignees = collabMap.get(r.id) ?? [];
+    // Filter out owner from assignees (in case old tasks have owner in task_collaborator table)
+    const allAssignees = collabMap.get(r.id) ?? [];
+    const assignees = allAssignees.filter((uid) => uid !== r.owned_by);
 
     const recurrence =
       r.is_recurring
