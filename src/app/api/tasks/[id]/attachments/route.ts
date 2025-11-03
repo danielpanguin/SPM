@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { MAX_FILE_SIZE, SUPPORTED_MIME_TYPES, getFileExtension } from '@/types/attachment';
 
