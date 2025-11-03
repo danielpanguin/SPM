@@ -53,18 +53,11 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
       public_url: 'https://example.com/document.pdf',
     };
 
-    // Setup mock chains
-    // First call: Fetch the attachment metadata (.select().eq().eq().single())
-    mockSelectChain = {
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({
-        data: mockAttachment,
-        error: null,
-      }),
-    };
-
-    // After fetching, set up for reference count check (.select().eq())
-    // We need to handle two separate calls to from('attachments').select()
+    // We need to handle 4 calls to supabase.from('attachments').select():
+    // 1. Fetch attachment metadata
+    // 2. Check references BEFORE deletion
+    // 3. (delete happens)
+    // 4. Check references AFTER deletion (should be 0)
     let callCount = 0;
     supabase.from = jest.fn(() => ({
       select: jest.fn(() => {
@@ -78,25 +71,30 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
               error: null,
             }),
           };
-        } else {
-          // Second call: check for references - only 1 reference
+        } else if (callCount === 2) {
+          // Second call: check references BEFORE deletion - 1 reference
           return {
             eq: jest.fn().mockResolvedValue({
-              data: [{ id: 'attachment-1' }],
+              data: [{ id: 'attachment-1', task_id: 1 }],
+              error: null,
+            }),
+          };
+        } else {
+          // Third+ call: check references AFTER deletion - 0 references
+          return {
+            eq: jest.fn().mockResolvedValue({
+              data: [],
               error: null,
             }),
           };
         }
       }),
-      delete: jest.fn(() => mockDeleteChain),
+      delete: jest.fn(() => ({
+        eq: jest.fn().mockResolvedValue({
+          error: null,
+        }),
+      })),
     }));
-
-    // Mock: Delete from database
-    mockDeleteChain = {
-      eq: jest.fn().mockResolvedValue({
-        error: null,
-      }),
-    };
 
     // Mock: Delete from storage
     supabaseAdmin.storage.remove.mockResolvedValue({
@@ -152,14 +150,25 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
               error: null,
             }),
           };
-        } else {
-          // Second call: check for references - 3 references (recurring task)
+        } else if (callCount === 2) {
+          // Second call: check references BEFORE deletion - 3 references
           return {
             eq: jest.fn().mockResolvedValue({
               data: [
-                { id: 'attachment-1' },
-                { id: 'attachment-2' },
-                { id: 'attachment-3' },
+                { id: 'attachment-1', task_id: 1 },
+                { id: 'attachment-2', task_id: 11 },
+                { id: 'attachment-3', task_id: 12 },
+              ],
+              error: null,
+            }),
+          };
+        } else {
+          // Third+ call: check references AFTER deletion - 2 references remain
+          return {
+            eq: jest.fn().mockResolvedValue({
+              data: [
+                { id: 'attachment-2', task_id: 11 },
+                { id: 'attachment-3', task_id: 12 },
               ],
               error: null,
             }),
