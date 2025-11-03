@@ -532,22 +532,20 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Fixed height container to prevent jumpiness */}
-      <div className="min-h-[52px]">
-        {(error || hydrating) && (
-          <div
-            className={`p-3 rounded-md ${
-              hydrating ? "bg-blue-50 border border-blue-200" : "bg-red-50 border border-red-300"
-            }`}
-          >
-            {hydrating ? (
-              <p className="text-sm text-blue-700">Loading latest task data…</p>
-            ) : (
-              <p className="text-sm font-semibold text-red-700">{error}</p>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Error message container - only shows when there's an error */}
+      {(error || hydrating) && (
+        <div
+          className={`p-3 rounded-md ${
+            hydrating ? "bg-blue-50 border border-blue-200" : "bg-red-50 border border-red-300"
+          }`}
+        >
+          {hydrating ? (
+            <p className="text-sm text-blue-700">Loading latest task data…</p>
+          ) : (
+            <p className="text-sm font-semibold text-red-700">{error}</p>
+          )}
+        </div>
+      )}
 
       <div>
         <label htmlFor={id.title} className="block text-sm font-medium">
