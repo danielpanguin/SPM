@@ -228,12 +228,14 @@ export async function createTask(input: TaskCreateInput): Promise<TaskHydrated> 
   const task = data as TaskRow;
 
   try {
-    // include owner + assignees, cap total at 5
+    // Only include assignees (collaborators), NOT the owner
+    // Owner is stored in owned_by field, not in task_collaborator table
     const assigneesSet = new Set<UUID>();
-    if (input.owned_by) assigneesSet.add(input.owned_by);
     (input.assignee_ids ?? []).forEach((uid) => uid && assigneesSet.add(uid));
 
-    if (assigneesSet.size > MAX_TOTAL_ASSIGNEES) {
+    // Validate total: collaborators + owner should not exceed MAX_TOTAL_ASSIGNEES
+    const totalAssignees = assigneesSet.size + (input.owned_by ? 1 : 0);
+    if (totalAssignees > MAX_TOTAL_ASSIGNEES) {
       throw new Error(
         `A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned (including the owner).`
       );
@@ -412,11 +414,13 @@ export async function updateTask(
       if (!current) current = tRow as any;
     }
 
+    // Only include assignees (collaborators), NOT the owner
     const set = new Set<UUID>();
-    if (ownerId) set.add(ownerId);
     (patch.assignee_ids ?? []).forEach((uid) => uid && set.add(uid));
 
-    if (set.size > MAX_TOTAL_ASSIGNEES) {
+    // Validate total: collaborators + owner should not exceed MAX_TOTAL_ASSIGNEES
+    const totalAssignees = set.size + (ownerId ? 1 : 0);
+    if (totalAssignees > MAX_TOTAL_ASSIGNEES) {
       throw new Error(
         `A task can have at most ${MAX_TOTAL_ASSIGNEES} people assigned (including the owner).`
       );
