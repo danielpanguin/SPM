@@ -466,7 +466,9 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
               >
                 <option value="all">All Tasks</option>
                 <option value="owned">My Tasks</option>
-                <option value="reportees">Reportees Tasks</option>
+                {(role === 'manager' || role === 'admin') && (
+                  <option value="reportees">Reportees Tasks</option>
+                )}
                 <option value="collaborator">Collaborator Tasks</option>
               </select>
             </div>
