@@ -5,6 +5,7 @@
  * when no other tasks reference the same storage_path
  */
 
+import { NextRequest } from 'next/server';
 import { DELETE } from '@/app/api/tasks/[id]/attachments/route';
 
 // Mock chain builder for Supabase
@@ -103,7 +104,7 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
     });
 
     // Create mock request
-    const request = new Request(
+    const request = new NextRequest(
       'http://localhost:3000/api/tasks/1/attachments?attachmentId=attachment-1',
       { method: 'DELETE' }
     );
@@ -173,7 +174,7 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
     }));
 
     // Create mock request
-    const request = new Request(
+    const request = new NextRequest(
       'http://localhost:3000/api/tasks/1/attachments?attachmentId=attachment-1',
       { method: 'DELETE' }
     );
@@ -232,7 +233,7 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
     }));
 
     // Create mock request
-    const request = new Request(
+    const request = new NextRequest(
       'http://localhost:3000/api/tasks/1/attachments?attachmentId=attachment-1',
       { method: 'DELETE' }
     );
@@ -261,7 +262,7 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
     }));
 
     // Create mock request
-    const request = new Request(
+    const request = new NextRequest(
       'http://localhost:3000/api/tasks/1/attachments?attachmentId=non-existent',
       { method: 'DELETE' }
     );
@@ -279,7 +280,7 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
 
   test('Should return 400 when attachmentId is missing', async () => {
     // Create mock request without attachmentId
-    const request = new Request(
+    const request = new NextRequest(
       'http://localhost:3000/api/tasks/1/attachments',
       { method: 'DELETE' }
     );
