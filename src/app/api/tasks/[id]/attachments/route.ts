@@ -212,17 +212,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
     }
 
-    // Delete file from storage (use admin client)
-    const { error: storageError } = await supabaseAdmin.storage
+    // Check if other tasks reference the same storage_path (for recurring tasks)
+    // Count BEFORE deletion to know total references
+    const { data: referencingAttachmentsBefore, error: refError } = await supabase
       .from('attachments')
-      .remove([attachment.storage_path]);
+      .select('id, task_id')
+      .eq('storage_path', attachment.storage_path);
 
-    if (storageError) {
-      console.error('Error deleting file from storage:', storageError);
-      // Continue anyway to delete from database
+    if (refError) {
+      console.error('Error checking attachment references:', refError);
+      return NextResponse.json({ error: 'Failed to check attachment references' }, { status: 500 });
     }
 
-    // Delete from database
+    const referenceCountBefore = referencingAttachmentsBefore?.length || 0;
+    console.log(`📊 BEFORE deletion: ${referenceCountBefore} attachment(s) reference storage_path: ${attachment.storage_path}`);
+    console.log(`📋 Task IDs with this attachment:`, referencingAttachmentsBefore?.map(a => a.task_id).join(', '));
+
+    // Delete the database row for this task's attachment FIRST
     const { error: dbError } = await supabase
       .from('attachments')
       .delete()
@@ -233,7 +239,51 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to delete attachment' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, message: 'Attachment deleted successfully' });
+    console.log(`✅ Deleted attachment record for task ${taskId}`);
+
+    // Now check if any OTHER tasks still reference this storage_path
+    const { data: referencingAttachmentsAfter, error: refErrorAfter } = await supabase
+      .from('attachments')
+      .select('id, task_id')
+      .eq('storage_path', attachment.storage_path);
+
+    if (refErrorAfter) {
+      console.error('Error checking remaining attachment references:', refErrorAfter);
+      // Continue anyway - we already deleted from DB
+    }
+
+    const referenceCountAfter = referencingAttachmentsAfter?.length || 0;
+    console.log(`📊 AFTER deletion: ${referenceCountAfter} attachment(s) still reference this storage_path`);
+
+    if (referenceCountAfter > 0) {
+      console.log(`📋 Remaining task IDs:`, referencingAttachmentsAfter?.map(a => a.task_id).join(', '));
+    }
+
+    let deletedFromStorage = false;
+
+    // Only delete from storage if NO other references remain
+    if (referenceCountAfter === 0) {
+      console.log('🗑️  Last reference removed - deleting file from storage bucket');
+      const { error: storageError } = await supabaseAdmin.storage
+        .from('attachments')
+        .remove([attachment.storage_path]);
+
+      if (storageError) {
+        console.error('❌ Error deleting file from storage:', storageError);
+      } else {
+        console.log('✅ File deleted from storage bucket');
+        deletedFromStorage = true;
+      }
+    } else {
+      console.log(`⏭️  ${referenceCountAfter} other reference(s) still exist - keeping file in storage bucket`);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: 'Attachment deleted successfully',
+      deletedFromStorage,
+      referencesRemaining: referenceCountAfter
+    });
   } catch (error) {
     console.error('Error in DELETE /api/tasks/[id]/attachments:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
