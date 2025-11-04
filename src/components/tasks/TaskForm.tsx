@@ -44,20 +44,21 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
   );
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    const collabIds = collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
-
-    // Auto-select current user in create mode if not already in the list
-    if (mode === "create" && currentUserId && !collabIds.includes(currentUserId)) {
-      return [...collabIds, currentUserId];
-    }
-
-    return collabIds;
+    const ownerId = (initial?.ownedBy as any)?.id;
+    // Filter out owner from collaborators (in case old tasks have owner in collaborators)
+    return collabs
+      .map((c: any) => c.id)
+      .filter((id: string) => id && typeof id === "string" && id !== ownerId);
   });
 
   // Track initial collaborators to determine which can be removed
   const [initialCollaboratorIds] = useState<string[]>(() => {
     const collabs = initial?.collaborators ?? [];
-    return collabs.map((c: any) => c.id).filter((id: string) => id && typeof id === "string");
+    const ownerId = (initial?.ownedBy as any)?.id;
+    // Filter out owner from collaborators (in case old tasks have owner in collaborators)
+    return collabs
+      .map((c: any) => c.id)
+      .filter((id: string) => id && typeof id === "string" && id !== ownerId);
   });
   const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
@@ -276,7 +277,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
         setOwnedById(t.owned_by ?? undefined);
         setParentTaskId(t.parent_task_id ?? "");
         setProjectId(t.project_id ?? "");
-        setCollaboratorIds((collabRows ?? []).map((r: any) => String(r.user_id)));
+        // Filter out owner from collaborators (in case old tasks have owner in task_collaborator table)
+        const collabIds = (collabRows ?? [])
+          .map((r: any) => String(r.user_id))
+          .filter((id: string) => id !== t.owned_by);
+        setCollaboratorIds(collabIds);
         setTag(tagName ?? "");
 
         // ✅ Populate recurrence from DB columns
@@ -313,9 +318,29 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initial?.id]);
 
-  // Owner dropdown should list all users; collaborators should exclude the owner.
-  const ownerOptions = users;
-  const collabOptions = useMemo(() => users.filter((u) => u.id !== ownedById), [users, ownedById]);
+  // Owner dropdown should list all users in alphabetical order; collaborators should exclude only the owner.
+  const ownerOptions = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const emailA = (a.email || '').toLowerCase();
+      const emailB = (b.email || '').toLowerCase();
+      return emailA.localeCompare(emailB);
+    });
+  }, [users]);
+  
+  const collabOptions = useMemo(() => {
+    return users
+      .filter((u) => {
+        // Exclude only the owner (assignee) from collaborators
+        if (u.id === ownedById) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort alphabetically by email for easier finding
+        const emailA = (a.email || '').toLowerCase();
+        const emailB = (b.email || '').toLowerCase();
+        return emailA.localeCompare(emailB);
+      });
+  }, [users, ownedById]);
 
   // If owner changes, auto-remove owner from collaborators (AC-231 guard)
   useEffect(() => {
@@ -486,8 +511,41 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     }
   }
 
+  function toggleCollaborator(x: string) {
+    setCollaboratorIds((prev) => {
+      const exists = prev.includes(x);
+      const wasInitiallyAdded = initialCollaboratorIds.includes(x);
+
+      if (exists) {
+        // Trying to remove
+        // Staff cannot remove existing collaborators in edit mode
+        if (!canRemoveCollaborators && mode === "edit" && wasInitiallyAdded) {
+          setError("Only managers and admins can remove existing collaborators.");
+          // Auto-clear error after 3 seconds
+          setTimeout(() => setError(null), 3000);
+          return prev;
+        }
+        // Clear any existing error when successfully removing
+        setError(null);
+        return prev.filter((i) => i !== x);
+      }
+
+      // Trying to add
+      if (prev.length >= MAX_COLLABORATORS) {
+        setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+        // Auto-clear error after 3 seconds
+        setTimeout(() => setError(null), 3000);
+        return prev;
+      }
+      // Clear any existing error when successfully adding
+      setError(null);
+      return [...prev, x];
+    });
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Error message container - only shows when there's an error */}
       {(error || hydrating) && (
         <div
           className={`p-3 rounded-md ${

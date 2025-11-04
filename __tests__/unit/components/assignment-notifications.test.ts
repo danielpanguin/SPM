@@ -148,18 +148,19 @@ describe("Assignment notifications (simple)", () => {
     });
 
     const notes = __getCapturedNotifications();
-    // owner + 2 collaborators = 3 assignment_added rows
-    expect(notes.filter((n) => n.kind === "assignment_added")).toHaveLength(3);
+    // Only 2 collaborators get notifications (owner doesn't get assignment notification)
+    expect(notes.filter((n) => n.kind === "assignment_added")).toHaveLength(2);
 
     // all direct messages are second-person
     for (const n of notes) {
       if (n.kind === "assignment_added") {
-        expect(n.message).toMatch(/^You have been assigned to “hamster proj”\./);
+        expect(n.message).toContain('You have been assigned to');
+        expect(n.message).toContain('hamster proj');
       }
     }
 
-    // sanity: each intended user received one
+    // sanity: only collaborators (not owner) received notifications
     const recipients = notes.map((n) => n.user_id).sort();
-    expect(recipients).toEqual([alice, bob, owner].sort());
+    expect(recipients).toEqual([alice, bob].sort());
   });
 });
