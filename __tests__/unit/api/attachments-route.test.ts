@@ -13,7 +13,7 @@ let mockSelectChain: any;
 let mockDeleteChain: any;
 
 // Mock Supabase clients
-jest.mock('@/lib/supabaseClient', () => ({
+jest.mock('@/lib/db', () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn(() => mockSelectChain),
@@ -32,7 +32,7 @@ jest.mock('@/lib/supabaseAdmin', () => ({
 }));
 
 // Import mocked modules
-const { supabase } = require('@/lib/supabaseClient');
+const { supabase } = require('@/lib/db');
 const { supabaseAdmin } = require('@/lib/supabaseAdmin');
 
 // Set environment variable for tests
