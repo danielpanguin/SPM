@@ -29,6 +29,17 @@ jest.mock('@/lib/notifyTaskSync', () => ({
 }));
 
 describe('TaskForm - Collaborator Management Permissions', () => {
+  // Helper function to open dropdown and wait for checkboxes
+  const openCollaboratorsDropdown = async () => {
+    const dropdownButton = screen.getByRole('button', { name: /collaborator/i });
+    fireEvent.click(dropdownButton);
+
+    await waitFor(() => {
+      const checkboxes = screen.queryAllByRole('checkbox');
+      expect(checkboxes.length).toBeGreaterThan(0);
+    });
+  };
+
   const mockUsers = [
     {
       id: 'staff-001',
@@ -157,11 +168,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for users to load and checkboxes to appear
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find collaborator checkbox for staff-002
       const checkboxes = screen.getAllByRole('checkbox');
@@ -193,11 +201,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find and click collaborator checkbox for staff-002
       const checkboxes = screen.getAllByRole('checkbox');
@@ -248,11 +253,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find collaborator checkbox for staff-002
       const checkboxes = screen.getAllByRole('checkbox');
@@ -298,11 +300,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find the existing collaborator checkbox (staff-002)
       const checkboxes = screen.getAllByRole('checkbox');
@@ -382,11 +381,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // The checkbox should be disabled, so we can't actually click it
       // But let's verify it's checked and disabled
@@ -434,11 +430,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find and add staff-002 as collaborator
       const checkboxes = screen.getAllByRole('checkbox');
@@ -499,11 +492,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find the existing collaborator checkbox (staff-002)
       const checkboxes = screen.getAllByRole('checkbox');
@@ -594,11 +584,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find the existing collaborator checkbox (staff-002)
       const checkboxes = screen.getAllByRole('checkbox');
@@ -681,11 +668,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find collaborator checkbox for staff-002
       const checkboxes = screen.getAllByRole('checkbox');
@@ -735,11 +719,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find collaborator checkbox for staff-002
       const checkboxes = screen.getAllByRole('checkbox');
@@ -775,11 +756,8 @@ describe('TaskForm - Collaborator Management Permissions', () => {
         expect(screen.getByText('Collaborators')).toBeInTheDocument();
       });
 
-      // Wait for checkboxes to load
-      await waitFor(() => {
-        const checkboxes = screen.queryAllByRole('checkbox');
-        expect(checkboxes.length).toBeGreaterThan(0);
-      });
+      // Open the collaborators dropdown
+      await openCollaboratorsDropdown();
 
       // Find collaborator checkboxes
       const checkboxes = screen.getAllByRole('checkbox');

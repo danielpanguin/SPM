@@ -511,38 +511,6 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     }
   }
 
-  function toggleCollaborator(x: string) {
-    setCollaboratorIds((prev) => {
-      const exists = prev.includes(x);
-      const wasInitiallyAdded = initialCollaboratorIds.includes(x);
-
-      if (exists) {
-        // Trying to remove
-        // Staff cannot remove existing collaborators in edit mode
-        if (!canRemoveCollaborators && mode === "edit" && wasInitiallyAdded) {
-          setError("Only managers and admins can remove existing collaborators.");
-          // Auto-clear error after 3 seconds
-          setTimeout(() => setError(null), 3000);
-          return prev;
-        }
-        // Clear any existing error when successfully removing
-        setError(null);
-        return prev.filter((i) => i !== x);
-      }
-
-      // Trying to add
-      if (prev.length >= MAX_COLLABORATORS) {
-        setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
-        // Auto-clear error after 3 seconds
-        setTimeout(() => setError(null), 3000);
-        return prev;
-      }
-      // Clear any existing error when successfully adding
-      setError(null);
-      return [...prev, x];
-    });
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Error message container - only shows when there's an error */}
@@ -745,6 +713,8 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
               // Validate max collaborators
               if (newIds.length > MAX_COLLABORATORS) {
                 setError(`You can add up to ${MAX_COLLABORATORS} collaborators in addition to the owner.`);
+                // Auto-clear error after 3 seconds
+                setTimeout(() => setError(null), 3000);
                 return;
               }
               setCollaboratorIds(newIds);
