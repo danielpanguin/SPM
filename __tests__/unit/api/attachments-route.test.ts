@@ -13,7 +13,7 @@ let mockSelectChain: any;
 let mockDeleteChain: any;
 
 // Mock Supabase clients
-jest.mock('@/lib/supabaseClient', () => ({
+jest.mock('@/lib/db', () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn(() => mockSelectChain),
@@ -32,7 +32,7 @@ jest.mock('@/lib/supabaseAdmin', () => ({
 }));
 
 // Import mocked modules
-const { supabase } = require('@/lib/supabaseClient');
+const { supabase } = require('@/lib/db');
 const { supabaseAdmin } = require('@/lib/supabaseAdmin');
 
 // Set environment variable for tests
@@ -63,14 +63,15 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
       select: jest.fn(() => {
         callCount++;
         if (callCount === 1) {
-          // First call: fetch attachment metadata
-          return {
-            eq: jest.fn().mockReturnThis(),
+          // First call: fetch attachment metadata (chains .eq('id').eq('task_id').single())
+          const chain: any = {
+            eq: jest.fn(() => chain), // Return self for chaining
             single: jest.fn().mockResolvedValue({
               data: mockAttachment,
               error: null,
             }),
           };
+          return chain;
         } else if (callCount === 2) {
           // Second call: check references BEFORE deletion - 1 reference
           return {
@@ -142,14 +143,15 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
       select: jest.fn(() => {
         callCount++;
         if (callCount === 1) {
-          // First call: fetch attachment metadata
-          return {
-            eq: jest.fn().mockReturnThis(),
+          // First call: fetch attachment metadata (chains .eq('id').eq('task_id').single())
+          const chain: any = {
+            eq: jest.fn(() => chain), // Return self for chaining
             single: jest.fn().mockResolvedValue({
               data: mockAttachment,
               error: null,
             }),
           };
+          return chain;
         } else if (callCount === 2) {
           // Second call: check references BEFORE deletion - 3 references
           return {
@@ -221,14 +223,15 @@ describe('DELETE /api/tasks/[id]/attachments - Reference Counting', () => {
       select: jest.fn(() => {
         callCount++;
         if (callCount === 1) {
-          // First call: fetch attachment metadata
-          return {
-            eq: jest.fn().mockReturnThis(),
+          // First call: fetch attachment metadata (chains .eq('id').eq('task_id').single())
+          const chain: any = {
+            eq: jest.fn(() => chain), // Return self for chaining
             single: jest.fn().mockResolvedValue({
               data: mockAttachment,
               error: null,
             }),
           };
+          return chain;
         } else {
           // Second call: error checking references
           return {
