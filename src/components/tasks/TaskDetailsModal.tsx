@@ -71,6 +71,7 @@ interface Props {
   onCreateSubtask?: () => void;
   projectByTaskId?: Map<string, string | null>
   titleById?: Map<string | number, string>
+  readOnly?: boolean;
 }
 
 type UserMap = Record<string, string>; // id -> label (email or id)
@@ -78,6 +79,7 @@ type UserMap = Record<string, string>; // id -> label (email or id)
 /* ---------- Component ---------- */
 export default function TaskDetailsModal({
     task,
+    readOnly = false,
     onClose,
     onEdit,
     onCreateSubtask,
@@ -234,6 +236,11 @@ export default function TaskDetailsModal({
           <div className="flex justify-between flex-wrap">
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-xl font-semibold">{task.title}</h3>
+              {readOnly && (
+                <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300 text-xs">
+                  View Only
+                </Badge>
+              )}
             </div>
             <div className="justify-evenly space-x-2">
               {task.priority && (
@@ -282,14 +289,16 @@ export default function TaskDetailsModal({
         <div className="w-80 p-6 overflow-y-auto flex flex-col">
           <div className="justify-end flex items-center gap-2">
             {/* ACTION BUTTONS (Edit / Create Subtask / Close) */}
-            <button
-              onClick={onEdit}
-              title="Edit Task"
-              className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            {onCreateSubtask && !task.parentTaskId && (
+            {!readOnly && (
+              <button
+                onClick={onEdit}
+                title="Edit Task"
+                className="p-2 rounded-full border border-gray-300 text-black hover:bg-gray-100 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            {!readOnly && onCreateSubtask && !task.parentTaskId && (
               <button
                 onClick={onCreateSubtask}
                 title="Create Subtask"

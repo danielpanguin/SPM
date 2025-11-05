@@ -7,6 +7,7 @@ import { UserProvider, useUser } from "@/hooks/useAuth";
 import { TaskDashboard } from "@/components/task-dashboard";
 import GanttChart from "@/components/ui/GanttChart";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { DepartmentProjectsTable } from "@/components/department-projects-table";
 import { User, LogOut, FileText } from "lucide-react";
 import { Button } from "@/components/ui/ViewTaskUi/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/ViewTaskUi/select";
@@ -14,7 +15,7 @@ import { supabase } from "@/lib/db";
 
 function DashboardContent() {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<"gantt" | "tasks" | "reports">("tasks");
+  const [activeTab, setActiveTab] = useState<"gantt" | "tasks" | "projects" | "reports">("tasks");
   const { loading, userId, email, profile, signOut, role, accessibleUserIds } = useUser();
   const router = useRouter();
   const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>("");
@@ -98,6 +99,20 @@ function DashboardContent() {
             >
               Gantt
             </button>
+            <button
+              onClick={() => setActiveTab("projects")}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === "projects"
+                  ? isDarkMode
+                    ? "bg-gray-700 text-white"
+                    : "bg-white text-gray-900 shadow"
+                  : isDarkMode
+                  ? "text-gray-400 hover:text-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Projects
+            </button>
             {role && role !== 'staff' && (
               <button
                 onClick={() => setActiveTab("reports")}
@@ -170,6 +185,8 @@ function DashboardContent() {
 
       {activeTab === "gantt" ? (
         <GanttChart isDarkMode={isDarkMode} />
+      ) : activeTab === "projects" ? (
+        <DepartmentProjectsTable isDarkMode={isDarkMode} />
       ) : activeTab === "reports" ? (
         <div className={`min-h-screen p-8 ${isDarkMode ? "bg-gray-900" : "bg-white"}`}>
           <div className="max-w-4xl space-y-6">

@@ -271,7 +271,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
         // Fetch tasks from projects the user is a member of
         console.log("📥 Fetching project member tasks...")
         const { data: projectMemberships } = await supabase
-          .from("project_member")
+          .from("project_members")
           .select("project_id")
           .in("user_id", accessibleUserIds)
 
