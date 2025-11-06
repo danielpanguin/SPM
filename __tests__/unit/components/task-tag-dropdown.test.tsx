@@ -102,7 +102,7 @@ jest.mock("@/lib/notifyTaskSync", () => ({
 beforeEach(() => {
   (global as any).fetch = jest.fn().mockResolvedValue({
     ok: true,
-    json: async () => ({ ok: true, data: [] }), // projects API
+    json: async () => ({ ok: true, data: [{ id: 1, name: "Test Project" }] }), // projects API
   });
   createTaskAPIMock.mockClear();
 });
@@ -130,6 +130,10 @@ describe("TaskForm - Tag dropdown", () => {
     fireEvent.change(screen.getByLabelText(/end date \*/i), {
       target: { value: "2025-01-02" },
     });
+
+    // Project select (now required)
+    const projectSelect = await screen.findByLabelText(/project \*/i);
+    fireEvent.change(projectSelect, { target: { value: "1" } });
 
     // Owner select
     const assignee = await screen.findByLabelText(/assignee \(owned by\) \*/i);

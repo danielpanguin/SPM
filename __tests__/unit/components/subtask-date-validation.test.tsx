@@ -71,6 +71,7 @@ function setupMocks() {
       is: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       order: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
     };
 
     if (table === "users") {
@@ -85,6 +86,9 @@ function setupMocks() {
     } else if (table === "tasks") {
       chainable.order.mockResolvedValue({ data: [mockParentTask], error: null });
       return chainable;
+    } else if (table === "task_tag") {
+      chainable.order.mockResolvedValue({ data: [], error: null });
+      return chainable;
     }
 
     return chainable;
@@ -97,6 +101,12 @@ describe("AC1: Subtask Date Validation", () => {
   beforeEach(() => {
     setupMocks();
     jest.clearAllMocks();
+
+    // Mock fetch for projects API
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, data: [{ id: 1, name: "Test Project" }] }),
+    });
   });
 
   // Happy Path
@@ -130,6 +140,11 @@ describe("AC1: Subtask Date Validation", () => {
     fireEvent.change(screen.getByLabelText(/end date/i), {
       target: { value: "2025-01-18" }, // Before parent end
     });
+
+    // Select project (now required)
+    const projectSelect = await screen.findByLabelText(/project \*/i);
+    fireEvent.change(projectSelect, { target: { value: "1" } });
+
     fireEvent.change(screen.getByLabelText(/assignee.*owned by/i), {
       target: { value: "user-1" },
     });
@@ -178,6 +193,11 @@ describe("AC1: Subtask Date Validation", () => {
     fireEvent.change(screen.getByLabelText(/end date/i), {
       target: { value: "2025-01-20" }, // Exact match with parent end
     });
+
+    // Select project (now required)
+    const projectSelect = await screen.findByLabelText(/project \*/i);
+    fireEvent.change(projectSelect, { target: { value: "1" } });
+
     fireEvent.change(screen.getByLabelText(/assignee.*owned by/i), {
       target: { value: "user-1" },
     });
@@ -223,6 +243,11 @@ describe("AC1: Subtask Date Validation", () => {
     fireEvent.change(screen.getByLabelText(/end date/i), {
       target: { value: "2025-01-15" },
     });
+
+    // Select project (now required)
+    const projectSelect = await screen.findByLabelText(/project \*/i);
+    fireEvent.change(projectSelect, { target: { value: "1" } });
+
     fireEvent.change(screen.getByLabelText(/assignee.*owned by/i), {
       target: { value: "user-1" },
     });
@@ -270,6 +295,11 @@ describe("AC1: Subtask Date Validation", () => {
     fireEvent.change(screen.getByLabelText(/end date/i), {
       target: { value: "2025-01-25" }, // After parent end (2025-01-20)
     });
+
+    // Select project (now required)
+    const projectSelect = await screen.findByLabelText(/project \*/i);
+    fireEvent.change(projectSelect, { target: { value: "1" } });
+
     fireEvent.change(screen.getByLabelText(/assignee.*owned by/i), {
       target: { value: "user-1" },
     });
