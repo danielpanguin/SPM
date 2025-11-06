@@ -13,7 +13,7 @@ const RecurrenceSchema = z.object({
 export const TaskCreateSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
-  project_id: z.number().int().positive().optional().nullable(),
+  project_id: z.number().int().positive({ message: "Project is required." }),
   status_id: z.number().int().positive().optional().nullable(),
   priority_id: z.number().int().positive().optional().nullable(),
   start_date: z.string().regex(YMD).optional().nullable(),

@@ -387,6 +387,7 @@ export function TaskDashboard({ isDarkMode = false }: TaskDashboardProps = {}) {
           tag: tagName,
           priority: mapPriority(row.priority_id) as Priority,
           status: normalizeStatus(row.status?.status),
+          project: row.project ? { id: row.project.id, name: row.project.name } : null,
 
           comments: [], // map if/when you add a comments relation
           updatedAt: row.updated_at ?? new Date().toISOString(),

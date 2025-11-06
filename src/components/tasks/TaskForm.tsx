@@ -356,6 +356,11 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
     if (!statusId) return "Status is required.";
     if (!priorityId) return "Priority is required.";
 
+    // Project is required when creating a new task
+    if (mode === "create" && !projectId) {
+      return "Project is required.";
+    }
+
     if (typeof parentTaskId === "number") {
       const parentTask = availableParentTasks.find((t) => t.id === parentTaskId);
       if (parentTask) {
@@ -660,21 +665,28 @@ export default function TaskForm({ mode, initial, onSaved, onCancel, accessibleU
 
       <div>
         <label htmlFor={id.project} className="block text-sm font-medium">
-          Project {projects.length > 0 && `(${projects.length} available)`}
+          Project {mode === "create" && "*"} {projects.length > 0 && `(${projects.length} available)`}
         </label>
         <select
           id={id.project}
-          className="mt-1 w-full rounded border p-2"
+          className={`mt-1 w-full rounded border p-2 ${mode === "edit" ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
           value={projectId}
           onChange={(e) => setProjectId(e.target.value === "" ? "" : Number(e.target.value))}
+          disabled={mode === "edit"}
+          required={mode === "create"}
         >
-          <option value="">None (No Project)</option>
+          <option value="">
+            {mode === "create" ? "Select a project" : "None (No Project)"}
+          </option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
         </select>
+        {mode === "edit" && (
+          <p className="mt-1 text-xs text-gray-500">Project cannot be changed after task creation.</p>
+        )}
       </div>
 
       <div>
