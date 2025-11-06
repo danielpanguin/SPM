@@ -48,6 +48,7 @@ export function DepartmentProjectsTable({ isDarkMode = false }: DepartmentProjec
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const [filters, setFilters] = useState<TaskFilters>({
     search: "",
@@ -275,11 +276,29 @@ export function DepartmentProjectsTable({ isDarkMode = false }: DepartmentProjec
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task)
     setIsModalOpen(true)
+    setIsEditing(false)
   }
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedTask(null)
+    setIsEditing(false)
+  }
+
+  const handleEdit = () => {
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = () => {
+    setIsEditing(false)
+    setIsModalOpen(false)
+    setSelectedTask(null)
+    // Reload tasks to show updated data
+    loadTasks()
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
   }
 
   const handleFiltersChange = (newFilters: TaskFilters) => setFilters(newFilters)
@@ -453,14 +472,28 @@ export function DepartmentProjectsTable({ isDarkMode = false }: DepartmentProjec
         </div>
       </div>
 
-      {isModalOpen && (
+      {isModalOpen && !isEditing && (
         <TaskDetailsModal
           task={selectedTask}
           onClose={handleCloseModal}
-          onEdit={() => {}}
+          onEdit={handleEdit}
           onCreateSubtask={() => {}}
           readOnly={isStaff}
         />
+      )}
+
+      {isModalOpen && isEditing && selectedTask && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+          <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-xl overflow-y-auto p-6">
+            <h2 className="text-xl font-semibold mb-4">Edit Task</h2>
+            <TaskForm
+              mode="edit"
+              initial={selectedTask}
+              onSaved={handleSaveEdit}
+              onCancel={handleCancelEdit}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
