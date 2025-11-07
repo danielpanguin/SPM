@@ -1,3 +1,5 @@
+Link to repository: https://github.com/danielpanguin/SPM
+
 # 🧠 SPM — Smart Task Management System  
 *A Software Project Management Coursework Project (IS212 AY 2025/26 T1, SMU)*  
 
