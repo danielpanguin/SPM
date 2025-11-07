@@ -5,7 +5,11 @@ import { supabase, Task, User } from '@/lib/db'
 import { useUser } from '@/hooks/useAuth'
 
 interface TasksByUser {
-  user: User
+  user: {
+    id: string
+    username: string | null
+    email: string
+  }
   tasks: Task[]
 }
 
@@ -15,18 +19,18 @@ interface GanttChartProps {
 
 export default function GanttChart({ isDarkMode }: GanttChartProps) {
   const {
-    currentUserId,
-    currentUserRoleId,
-    currentUserRoleName,
+    userId,
+    role,
     accessibleUserIds
   } = useUser()
   
-  const [tasksByUser, setTasksByUser] = useState<TasksByUser[]>([])
+  const [allTasksByUser, setAllTasksByUser] = useState<TasksByUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [collapsedUsers, setCollapsedUsers] = useState<Set<string>>(new Set())
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
+  const [taskFilter, setTaskFilter] = useState<'all' | 'owned' | 'reportees' | 'collaborator'>('all')
 
   // Initial load - set loading to false when component mounts
   useEffect(() => {
@@ -40,7 +44,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       fetchTasksAndUsers()
     } else {
       // Clear tasks when no accessible users
-      setTasksByUser([])
+      setAllTasksByUser([])
       setLoading(false)
     }
   }, [accessibleUserIds])
@@ -58,8 +62,9 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
     try {
       setLoading(true)
       console.log('🔄 Fetching data from Supabase...')
-      
+
       // Fetch tasks based on accessible user IDs (role-based access)
+      // Exclude archived tasks from Gantt chart
       const { data: tasks, error: tasksError } = accessibleUserIds.length > 0
         ? await supabase
             .from('tasks')
@@ -68,28 +73,81 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
               status(status)
             `)
             .in('owned_by', accessibleUserIds)
+            .eq('is_archived', false)
         : { data: [], error: null }
-      
+
       console.log('🎯 Fetching tasks for accessible user IDs:', accessibleUserIds)
 
-      console.log('👤 Current user ID:', currentUserId)
+      console.log('👤 Current user ID:', userId)
       console.log('📋 Tasks query result:', { tasks, tasksError })
       console.log('🔢 Number of tasks found:', tasks?.length || 0)
+
+      // Fetch tasks where current user is a collaborator
+      const { data: collaboratorTasks, error: collaboratorError } = userId
+        ? await supabase
+            .from('task_collaborator')
+            .select(`
+              task_id,
+              tasks!inner(
+                *,
+                status(status)
+              )
+            `)
+            .eq('user_id', userId)
+            .eq('tasks.is_archived', false)
+        : { data: [], error: null }
+
+      console.log('🤝 Collaborator tasks:', collaboratorTasks)
 
       if (tasksError) {
         console.error('❌ Tasks error:', tasksError)
         throw new Error(`Tasks table error: ${tasksError.message}`)
       }
 
-      // Fetch users for accessible user IDs
-      const { data: users, error: usersError } = accessibleUserIds.length > 0
+      if (collaboratorError) {
+        console.error('❌ Collaborator tasks error:', collaboratorError)
+        throw new Error(`Collaborator tasks error: ${collaboratorError.message}`)
+      }
+
+      // Extract tasks from collaborator relationships and mark them as collaborator tasks
+      const collaboratorTasksList = collaboratorTasks?.map((ct: any) => ({
+        ...ct.tasks,
+        isCollaboratorTask: true
+      })) || []
+
+      // Merge owned tasks and collaborator tasks, avoiding duplicates
+      const allTasksMap = new Map()
+      tasks?.forEach((task: any) => {
+        allTasksMap.set(task.id, { ...task, isCollaboratorTask: false })
+      })
+      collaboratorTasksList.forEach((task: any) => {
+        if (!allTasksMap.has(task.id)) {
+          allTasksMap.set(task.id, task)
+        } else {
+          // If task exists in both, mark it has having both relationships
+          const existing = allTasksMap.get(task.id)
+          allTasksMap.set(task.id, { ...existing, isCollaboratorTask: true })
+        }
+      })
+      const allTasks = Array.from(allTasksMap.values())
+
+      // Get unique user IDs from all tasks (both owned_by and collaborator tasks)
+      const allUserIds = new Set([...accessibleUserIds])
+      collaboratorTasksList.forEach((task: any) => {
+        if (task.owned_by) {
+          allUserIds.add(task.owned_by)
+        }
+      })
+
+      // Fetch users for all relevant user IDs
+      const { data: users, error: usersError } = allUserIds.size > 0
         ? await supabase
             .from('users')
             .select(`
               *,
               roles(name)
             `)
-            .in('id', accessibleUserIds)
+            .in('id', Array.from(allUserIds))
         : { data: [], error: null }
 
       console.log('👥 Users query result:', { users, usersError })
@@ -107,35 +165,36 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
       }, {}) || {}
 
       // Group tasks by user using owned_by column
-      const grouped = tasks?.reduce((acc: Record<string, TasksByUser>, task: any) => {
+      const grouped = allTasks?.reduce((acc: Record<string, TasksByUser>, task: any) => {
         const userId = task.owned_by // Use owned_by instead of user_id
-        const user = userMap[userId] || { 
-          id: userId, 
+        const user = userMap[userId] || {
+          id: userId,
           name: `Unknown User (${userId})`,
-          username: `user_${userId}`
+          username: `user_${userId}`,
+          email: `unknown@${userId}`
         }
-        
+
         if (!acc[userId]) {
           acc[userId] = {
             user: {
               id: user.id,
-              name: user.username || user.name, // Use username if available, fallback to name
+              username: user.username || user.email.split('@')[0], // Use username if available, fallback to email prefix
               email: user.email
             },
             tasks: []
           }
         }
-        
+
         acc[userId].tasks.push({
           ...task,
-          user_name: user.username || user.name
+          user_name: user.username || user.email.split('@')[0]
         })
-        
+
         return acc
       }, {})
 
       console.log('📊 Grouped data:', grouped)
-      setTasksByUser(Object.values(grouped || {}))
+      setAllTasksByUser(Object.values(grouped || {}))
     } catch (err) {
       console.error('❌ Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -148,6 +207,31 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
     return new Date(dateString).toLocaleDateString()
   }
 
+  // Apply filter to tasks
+  const tasksByUser = allTasksByUser.map(({ user, tasks }) => {
+    let filteredTasks = tasks
+
+    if (taskFilter === 'owned') {
+      // Show only tasks owned by current user
+      filteredTasks = tasks.filter((task: any) => task.owned_by === userId)
+    } else if (taskFilter === 'reportees') {
+      // Show only tasks owned by reportees (accessible users excluding current user)
+      filteredTasks = tasks.filter((task: any) =>
+        task.owned_by !== userId && accessibleUserIds.includes(task.owned_by)
+      )
+    } else if (taskFilter === 'collaborator') {
+      // Show only tasks where current user is a collaborator
+      filteredTasks = tasks.filter((task: any) =>
+        task.isCollaboratorTask && task.owned_by !== userId
+      )
+    }
+    // 'all' shows everything (no filter)
+
+    return {
+      user,
+      tasks: filteredTasks
+    }
+  }).filter(({ tasks }) => tasks.length > 0) // Remove users with no tasks after filtering
 
   // Generate days for the current month with responsive intervals
   const getCurrentMonthDays = () => {
@@ -235,6 +319,9 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
 
   // Calculate task bar position and width for the current month
   const getTaskBarStyle = (task: Task) => {
+    if (!task.start_date || !task.end_date) {
+      return { left: '0%', width: '0%', display: 'none' }
+    }
     const taskStart = new Date(task.start_date)
     const taskEnd = new Date(task.end_date)
     
@@ -351,11 +438,43 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
 
   return (
     <div className={`w-full p-3 sm:p-6 transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
-          Task Timeline - Gantt Chart
-        </h1>
-        
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+            Task Timeline
+          </h1>
+          <div className="flex items-center gap-4 mt-2 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Overdue</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-4 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-500'}`}></div>
+              <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Current</span>
+            </div>
+            {/* Task Filter Dropdown */}
+            <div className="flex items-center gap-2">
+              <label className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Filter:</label>
+              <select
+                value={taskFilter}
+                onChange={(e) => setTaskFilter(e.target.value as 'all' | 'owned' | 'reportees' | 'collaborator')}
+                className={`px-3 py-1 rounded border ${
+                  isDarkMode
+                    ? 'bg-gray-700 border-gray-600 text-gray-200'
+                    : 'bg-white border-gray-300 text-gray-800'
+                }`}
+              >
+                <option value="all">All Tasks</option>
+                <option value="owned">My Tasks</option>
+                {(role === 'manager' || role === 'admin') && (
+                  <option value="reportees">Reportees Tasks</option>
+                )}
+                <option value="collaborator">Collaborator Tasks</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center space-x-4">
           {/* Month Navigation */}
           <button 
@@ -452,7 +571,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                         : 'text-gray-800 border-gray-200 bg-gray-100'
                     }`}
                   >
-                    <span>{user.name} ({tasks.length} tasks)</span>
+                    <span>{user.username} ({tasks.length} tasks)</span>
                     <svg 
                       className={`w-4 h-4 transition-transform duration-200 ${
                         isUserCollapsed(user.id) ? 'rotate-0' : 'rotate-90'
@@ -478,7 +597,7 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
 
                 {/* User's Tasks */}
                 <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  isUserCollapsed(user.id) ? 'max-h-0' : 'max-h-[1000px]'
+                  isUserCollapsed(user.id) ? 'max-h-0' : 'max-h-none'
                 }`}>
                   {tasks.map((task) => {
                     const barStyle = getTaskBarStyle(task)
@@ -489,15 +608,15 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                           : 'border-gray-100 hover:bg-gray-50'
                       }`}>
                         <div className={`w-48 sm:w-56 md:w-64 p-2 sm:p-3 text-xs sm:text-sm border-r ${
-                          isDarkMode 
-                            ? 'border-gray-700' 
+                          isDarkMode
+                            ? 'border-gray-700'
                             : 'border-gray-200'
                         }`}>
                           <div className={`font-medium truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                             {task.title}
                           </div>
                           <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {formatDate(task.start_date)} - {formatDate(task.end_date)}
+                            {task.start_date && task.end_date ? `${formatDate(task.start_date)} - ${formatDate(task.end_date)}` : 'No dates'}
                           </div>
                         </div>
                         <div className={`flex-1 relative h-12 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -512,19 +631,14 @@ export default function GanttChart({ isDarkMode }: GanttChartProps) {
                           
                           {/* Task Bar */}
                           {barStyle.display !== 'none' && (
-                            <div 
-                              className={`absolute top-2 h-8 rounded ${getTaskColor(task)} flex items-center justify-between px-2 text-white text-xs font-medium`}
+                            <div
+                              className={`absolute top-2 h-8 rounded ${getTaskColor(task)} flex items-center px-2 text-white text-xs font-medium`}
                               style={barStyle}
                               title={`${task.title} (${(task.status as any)?.status || 'No status'})`}
                             >
                               <span className="truncate">
-                                {task.progress ? `${task.progress}%` : (task.status as any)?.status || 'N/A'}
+                                {(task.status as any)?.status || 'N/A'}
                               </span>
-                              {task.is_overdue && (
-                                <span className="ml-2 px-1 py-0.5 bg-red-600 rounded text-xs font-bold">
-                                  OVERDUE
-                                </span>
-                              )}
                             </div>
                           )}
                         </div>

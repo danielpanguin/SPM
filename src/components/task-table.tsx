@@ -1,0 +1,425 @@
+// task-table.tsx
+"use client"
+
+import { useMemo, useState } from "react"
+import { Badge } from "@/components/ui/ViewTaskUi/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/ViewTaskUi/table"
+import { User, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import type { Task } from "@/types/task"
+import type { TaskFilters } from "./task-filters"
+
+type SortField = 'taskId' | 'status' | 'priority' | 'project' | 'deadline' | 'tag' | 'title' | 'createdAt'
+type SortDirection = 'asc' | 'desc'
+
+type Props = {
+  tasks: Task[]
+  filters: TaskFilters
+  onTaskClick: (task: Task) => void
+  /** Display-only lookups (not stored in Task) */
+  projectByTaskId?: Map<string, string | null>
+  titleById?: Map<string, string>
+  priorityByTaskId?: Map<string, number>
+}
+
+export function TaskTable({ tasks, filters, onTaskClick, projectByTaskId, titleById }: Props) {
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Toggle direction or clear sort
+      if (sortDirection === 'asc') {
+        setSortDirection('desc')
+      } else {
+        setSortField(null)
+        setSortDirection('asc')
+      }
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+
+  const filteredTasks = useMemo(() => {
+    const q = filters.search?.toLowerCase() ?? ""
+
+    return (tasks ?? []).filter((t) => {
+      // Search (title or ID)
+      if (q) {
+        const titleMatch = t.title.toLowerCase().includes(q)
+        const idMatch = t.id.toLowerCase().includes(q)
+        const formattedIdMatch = Number.isFinite(Number(t.id)) && `tsk-${t.id}`.toLowerCase().includes(q)
+        if (!titleMatch && !idMatch && !formattedIdMatch) return false
+      }
+
+      // Status (case-insensitive)
+      if (filters.status && filters.status !== "all") {
+        const filterStatus = filters.status.toLowerCase()
+        const taskStatus = (t.status ?? "").toLowerCase()
+        if (taskStatus !== filterStatus) return false
+      }
+
+      // Priority (case-insensitive)
+      if (filters.priority && filters.priority !== "all") {
+        const filterPriority = filters.priority.toLowerCase()
+        const taskPriority = (t.priority ?? "").toLowerCase()
+        if (taskPriority !== filterPriority) return false
+      }
+
+      // Project (multi-select, lookup from map)
+      if (filters.project && filters.project.length > 0) {
+        const proj = projectByTaskId?.get(t.id) ?? null
+        if (!proj || !filters.project.includes(proj)) return false
+      }
+
+      // Assignee (multi-select, ownedBy + collaborators)
+      if (filters.assignee && filters.assignee.length > 0) {
+        const ownedName = t.ownedBy?.name ? [t.ownedBy.name] : []
+        const collabNames = (t.collaborators ?? []).map((c) => c.name).filter(Boolean)
+        const taskAssignees = [...ownedName, ...collabNames]
+        const hasMatch = filters.assignee.some(name => taskAssignees.includes(name))
+        if (!hasMatch) return false
+      }
+
+      // Tag (multi-select, case-insensitive)
+      if (filters.tag && filters.tag.length > 0) {
+        const taskTag = (t.tag ?? "").toLowerCase()
+        const hasMatch = filters.tag.some(filterTag => taskTag === filterTag.toLowerCase())
+        if (!hasMatch) return false
+      }
+
+      // Parent Task (multi-select)
+      if (filters.parentTask && filters.parentTask.length > 0) {
+        if (!t.parentTaskId || !filters.parentTask.includes(t.parentTaskId)) return false
+      }
+
+      // Deadline preset filters (multi-select)
+      if (filters.deadline && filters.deadline.length > 0 && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const today = new Date()
+        const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
+
+        // Check if task matches ANY of the selected preset filters
+        const matchesAnyPreset = filters.deadline.some((preset) => {
+          switch (preset) {
+            case "overdue":
+              return taskDeadline < startOfToday && t.status !== "completed"
+            case "today":
+              return taskDeadline >= startOfToday && taskDeadline <= endOfToday
+            case "this-week": {
+              const endOfWeek = new Date(today)
+              endOfWeek.setDate(today.getDate() + (7 - today.getDay()))
+              return taskDeadline >= startOfToday && taskDeadline <= endOfWeek
+            }
+            case "next-week": {
+              const startOfNextWeek = new Date(today)
+              startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()) + 1)
+              const endOfNextWeek = new Date(startOfNextWeek)
+              endOfNextWeek.setDate(startOfNextWeek.getDate() + 6)
+              return taskDeadline >= startOfNextWeek && taskDeadline <= endOfNextWeek
+            }
+            case "this-month": {
+              const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+              const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+              return taskDeadline >= startOfMonth && taskDeadline <= endOfMonth
+            }
+            default:
+              return false
+          }
+        })
+
+        if (!matchesAnyPreset) return false
+      }
+
+      // Custom date filter: Tasks due by (on or before)
+      if (filters.deadlineDueBy && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const dueByDate = new Date(filters.deadlineDueBy)
+        dueByDate.setHours(23, 59, 59, 999) // End of the selected day
+        if (taskDeadline > dueByDate) return false
+      }
+
+      // Custom date filter: Tasks due after
+      if (filters.deadlineDueAfter && t.endDate) {
+        const taskDeadline = new Date(t.endDate)
+        const dueAfterDate = new Date(filters.deadlineDueAfter)
+        dueAfterDate.setHours(0, 0, 0, 0) // Start of the selected day
+        if (taskDeadline <= dueAfterDate) return false
+      }
+
+      return true
+    })
+  }, [tasks, filters, projectByTaskId, titleById])
+
+  const sortedTasks = useMemo(() => {
+    if (!sortField) return filteredTasks
+
+    const sorted = [...filteredTasks].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (sortField) {
+        case 'taskId':
+          aValue = Number(a.id) || 0
+          bValue = Number(b.id) || 0
+          break
+        case 'status':
+          aValue = a.status?.toLowerCase() || ''
+          bValue = b.status?.toLowerCase() || ''
+          break
+        case 'priority':
+          // Priority order: P10 > P9 > ... > P1
+          // Extract number from P format (e.g., "P10" -> 10)
+          const extractPriority = (p?: string) => {
+            if (!p) return 0
+            const match = p.match(/P(\d+)/i)
+            return match ? parseInt(match[1], 10) : 0
+          }
+          aValue = extractPriority(a.priority)
+          bValue = extractPriority(b.priority)
+          break
+        case 'project':
+          aValue = (projectByTaskId?.get(a.id) || '').toLowerCase()
+          bValue = (projectByTaskId?.get(b.id) || '').toLowerCase()
+          break
+        case 'deadline':
+          aValue = a.endDate ? new Date(a.endDate).getTime() : 0
+          bValue = b.endDate ? new Date(b.endDate).getTime() : 0
+          break
+        case 'tag':
+          aValue = (a.tag || '').toLowerCase()
+          bValue = (b.tag || '').toLowerCase()
+          break
+        case 'title':
+          aValue = a.title.toLowerCase()
+          bValue = b.title.toLowerCase()
+          break
+        case 'createdAt':
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          break
+        default:
+          return 0
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return sorted
+  }, [filteredTasks, sortField, sortDirection, projectByTaskId])
+
+  const getPriorityClass = (p: Task["priority"]) => {
+    // Extract priority number from P format (e.g., "P10" -> 10)
+    const match = p?.match(/P(\d+)/i)
+    const priorityNum = match ? parseInt(match[1], 10) : 0
+
+    // P8-P10 = High (red)
+    if (priorityNum >= 8) return "bg-red-100 text-red-800 border-red-200"
+    // P4-P7 = Medium (yellow)
+    if (priorityNum >= 4) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    // P1-P3 = Low (green)
+    if (priorityNum >= 1) return "bg-green-100 text-green-800 border-green-200"
+
+    return "bg-gray-100 text-gray-800 border-gray-200"
+  }
+
+  const getStatusClass = (s: Task["status"]) => {
+    const map: Record<string, string> = {
+      completed: "bg-green-100 text-green-800 border-green-200",
+      "in-progress": "bg-blue-100 text-blue-800 border-blue-200",
+      blocked: "bg-red-100 text-red-800 border-red-200",
+      archived: "bg-gray-200 text-gray-700 border-gray-200",
+      review: "bg-purple-100 text-purple-800 border-purple-200",
+      "to-do": "bg-gray-100 text-gray-800 border-gray-200",
+      todo: "bg-gray-100 text-gray-800 border-gray-200",
+    }
+    return map[s] ?? "bg-gray-100 text-gray-800 border-gray-200"
+  }
+
+  const niceDate = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString() : "—"
+
+  const SortIcon = ({ field, type = 'string' }: { field: SortField; type?: 'string' | 'number' | 'date' }) => {
+    const isActive = sortField === field
+    
+    if (!isActive) {
+      return type === 'string' 
+        ? <span className="ml-2 text-xs text-gray-600 inline">A-Z</span>
+        : <ArrowUpDown className="ml-2 h-4 w-4 inline text-gray-600" />
+    }
+    
+    if (type === 'string') {
+      return sortDirection === 'asc'
+        ? <span className="ml-2 text-xs font-semibold inline">A→Z</span>
+        : <span className="ml-2 text-xs font-semibold inline">Z→A</span>
+    }
+    
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="ml-2 h-4 w-4 inline" />
+      : <ArrowDown className="ml-2 h-4 w-4 inline" />
+  }
+
+  return (
+    <div className="rounded-md border border-gray-200 dark:border-gray-700">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none pl-6"
+              onClick={() => handleSort('taskId')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                ID
+                <SortIcon field="taskId" type="number" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('title')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Task Title
+                <SortIcon field="title" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[110px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('priority')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Priority
+                <SortIcon field="priority" type="number" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[140px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('project')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Project
+                <SortIcon field="project" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[100px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('tag')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Tag
+                <SortIcon field="tag" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('status')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Status
+                <SortIcon field="status" type="string" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('deadline')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Deadline
+                <SortIcon field="deadline" type="date" />
+              </div>
+            </TableHead>
+            <TableHead 
+              className="w-[120px] cursor-pointer hover:bg-muted/50 select-none"
+              onClick={() => handleSort('createdAt')}
+            >
+              <div className="flex items-center whitespace-nowrap">
+                Created
+                <SortIcon field="createdAt" type="date" />
+              </div>
+            </TableHead>
+            <TableHead className="w-[180px]">Parent Task</TableHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {sortedTasks.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="text-center py-8 text-gray-700">
+                No tasks found matching your filters
+              </TableCell>
+            </TableRow>
+          ) : (
+            sortedTasks.map((t) => {
+              const project = projectByTaskId?.get(t.id) ?? null
+              const parentTitle = t.parentTaskId ? titleById?.get(t.parentTaskId) : null
+
+              // Check if task is overdue
+              const isOverdue = t.endDate && new Date(t.endDate) < new Date() && t.status !== "completed"
+
+              return (
+                <TableRow
+                  key={t.id}
+                  className={`cursor-pointer hover:bg-muted/50 transition-colors ${
+                    isOverdue ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30' : ''
+                  }`}
+                  onClick={() => onTaskClick(t)}
+                >
+                  <TableCell className="font-mono text-sm text-black pl-6">
+                    {t.id}
+                  </TableCell>
+
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-black">{t.title}</span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <User className="h-3 w-3 text-gray-600" />
+                        <span className="text-xs text-gray-700">{t.ownedBy?.name ?? "Unassigned"}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="whitespace-nowrap overflow-hidden">
+                    <Badge variant="outline" className={`${getPriorityClass(t.priority)} text-xs`}>
+                      {t.priority}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell>
+                    <span className="text-sm font-medium text-black">{project ?? "—"}</span>
+                  </TableCell>
+
+                  <TableCell>
+                    {t.tag ? <Badge variant="outline" className="text-xs bg-purple-100 border-purple-300 text-purple-900">{t.tag}</Badge> : "—"}
+                  </TableCell>
+
+                  <TableCell className="whitespace-nowrap overflow-hidden">
+                    <Badge variant="outline" className={`${getStatusClass(t.status)} capitalize text-xs`}>
+                      {String(t.status).replace("-", " ")}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell>{niceDate(t.endDate)}</TableCell>
+
+                  <TableCell>{niceDate(t.createdAt)}</TableCell>
+
+                  <TableCell>
+                    {t.parentTaskId ? (
+                      <span className="text-sm">
+                        {parentTitle ? `${parentTitle} (${t.parentTaskId})` : t.parentTaskId}
+                      </span>
+                    ) : "—"}
+                  </TableCell>
+                </TableRow>
+              )
+            })
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+export default TaskTable
