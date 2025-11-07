@@ -114,18 +114,3 @@ npm test
 # - Calendar Integration
 # - Focus Timer and Time Logging
 # - User Personalisation Settings
-
-
-# 👩‍💻 Contributors
-# Team SPM — School of Computing and Information Systems, Singapore Management University
-
-# Our team practised rotating Scrum roles across sprints to ensure shared ownership and cross-functional learning.
-
-# Name                     Role(s)
-# (Name 1)                 Sprint 1–2: Scrum Master | Sprint 3–4: Developer
-# (Name 2)                 Sprint 1–2: Developer | Sprint 3–4: Product Owner
-# (Name 3)                 Sprint 1–2: Developer | Sprint 3–4: Tester
-# (Name 4)                 Sprint 1–2: Tester | Sprint 3–4: Developer
-# (Name 5)                 Sprint 1–2: Product Owner | Sprint 3–4: Scrum Master
-
-
